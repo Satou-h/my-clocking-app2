@@ -1,0 +1,417 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif;
+  background: #f5f6fa;
+  color: #2d3436;
+  font-size: 14px;
+}
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+.app-header {
+  background: #2d6cdf;
+  color: #fff;
+  padding: 12px 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.app-header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+.header-sub {
+  font-size: 13px;
+  opacity: 0.85;
+  background: rgba(255,255,255,0.15);
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+
+/* Tab Nav */
+.tab-nav {
+  display: flex;
+  background: #fff;
+  border-bottom: 2px solid #e0e4ef;
+  padding: 0 16px;
+}
+.tab-btn {
+  background: none;
+  border: none;
+  padding: 14px 20px;
+  font-size: 14px;
+  cursor: pointer;
+  color: #636e72;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.2s, border-color 0.2s;
+  font-weight: 500;
+}
+.tab-btn:hover { color: #2d6cdf; }
+.tab-btn.active {
+  color: #2d6cdf;
+  border-bottom-color: #2d6cdf;
+  font-weight: 600;
+}
+
+/* Main */
+.app-main {
+  flex: 1;
+  padding: 24px;
+  max-width: 960px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* Card base */
+.attendance-form,
+.attendance-list,
+.paid-leave-manager,
+.csv-import {
+  background: #fff;
+  border-radius: 10px;
+  padding: 24px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+
+h2 {
+  margin: 0 0 20px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #2d3436;
+  border-left: 4px solid #2d6cdf;
+  padding-left: 10px;
+}
+h3 {
+  margin: 20px 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #636e72;
+}
+
+/* Form rows */
+.form-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.form-row label {
+  width: 140px;
+  flex-shrink: 0;
+  font-weight: 500;
+  color: #636e72;
+}
+.form-row input,
+.form-row select {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid #dfe6e9;
+  border-radius: 6px;
+  font-size: 14px;
+  background: #f8f9fa;
+  transition: border-color 0.2s;
+}
+.form-row input:focus,
+.form-row select:focus {
+  outline: none;
+  border-color: #2d6cdf;
+  background: #fff;
+}
+
+.form-error {
+  color: #d63031;
+  font-size: 13px;
+  margin: -6px 0 12px 150px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+/* Buttons */
+.btn {
+  padding: 9px 20px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: background 0.2s, transform 0.1s;
+}
+.btn:active { transform: scale(0.97); }
+.btn-primary {
+  background: #2d6cdf;
+  color: #fff;
+}
+.btn-primary:hover { background: #1a54c4; }
+.btn-secondary {
+  background: #dfe6e9;
+  color: #2d3436;
+}
+.btn-secondary:hover { background: #b2bec3; }
+.btn-pdf {
+  background: #e53935;
+  color: #fff;
+}
+.btn-pdf:hover { background: #b71c1c; }
+
+/* Icon buttons */
+.btn-icon {
+  padding: 4px 10px;
+  border-radius: 5px;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+.btn-edit { background: #e8f0fe; color: #2d6cdf; }
+.btn-edit:hover { background: #2d6cdf; color: #fff; }
+.btn-delete { background: #ffeaa7; color: #e17055; }
+.btn-delete:hover { background: #e17055; color: #fff; }
+
+/* Table */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.data-table th {
+  background: #f1f3f9;
+  padding: 10px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: #636e72;
+  border-bottom: 2px solid #dfe6e9;
+  white-space: nowrap;
+}
+.data-table td {
+  padding: 9px 12px;
+  border-bottom: 1px solid #f1f3f9;
+  vertical-align: middle;
+}
+.data-table tr:hover td { background: #f8f9ff; }
+.actions { display: flex; gap: 6px; }
+
+/* Row type colors */
+.row-paid_leave td { background: #fff9e6; }
+.row-holiday td { background: #f0f9f0; }
+.row-absence td { background: #fff0f0; }
+
+/* Badges */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.badge-work { background: #e8f0fe; color: #2d6cdf; }
+.badge-paid_leave { background: #fff3cd; color: #856404; }
+.badge-holiday { background: #d4edda; color: #155724; }
+.badge-absence { background: #f8d7da; color: #721c24; }
+
+/* List filter */
+.list-filter {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.list-filter select {
+  padding: 7px 12px;
+  border: 1px solid #dfe6e9;
+  border-radius: 6px;
+  font-size: 14px;
+  background: #f8f9fa;
+}
+
+/* Monthly summary */
+.monthly-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.summary-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #f1f3f9;
+  border-radius: 8px;
+  padding: 8px 14px;
+  min-width: 72px;
+}
+.summary-item.overtime { background: #fff3e0; }
+.summary-item.latenight { background: #f3e5f5; }
+.summary-item.late { background: #fce4ec; }
+.summary-item.early { background: #fce4ec; }
+.s-label { font-size: 11px; color: #636e72; font-weight: 500; }
+.s-value { font-size: 16px; font-weight: 700; color: #2d3436; margin-top: 2px; }
+.summary-item.overtime .s-value { color: #e65100; }
+.summary-item.latenight .s-value { color: #7b1fa2; }
+.summary-item.late .s-value, .summary-item.early .s-value { color: #c62828; }
+
+.empty-message {
+  text-align: center;
+  color: #b2bec3;
+  padding: 40px 0;
+  font-size: 15px;
+}
+
+/* Paid leave stats */
+.paid-leave-stats {
+  display: flex;
+  gap: 16px;
+  margin: 16px 0;
+}
+.stat-card {
+  flex: 1;
+  background: #f1f3f9;
+  border-radius: 10px;
+  padding: 16px;
+  text-align: center;
+  border: 2px solid transparent;
+  transition: border-color 0.2s;
+}
+.stat-card.warning { border-color: #fdcb6e; background: #fffbf0; }
+.stat-label {
+  display: block;
+  font-size: 12px;
+  color: #636e72;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #2d3436;
+}
+.stat-value.used { color: #e17055; }
+.stat-value.remaining { color: #00b894; }
+
+.paid-leave-set .form-row {
+  flex-wrap: wrap;
+}
+
+.text-warning { color: #e17055; font-weight: 600; }
+.day-cell { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.dow-label { font-size: 11px; color: #636e72; }
+.dow-sun { color: #e53935; font-weight: 600; }
+.dow-sat { color: #1e88e5; font-weight: 600; }
+
+.text-overtime { color: #e65100; font-weight: 600; }
+.text-latenight { color: #7b1fa2; font-weight: 600; }
+
+/* Status badges */
+.badge-late { background: #fce4ec; color: #c62828; }
+.badge-early { background: #fff8e1; color: #f57f17; }
+.status-badges { display: flex; gap: 4px; flex-wrap: wrap; }
+
+/* Table scroll */
+.table-wrap { overflow-x: auto; }
+
+/* Calc preview in form */
+.calc-preview {
+  background: #f8f9ff;
+  border: 1px solid #e0e4ef;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 24px;
+}
+.calc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+.calc-label { color: #636e72; }
+.calc-val { font-weight: 600; color: #2d3436; }
+.val-overtime { color: #e65100; }
+.val-latenight { color: #7b1fa2; }
+.text-ok { color: #00b894; font-weight: 600; }
+
+/* Std hint in label */
+.std-hint { font-size: 11px; color: #b2bec3; font-weight: 400; }
+
+/* Work settings */
+.work-settings-form { max-width: 560px; }
+.settings-info {
+  background: #f8f9ff;
+  border: 1px solid #e0e4ef;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 20px 0;
+}
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.info-label { font-size: 11px; color: #636e72; font-weight: 500; }
+.info-value { font-size: 13px; font-weight: 600; color: #2d3436; }
+.save-notice { color: #00b894; font-weight: 600; font-size: 13px; }
+
+/* CSV */
+.csv-section { margin-bottom: 8px; }
+.hint {
+  color: #636e72;
+  font-size: 13px;
+  line-height: 1.7;
+  margin-bottom: 12px;
+}
+.hint code {
+  background: #f1f3f9;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+}
+.csv-errors {
+  background: #fff0f0;
+  border: 1px solid #fab1a0;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: #d63031;
+}
+.csv-errors ul { margin: 6px 0 0; padding-left: 20px; }
+.csv-preview { margin-top: 16px; }
+.preview-table { max-height: 260px; display: block; overflow-y: auto; }
+
+hr {
+  border: none;
+  border-top: 1px solid #eee;
+  margin: 24px 0;
+}
+
+@media (max-width: 600px) {
+  .app-main { padding: 12px; }
+  .form-row { flex-direction: column; align-items: flex-start; }
+  .form-row label { width: auto; }
+  .paid-leave-stats { flex-direction: column; }
+  .monthly-summary { flex-direction: column; gap: 8px; }
+  .tab-btn { padding: 10px 12px; font-size: 13px; }
+  .data-table { font-size: 12px; }
+}
