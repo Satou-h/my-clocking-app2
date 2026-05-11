@@ -4,6 +4,7 @@ import {
   calcWorkMinutes, calcOvertimeMinutes, calcLateNightMinutes,
   isLateArrival, isEarlyDeparture, formatMinutes,
 } from './storage';
+import { getHolidayName } from './holidays';
 
 const DOW = ['日', '月', '火', '水', '木', '金', '土'];
 
@@ -47,28 +48,60 @@ export function printMonthlyAttendance(
     if (isEarlyDeparture(r.clockOut, workSettings.standardEndTime)) earlyCount++;
   }
 
-  // テーブル行
-  const rows = filtered.map((r) => {
-    const hasTime = r.type === 'work' && r.clockIn && r.clockOut;
-    const wMin = hasTime ? calcWorkMinutes(r.clockIn!, r.clockOut!, r.breakMinutes ?? 0) : null;
-    const ot   = wMin !== null ? calcOvertimeMinutes(wMin) : null;
-    const ln   = hasTime ? calcLateNightMinutes(r.clockIn!, r.clockOut!) : null;
-    const late  = hasTime ? isLateArrival(r.clockIn!, workSettings.standardStartTime) : false;
-    const early = hasTime ? isEarlyDeparture(r.clockOut!, workSettings.standardEndTime) : false;
+  // 当月の全日を生成
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const recordByDate = new Map(filtered.map((r) => [r.date, r]));
 
-    const typeClass = r.type === 'paid_leave' ? 'tr-paid' : r.type === 'holiday' ? 'tr-holiday' : '';
+  const rows = Array.from({ length: daysInMonth }, (_, i) => {
+    const day = i + 1;
+    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const r = recordByDate.get(dateStr);
+
+    // 登録済みレコード
+    if (r) {
+      const hasTime = r.type === 'work' && r.clockIn && r.clockOut;
+      const wMin = hasTime ? calcWorkMinutes(r.clockIn!, r.clockOut!, r.breakMinutes ?? 0) : null;
+      const ot   = wMin !== null ? calcOvertimeMinutes(wMin) : null;
+      const ln   = hasTime ? calcLateNightMinutes(r.clockIn!, r.clockOut!) : null;
+      const late  = hasTime ? isLateArrival(r.clockIn!, workSettings.standardStartTime) : false;
+      const early = hasTime ? isEarlyDeparture(r.clockOut!, workSettings.standardEndTime) : false;
+      const typeClass = r.type === 'paid_leave' ? 'tr-paid' : r.type === 'holiday' ? 'tr-holiday' : r.type === 'absence' ? 'tr-absence' : '';
+      return `
+        <tr class="${typeClass}">
+          <td class="td-date">${fmtDate(dateStr)}</td>
+          <td><span class="badge ${r.type}">${ATTENDANCE_TYPE_LABELS[r.type]}</span></td>
+          <td>${r.clockIn ?? '-'}</td>
+          <td>${r.clockOut ?? '-'}</td>
+          <td>${r.type === 'work' ? (r.breakMinutes ?? 0) : '-'}</td>
+          <td>${wMin !== null ? formatMinutes(wMin) : '-'}</td>
+          <td class="${ot && ot > 0 ? 'td-ot' : ''}">${ot !== null ? (ot > 0 ? formatMinutes(ot) : '-') : '-'}</td>
+          <td class="${ln && ln > 0 ? 'td-ln' : ''}">${ln !== null ? (ln > 0 ? formatMinutes(ln) : '-') : '-'}</td>
+          <td>${statusBadges(late, early)}</td>
+          <td class="td-notes">${r.notes ?? ''}</td>
+        </tr>`;
+    }
+
+    // 未登録日：土日・祝日
+    const dow = new Date(dateStr + 'T00:00:00').getDay();
+    const holidayName = getHolidayName(dateStr);
+    if (dow === 0 || dow === 6 || holidayName) {
+      return `
+        <tr class="tr-off">
+          <td class="td-date">${fmtDate(dateStr)}</td>
+          <td><span class="badge holiday">休日</span></td>
+          <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
+          <td></td>
+          <td class="td-notes td-holiday-name">${holidayName ?? ''}</td>
+        </tr>`;
+    }
+
+    // 未登録の平日
     return `
-      <tr class="${typeClass}">
-        <td class="td-date">${fmtDate(r.date)}</td>
-        <td><span class="badge ${r.type}">${ATTENDANCE_TYPE_LABELS[r.type]}</span></td>
-        <td>${r.clockIn ?? '-'}</td>
-        <td>${r.clockOut ?? '-'}</td>
-        <td>${r.type === 'work' ? (r.breakMinutes ?? 0) : '-'}</td>
-        <td>${wMin !== null ? formatMinutes(wMin) : '-'}</td>
-        <td class="${ot && ot > 0 ? 'td-ot' : ''}">${ot !== null ? (ot > 0 ? formatMinutes(ot) : '-') : '-'}</td>
-        <td class="${ln && ln > 0 ? 'td-ln' : ''}">${ln !== null ? (ln > 0 ? formatMinutes(ln) : '-') : '-'}</td>
-        <td>${statusBadges(late, early)}</td>
-        <td class="td-notes">${r.notes ?? ''}</td>
+      <tr class="tr-empty">
+        <td class="td-date">${fmtDate(dateStr)}</td>
+        <td>-</td>
+        <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
+        <td></td><td></td>
       </tr>`;
   }).join('');
 
@@ -152,6 +185,11 @@ export function printMonthlyAttendance(
   .tr-paid    td { background: #fffde7 !important; }
   .tr-holiday td { background: #f1f8e9 !important; }
   .tr-absence td { background: #fff0f0 !important; }
+  .tr-off     td { background: #f2f3f5 !important; color: #aaa; }
+  .tr-off .dow-日 { color: #ef9a9a; }
+  .tr-off .dow-土 { color: #90caf9; }
+  .td-holiday-name { color: #888 !important; font-size: 7.5px; }
+  .tr-empty   td { background: #fafbfc !important; color: #ccc; }
 
   .dow-日 { color: #e53935; font-weight: 700; }
   .dow-土 { color: #1e88e5; font-weight: 700; }
