@@ -6,6 +6,7 @@ import {
   isLateArrival, isEarlyDeparture, formatMinutes,
 } from '../utils/storage';
 import { printMonthlyAttendance } from '../utils/pdf';
+import { getHolidayName } from '../utils/holidays';
 
 interface Props {
   records: AttendanceRecord[];
@@ -13,6 +14,11 @@ interface Props {
   onEdit: (record: AttendanceRecord) => void;
   onDelete: (id: string) => void;
 }
+
+type DayRow =
+  | { kind: 'record'; record: AttendanceRecord }
+  | { kind: 'off'; date: string; label: string }
+  | { kind: 'empty'; date: string };
 
 export default function AttendanceList({ records, workSettings, onEdit, onDelete }: Props) {
   const currentYear = new Date().getFullYear();
@@ -26,7 +32,7 @@ export default function AttendanceList({ records, workSettings, onEdit, onDelete
     .filter((r) => r.date.startsWith(prefix))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  // 月次集計
+  // 月次集計（実際の登録レコードのみ）
   const summary = filtered.reduce(
     (acc, r) => {
       if (r.type !== 'work' || !r.clockIn || !r.clockOut) return acc;
@@ -47,6 +53,25 @@ export default function AttendanceList({ records, workSettings, onEdit, onDelete
     { workDays: 0, workMins: 0, overtimeMins: 0, lateNightMins: 0, lateCount: 0, earlyCount: 0 }
   );
   const paidDays = filtered.filter((r) => r.type === 'paid_leave').length;
+
+  // 当月の全日を生成
+  const daysInMonth = new Date(filterYear, filterMonth, 0).getDate();
+  const recordByDate = new Map(filtered.map((r) => [r.date, r]));
+
+  const dayRows: DayRow[] = Array.from({ length: daysInMonth }, (_, i) => {
+    const day = i + 1;
+    const dateStr = `${filterYear}-${String(filterMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const record = recordByDate.get(dateStr);
+    if (record) return { kind: 'record', record };
+
+    const dow = new Date(dateStr + 'T00:00:00').getDay();
+    if (dow === 0 || dow === 6) return { kind: 'off', date: dateStr, label: '' };
+
+    const holiday = getHolidayName(dateStr);
+    if (holiday) return { kind: 'off', date: dateStr, label: holiday };
+
+    return { kind: 'empty', date: dateStr };
+  });
 
   const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -123,73 +148,106 @@ export default function AttendanceList({ records, workSettings, onEdit, onDelete
         </div>
       </div>
 
-      {filtered.length === 0 ? (
-        <p className="empty-message">この月の記録はありません</p>
-      ) : (
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>日付</th>
-                <th>種別</th>
-                <th>出勤</th>
-                <th>退勤</th>
-                <th>休憩</th>
-                <th>労働時間</th>
-                <th>残業</th>
-                <th>深夜</th>
-                <th>状態</th>
-                <th>備考</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((r) => {
-                const hasTime = r.type === 'work' && r.clockIn && r.clockOut;
-                const workMin = hasTime
-                  ? calcWorkMinutes(r.clockIn!, r.clockOut!, r.breakMinutes ?? 0)
-                  : null;
-                const otMin = workMin !== null ? calcOvertimeMinutes(workMin) : null;
-                const lnMin = hasTime ? calcLateNightMinutes(r.clockIn!, r.clockOut!) : null;
-                const late = hasTime ? isLateArrival(r.clockIn!, workSettings.standardStartTime) : false;
-                const early = hasTime ? isEarlyDeparture(r.clockOut!, workSettings.standardEndTime) : false;
-
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>日付</th>
+              <th>種別</th>
+              <th>出勤</th>
+              <th>退勤</th>
+              <th>休憩</th>
+              <th>労働時間</th>
+              <th>残業</th>
+              <th>深夜</th>
+              <th>状態</th>
+              <th>備考</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {dayRows.map((row) => {
+              if (row.kind === 'off') {
                 return (
-                  <tr key={r.id} className={`row-${r.type}`}>
-                    <td>{formatDay(r.date)}</td>
-                    <td>
-                      <span className={`badge badge-${r.type}`}>
-                        {ATTENDANCE_TYPE_LABELS[r.type]}
-                      </span>
-                    </td>
-                    <td>{r.clockIn ?? '-'}</td>
-                    <td>{r.clockOut ?? '-'}</td>
-                    <td>{r.type === 'work' ? (r.breakMinutes ?? 0) : '-'}</td>
-                    <td>{workMin !== null ? formatMinutes(workMin) : '-'}</td>
-                    <td className={otMin && otMin > 0 ? 'text-overtime' : ''}>
-                      {otMin !== null ? (otMin > 0 ? formatMinutes(otMin) : '-') : '-'}
-                    </td>
-                    <td className={lnMin && lnMin > 0 ? 'text-latenight' : ''}>
-                      {lnMin !== null ? (lnMin > 0 ? formatMinutes(lnMin) : '-') : '-'}
-                    </td>
-                    <td>
-                      <div className="status-badges">
-                        {late && <span className="badge badge-late">遅刻</span>}
-                        {early && <span className="badge badge-early">早退</span>}
-                      </div>
-                    </td>
-                    <td>{r.notes ?? ''}</td>
-                    <td className="actions">
-                      <button className="btn-icon btn-edit" onClick={() => onEdit(r)}>編集</button>
-                      <button className="btn-icon btn-delete" onClick={() => confirmDelete(r.id, r.date)}>削除</button>
-                    </td>
+                  <tr key={row.date} className="row-off">
+                    <td>{formatDay(row.date)}</td>
+                    <td><span className="badge badge-holiday">休日</span></td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td></td>
+                    <td className="note-holiday">{row.label}</td>
+                    <td></td>
                   </tr>
                 );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+              }
+
+              if (row.kind === 'empty') {
+                return (
+                  <tr key={row.date} className="row-empty">
+                    <td>{formatDay(row.date)}</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                  </tr>
+                );
+              }
+
+              const r = row.record;
+              const hasTime = r.type === 'work' && r.clockIn && r.clockOut;
+              const workMin = hasTime
+                ? calcWorkMinutes(r.clockIn!, r.clockOut!, r.breakMinutes ?? 0)
+                : null;
+              const otMin = workMin !== null ? calcOvertimeMinutes(workMin) : null;
+              const lnMin = hasTime ? calcLateNightMinutes(r.clockIn!, r.clockOut!) : null;
+              const late = hasTime ? isLateArrival(r.clockIn!, workSettings.standardStartTime) : false;
+              const early = hasTime ? isEarlyDeparture(r.clockOut!, workSettings.standardEndTime) : false;
+
+              return (
+                <tr key={r.id} className={`row-${r.type}`}>
+                  <td>{formatDay(r.date)}</td>
+                  <td>
+                    <span className={`badge badge-${r.type}`}>
+                      {ATTENDANCE_TYPE_LABELS[r.type]}
+                    </span>
+                  </td>
+                  <td>{r.clockIn ?? '-'}</td>
+                  <td>{r.clockOut ?? '-'}</td>
+                  <td>{r.type === 'work' ? (r.breakMinutes ?? 0) : '-'}</td>
+                  <td>{workMin !== null ? formatMinutes(workMin) : '-'}</td>
+                  <td className={otMin && otMin > 0 ? 'text-overtime' : ''}>
+                    {otMin !== null ? (otMin > 0 ? formatMinutes(otMin) : '-') : '-'}
+                  </td>
+                  <td className={lnMin && lnMin > 0 ? 'text-latenight' : ''}>
+                    {lnMin !== null ? (lnMin > 0 ? formatMinutes(lnMin) : '-') : '-'}
+                  </td>
+                  <td>
+                    <div className="status-badges">
+                      {late && <span className="badge badge-late">遅刻</span>}
+                      {early && <span className="badge badge-early">早退</span>}
+                    </div>
+                  </td>
+                  <td>{r.notes ?? ''}</td>
+                  <td className="actions">
+                    <button className="btn-icon btn-edit" onClick={() => onEdit(r)}>編集</button>
+                    <button className="btn-icon btn-delete" onClick={() => confirmDelete(r.id, r.date)}>削除</button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

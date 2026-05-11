@@ -211,6 +211,11 @@ h3 {
 .row-paid_leave td { background: #fff9e6; }
 .row-holiday td { background: #f0f9f0; }
 .row-absence td { background: #fff0f0; }
+.row-off td { background: #f2f3f5; color: #adb5bd; }
+.row-off .dow-sun { color: #ef9a9a; }
+.row-off .dow-sat { color: #90caf9; }
+.row-off .note-holiday { color: #868e96; font-size: 11px; }
+.row-empty td { background: #fafbfc; color: #ced4da; }
 
 /* Badges */
 .badge {
