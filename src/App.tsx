@@ -1,24 +1,28 @@
 import { useState, useCallback } from 'react';
 import type { AttendanceRecord, PaidLeaveSettings, WorkSettings } from './types/attendance';
+import type { TransportRecord } from './types/transport';
 import {
   loadRecords, saveRecords,
   loadPaidLeaveSettings, savePaidLeaveSettings,
   loadWorkSettings, saveWorkSettings,
+  loadTransportRecords, saveTransportRecords,
 } from './utils/storage';
 import AttendanceForm from './components/AttendanceForm';
 import AttendanceList from './components/AttendanceList';
 import PaidLeaveManager from './components/PaidLeaveManager';
 import CSVImport from './components/CSVImport';
 import WorkSettingsForm from './components/WorkSettingsForm';
+import TransportTab from './components/TransportTab';
 import './App.css';
 
-type Tab = 'input' | 'list' | 'paid_leave' | 'csv' | 'settings';
+type Tab = 'input' | 'list' | 'paid_leave' | 'csv' | 'transport' | 'settings';
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('input');
   const [records, setRecords] = useState<AttendanceRecord[]>(loadRecords);
   const [paidLeave, setPaidLeave] = useState<PaidLeaveSettings[]>(loadPaidLeaveSettings);
   const [workSettings, setWorkSettings] = useState<WorkSettings>(loadWorkSettings);
+  const [transportRecords, setTransportRecords] = useState<TransportRecord[]>(loadTransportRecords);
   const [editingRecord, setEditingRecord] = useState<AttendanceRecord | undefined>();
 
   const persistRecords = useCallback((next: AttendanceRecord[]) => {
@@ -55,6 +59,21 @@ export default function App() {
     saveWorkSettings(settings);
   }
 
+  function handleSaveTransport(record: TransportRecord) {
+    const exists = transportRecords.some((r) => r.id === record.id);
+    const next = exists
+      ? transportRecords.map((r) => r.id === record.id ? record : r)
+      : [...transportRecords, record];
+    setTransportRecords(next);
+    saveTransportRecords(next);
+  }
+
+  function handleDeleteTransport(id: string) {
+    const next = transportRecords.filter((r) => r.id !== id);
+    setTransportRecords(next);
+    saveTransportRecords(next);
+  }
+
   function handleImport(imported: AttendanceRecord[], mode: 'merge' | 'replace') {
     if (mode === 'replace') {
       persistRecords(imported);
@@ -79,6 +98,7 @@ export default function App() {
     { key: 'input', label: '勤怠入力' },
     { key: 'list', label: '勤怠一覧' },
     { key: 'paid_leave', label: '有給管理' },
+    { key: 'transport', label: '交通費' },
     { key: 'csv', label: 'CSV' },
     { key: 'settings', label: '設定' },
   ];
@@ -127,6 +147,14 @@ export default function App() {
         )}
         {tab === 'paid_leave' && (
           <PaidLeaveManager records={records} settings={paidLeave} onSaveSettings={handleSavePaidLeave} />
+        )}
+        {tab === 'transport' && (
+          <TransportTab
+            records={transportRecords}
+            attendanceRecords={records}
+            onSave={handleSaveTransport}
+            onDelete={handleDeleteTransport}
+          />
         )}
         {tab === 'csv' && (
           <CSVImport records={records} onImport={handleImport} />

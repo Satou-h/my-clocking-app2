@@ -1,9 +1,11 @@
 import type { AttendanceRecord, PaidLeaveSettings, WorkSettings } from '../types/attendance';
 import { DEFAULT_WORK_SETTINGS } from '../types/attendance';
+import type { TransportRecord } from '../types/transport';
 
 const RECORDS_KEY = 'clocking_records';
 const PAID_LEAVE_KEY = 'clocking_paid_leave';
 const WORK_SETTINGS_KEY = 'clocking_work_settings';
+const TRANSPORT_KEY = 'clocking_transport';
 
 export function loadRecords(): AttendanceRecord[] {
   try {
@@ -42,6 +44,19 @@ export function loadWorkSettings(): WorkSettings {
 
 export function saveWorkSettings(settings: WorkSettings): void {
   localStorage.setItem(WORK_SETTINGS_KEY, JSON.stringify(settings));
+}
+
+export function loadTransportRecords(): TransportRecord[] {
+  try {
+    const raw = localStorage.getItem(TRANSPORT_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveTransportRecords(records: TransportRecord[]): void {
+  localStorage.setItem(TRANSPORT_KEY, JSON.stringify(records));
 }
 
 export function timeToMins(t: string): number {
