@@ -3,7 +3,7 @@ import type { AttendanceRecord, WorkSettings, PaidLeaveSettings } from '../types
 import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
 import {
   calcWorkMinutes, calcOvertimeMinutes, calcLateNightMinutes,
-  isLateArrival, isEarlyDeparture, formatMinutes,
+  isLateArrival, isEarlyDeparture, formatMinutes, loadUserProfile,
 } from '../utils/storage';
 import { printMonthlyAttendance } from '../utils/pdf';
 import { getHolidayName } from '../utils/holidays';
@@ -141,7 +141,11 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
         </select>
         <button
           className="btn btn-pdf"
-          onClick={() => printMonthlyAttendance(records, workSettings, filterYear, filterMonth, plRemaining)}
+          onClick={() => {
+            const p = loadUserProfile();
+            if (!p.employeeId || !p.lastName) { alert('画面上部に社員番号と苗字を入力してください。'); return; }
+            printMonthlyAttendance(records, workSettings, filterYear, filterMonth, plRemaining, p.employeeId, p.lastName);
+          }}
           title={`${filterYear}年${filterMonth}月をPDF出力`}
         >
           PDF出力

@@ -10,6 +10,11 @@ import { getHolidayName } from './holidays';
 
 const DOW = ['日', '月', '火', '水', '木', '金', '土'];
 
+function buildFilename(prefix: string, dateStr: string, employeeId: string, lastName: string): string {
+  const userPart = (employeeId || lastName) ? `_${employeeId}${lastName}` : '';
+  return `${prefix}${dateStr}${userPart}`;
+}
+
 function fmtDate(d: string) {
   const date = new Date(d + 'T00:00:00');
   const day = date.getDate();
@@ -30,6 +35,8 @@ export function printMonthlyAttendance(
   year: number,
   month: number,
   plRemaining: number | null = null,
+  employeeId = '',
+  lastName = '',
 ) {
   const prefix = `${year}-${String(month).padStart(2, '0')}`;
   const filtered = records
@@ -140,7 +147,7 @@ export function printMonthlyAttendance(
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>${year}年${month}月 勤怠一覧</title>
+<title>${buildFilename('勤務表', `${year}${String(month).padStart(2, '0')}`, employeeId, lastName)}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -357,8 +364,9 @@ export interface LeaveApplicationData {
   reason: string;
 }
 
-export function printLeaveApplication(data: LeaveApplicationData) {
+export function printLeaveApplication(data: LeaveApplicationData, employeeId = '', lastName = '') {
   const { applicationDate, name, leaveLabel, startDate, endDate, leaveDays, reason } = data;
+  const yymmdd = applicationDate.replace(/-/g, '').slice(2);
   const dateRange = startDate === endDate
     ? fmtJpDate(startDate)
     : `${fmtJpDate(startDate)} 〜 ${fmtJpDate(endDate)}`;
@@ -367,7 +375,7 @@ export function printLeaveApplication(data: LeaveApplicationData) {
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>休暇申請書</title>
+<title>${buildFilename('休暇申請書', yymmdd, employeeId, lastName)}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -480,8 +488,9 @@ export interface LateEarlyApplicationData {
   reason: string;
 }
 
-export function printLateEarlyApplication(data: LateEarlyApplicationData) {
+export function printLateEarlyApplication(data: LateEarlyApplicationData, employeeId = '', lastName = '') {
   const { applicationDate, name, type, targetDate, scheduledTime, actualTime, reason } = data;
+  const yymmdd = applicationDate.replace(/-/g, '').slice(2);
 
   const sealCss = `
   .name-row { margin-bottom: 6px; }
@@ -494,7 +503,7 @@ export function printLateEarlyApplication(data: LateEarlyApplicationData) {
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>遅刻・早退申請書</title>
+<title>${buildFilename('遅早退申請書', yymmdd, employeeId, lastName)}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -598,6 +607,8 @@ export function printTransportRecords(
   records: TransportRecord[],
   year: number,
   month: number,
+  employeeId = '',
+  lastName = '',
 ) {
   const prefix = `${year}-${String(month).padStart(2, '0')}`;
   const filtered = records
@@ -637,7 +648,7 @@ export function printTransportRecords(
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>${year}年${month}月 交通費一覧</title>
+<title>${buildFilename('小口交通費', `${year}${String(month).padStart(2, '0')}`, employeeId, lastName)}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {

@@ -6,6 +6,25 @@ const RECORDS_KEY = 'clocking_records';
 const PAID_LEAVE_KEY = 'clocking_paid_leave';
 const WORK_SETTINGS_KEY = 'clocking_work_settings';
 const TRANSPORT_KEY = 'clocking_transport';
+const USER_PROFILE_KEY = 'clocking_user_profile';
+
+export interface UserProfile {
+  employeeId: string;
+  lastName: string;
+}
+
+export function loadUserProfile(): UserProfile {
+  try {
+    const raw = localStorage.getItem(USER_PROFILE_KEY);
+    return raw ? JSON.parse(raw) : { employeeId: '', lastName: '' };
+  } catch {
+    return { employeeId: '', lastName: '' };
+  }
+}
+
+export function saveUserProfile(profile: UserProfile): void {
+  localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(profile));
+}
 
 export function loadRecords(): AttendanceRecord[] {
   try {

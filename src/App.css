@@ -38,6 +38,32 @@ body {
   padding: 3px 10px;
   border-radius: 20px;
 }
+.header-profile {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.header-profile-label {
+  font-size: 12px;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+.header-profile-input {
+  width: 90px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.4);
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+  font-size: 13px;
+}
+.header-profile-input::placeholder { color: rgba(255,255,255,0.5); }
+.header-profile-input:focus {
+  outline: none;
+  background: rgba(255,255,255,0.25);
+  border-color: rgba(255,255,255,0.7);
+}
 
 /* Tab Nav */
 .tab-nav {

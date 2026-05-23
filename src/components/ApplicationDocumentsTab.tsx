@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { printLeaveApplication, printLateEarlyApplication } from '../utils/pdf';
+import { loadUserProfile } from '../utils/storage';
 
 const LEAVE_APP_SETTINGS_KEY = 'clocking_leave_app_settings';
 
@@ -72,6 +73,8 @@ export default function ApplicationDocumentsTab() {
     : 0.5;
 
   function handlePrintLeave() {
+    const { employeeId, lastName } = loadUserProfile();
+    if (!employeeId || !lastName) { alert('画面上部に社員番号と苗字を入力してください。'); return; }
     printLeaveApplication({
       applicationDate,
       name: settings.name,
@@ -80,10 +83,12 @@ export default function ApplicationDocumentsTab() {
       endDate: effectiveEnd,
       leaveDays,
       reason,
-    });
+    }, employeeId, lastName);
   }
 
   function handlePrintLateEarly() {
+    const { employeeId, lastName } = loadUserProfile();
+    if (!employeeId || !lastName) { alert('画面上部に社員番号と苗字を入力してください。'); return; }
     printLateEarlyApplication({
       applicationDate: leAppDate,
       name: settings.name,
@@ -92,7 +97,7 @@ export default function ApplicationDocumentsTab() {
       scheduledTime,
       actualTime,
       reason: leReason,
-    });
+    }, employeeId, lastName);
   }
 
   return (

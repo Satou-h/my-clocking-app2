@@ -6,6 +6,7 @@ import {
   loadPaidLeaveSettings, savePaidLeaveSettings,
   loadWorkSettings, saveWorkSettings,
   loadTransportRecords, saveTransportRecords,
+  loadUserProfile, saveUserProfile,
 } from './utils/storage';
 import AttendanceForm from './components/AttendanceForm';
 import AttendanceList from './components/AttendanceList';
@@ -25,6 +26,13 @@ export default function App() {
   const [workSettings, setWorkSettings] = useState<WorkSettings>(loadWorkSettings);
   const [transportRecords, setTransportRecords] = useState<TransportRecord[]>(loadTransportRecords);
   const [editingRecord, setEditingRecord] = useState<AttendanceRecord | undefined>();
+  const [userProfile, setUserProfile] = useState(loadUserProfile);
+
+  function handleProfileChange(key: 'employeeId' | 'lastName', value: string) {
+    const next = { ...userProfile, [key]: value };
+    setUserProfile(next);
+    saveUserProfile(next);
+  }
 
   const persistRecords = useCallback((next: AttendanceRecord[]) => {
     setRecords(next);
@@ -153,6 +161,24 @@ export default function App() {
         <span className="header-sub">
           基準時間: {workSettings.standardStartTime} 〜 {workSettings.standardEndTime}
         </span>
+        <div className="header-profile">
+          <label className="header-profile-label">社員番号</label>
+          <input
+            className="header-profile-input"
+            type="text"
+            value={userProfile.employeeId}
+            onChange={(e) => handleProfileChange('employeeId', e.target.value)}
+            placeholder="例: SS01"
+          />
+          <label className="header-profile-label">苗字</label>
+          <input
+            className="header-profile-input"
+            type="text"
+            value={userProfile.lastName}
+            onChange={(e) => handleProfileChange('lastName', e.target.value)}
+            placeholder="例: 佐藤"
+          />
+        </div>
       </header>
 
       <nav className="tab-nav">
