@@ -183,7 +183,7 @@ export default function TransportTab({ records, attendanceRecords, onSave, onDel
             <label>出発地点 <span className="required">*</span></label>
             <input
               type="text"
-              placeholder="例: 新宿駅"
+              placeholder="例: さっぽろ駅"
               value={form.from}
               onChange={(e) => set('from', e.target.value)}
             />
@@ -195,7 +195,7 @@ export default function TransportTab({ records, attendanceRecords, onSave, onDel
             <label>到着地点 <span className="required">*</span></label>
             <input
               type="text"
-              placeholder="例: 渋谷駅"
+              placeholder="例: 麻生駅"
               value={form.to}
               onChange={(e) => set('to', e.target.value)}
             />

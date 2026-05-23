@@ -31,10 +31,18 @@ export default function App() {
   }, []);
 
   function handleSave(record: AttendanceRecord) {
-    const exists = records.some((r) => r.id === record.id);
-    const next = exists
-      ? records.map((r) => r.id === record.id ? record : r)
-      : [...records, record];
+    const existsById = records.some((r) => r.id === record.id);
+    let next: AttendanceRecord[];
+    if (existsById) {
+      next = records.map((r) => r.id === record.id ? record : r);
+    } else {
+      const sameDate = records.find((r) => r.date === record.date);
+      if (sameDate) {
+        next = records.map((r) => r.date === record.date ? { ...record, id: r.id } : r);
+      } else {
+        next = [...records, record];
+      }
+    }
     persistRecords(next);
     setEditingRecord(undefined);
     setTab('list');

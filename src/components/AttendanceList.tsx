@@ -45,7 +45,7 @@ export default function AttendanceList({ records, workSettings, onEdit, onDelete
       const refEnd = r.customEndTime ?? workSettings.standardEndTime;
       const isHalf = r.type === 'am_leave' || r.type === 'pm_leave';
       const late = !isHalf && isLateArrival(r.clockIn, refStart);
-      const early = !isHalf && isEarlyDeparture(r.clockOut, refEnd);
+      const early = !isHalf && isEarlyDeparture(r.clockOut, refEnd, r.clockIn);
       return {
         workDays: acc.workDays + 1,
         workMins: acc.workMins + work,
@@ -223,7 +223,7 @@ export default function AttendanceList({ records, workSettings, onEdit, onDelete
               const rowRefEnd = r.customEndTime ?? workSettings.standardEndTime;
               const rowIsHalf = r.type === 'am_leave' || r.type === 'pm_leave';
               const late = hasTime && !rowIsHalf ? isLateArrival(r.clockIn!, rowRefStart) : false;
-              const early = hasTime && !rowIsHalf ? isEarlyDeparture(r.clockOut!, rowRefEnd) : false;
+              const early = hasTime && !rowIsHalf ? isEarlyDeparture(r.clockOut!, rowRefEnd, r.clockIn) : false;
 
               return (
                 <tr key={r.id} className={`row-${r.type}`}>

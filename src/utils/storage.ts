@@ -100,8 +100,15 @@ export function isLateArrival(clockIn: string, standardStart: string): boolean {
   return timeToMins(clockIn) > timeToMins(standardStart);
 }
 
-export function isEarlyDeparture(clockOut: string, standardEnd: string): boolean {
-  return timeToMins(clockOut) < timeToMins(standardEnd);
+export function isEarlyDeparture(clockOut: string, standardEnd: string, clockIn?: string): boolean {
+  let outMins = timeToMins(clockOut);
+  let endMins = timeToMins(standardEnd);
+  if (clockIn) {
+    const inMins = timeToMins(clockIn);
+    if (outMins <= inMins) outMins += 24 * 60; // 日跨ぎ退勤
+    if (endMins < inMins) endMins += 24 * 60;  // 日跨ぎ基準退勤
+  }
+  return outMins < endMins;
 }
 
 export function formatMinutes(minutes: number): string {

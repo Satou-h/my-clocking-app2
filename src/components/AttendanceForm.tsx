@@ -45,7 +45,7 @@ export default function AttendanceForm({ existingRecord, workSettings, onSave, o
       overtime: calcOvertimeMinutes(work),
       lateNight: calcLateNightMinutes(clockIn, clockOut),
       late: !isHalfLeave && isLateArrival(clockIn, effectiveStart),
-      early: !isHalfLeave && isEarlyDeparture(clockOut, effectiveEnd),
+      early: !isHalfLeave && isEarlyDeparture(clockOut, effectiveEnd, clockIn),
     };
   })();
 
@@ -74,10 +74,20 @@ export default function AttendanceForm({ existingRecord, workSettings, onSave, o
     e.preventDefault();
     setError('');
 
-    if (needsTime && clockIn && clockOut) {
-      const work = calcWorkMinutes(clockIn, clockOut, parseInt(breakMinutes) || 0);
-      if (work <= 0) {
+    if (needsTime) {
+      if (!clockIn) { setError('出勤時間を入力してください'); return; }
+      if (!clockOut) { setError('退勤時間を入力してください'); return; }
+      if (breakMinutes === '' || isNaN(parseInt(breakMinutes))) {
+        setError('休憩時間を入力してください');
+        return;
+      }
+      const rawMins = calcWorkMinutes(clockIn, clockOut, 0);
+      if (rawMins <= 0) {
         setError('退勤時間は出勤時間より後にしてください');
+        return;
+      }
+      if (rawMins > 6 * 60 && parseInt(breakMinutes) < 60) {
+        setError('勤務時間が6時間を超える場合は60分以上の休憩が必要です');
         return;
       }
     }
