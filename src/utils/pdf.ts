@@ -603,6 +603,132 @@ export function printLateEarlyApplication(data: LateEarlyApplicationData, employ
   win.document.close();
 }
 
+const WEEK_LABELS_PDF = ['第一週', '第二週', '第三週', '第四週', '第五週'];
+
+export interface WeekReportData {
+  tools: string;
+  condition: string;
+  goodPoints: string;
+  badPoints: string;
+  notes: string;
+}
+
+export function printWorkReport(
+  year: number,
+  month: number,
+  name: string,
+  weeks: WeekReportData[],
+  employeeId = '',
+  lastName = '',
+) {
+  const weekRows = weeks.map((w, i) => `
+    <tr class="week-header-row"><td colspan="2">${WEEK_LABELS_PDF[i]}</td></tr>
+    <tr><th>開発言語・ツール・作業工程</th><td>${w.tools.replace(/\n/g, '<br>')}</td></tr>
+    <tr><th>体調と理由</th><td>${w.condition.replace(/\n/g, '<br>')}</td></tr>
+    <tr><th>良かった点</th><td>${w.goodPoints.replace(/\n/g, '<br>')}</td></tr>
+    <tr><th>悪かった点</th><td>${w.badPoints.replace(/\n/g, '<br>')}</td></tr>
+    <tr><th>その他(気づいた点)</th><td>${w.notes.replace(/\n/g, '<br>')}</td></tr>
+  `).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>${buildFilename('作業報告書', `${year}${String(month).padStart(2, '0')}`, employeeId, lastName)}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', 'Meiryo', sans-serif;
+    font-size: 10pt;
+    color: #1a1a2e;
+    background: #fff;
+    padding: 15mm 20mm;
+  }
+  h1 {
+    text-align: center;
+    font-size: 18pt;
+    font-weight: 700;
+    margin-bottom: 16px;
+    letter-spacing: 4px;
+    border-bottom: 2px solid #2d6cdf;
+    padding-bottom: 8px;
+  }
+  .meta-block {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    font-size: 10pt;
+    color: #444;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10pt;
+  }
+  table th {
+    background: #f1f3f9;
+    font-weight: 600;
+    padding: 7px 12px;
+    border: 1px solid #aab;
+    width: 28%;
+    text-align: left;
+    color: #444;
+    vertical-align: top;
+  }
+  table td {
+    padding: 7px 12px;
+    border: 1px solid #aab;
+    vertical-align: top;
+    min-height: 28px;
+  }
+  .week-header-row td {
+    background: #2d6cdf;
+    color: #fff;
+    font-weight: 700;
+    font-size: 11pt;
+    padding: 6px 12px;
+    letter-spacing: 2px;
+  }
+  .print-btn {
+    position: fixed; top: 12px; right: 16px;
+    background: #2d6cdf; color: #fff; border: none;
+    padding: 6px 14px; border-radius: 5px;
+    cursor: pointer; font-size: 12px; font-weight: 600; z-index: 999;
+  }
+  @page { size: A4 portrait; margin: 15mm; }
+  @media print { .print-btn { display: none; } }
+</style>
+</head>
+<body>
+<button class="print-btn" onclick="window.print()">印刷 / PDF保存</button>
+
+<h1>作　業　報　告　書</h1>
+
+<div class="meta-block">
+  <div>${year}年${month}月</div>
+  <div>氏名: ${name || '　　　　　　　'}</div>
+</div>
+
+<table>
+  ${weekRows}
+</table>
+
+<script>
+  window.addEventListener('load', () => setTimeout(() => window.print(), 400));
+<\/script>
+</body>
+</html>`;
+
+  const win = window.open('', '_blank', 'width=800,height=1100');
+  if (!win) {
+    alert('ポップアップがブロックされました。ブラウザの設定でポップアップを許可してください。');
+    return;
+  }
+  win.document.write(html);
+  win.document.close();
+}
+
 export function printTransportRecords(
   records: TransportRecord[],
   year: number,

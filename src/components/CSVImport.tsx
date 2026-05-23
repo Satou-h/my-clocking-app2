@@ -1,7 +1,9 @@
 import { useRef, useState } from 'react';
 import type { AttendanceRecord } from '../types/attendance';
 import type { TransportRecord } from '../types/transport';
-import { parseCSV, exportCSV, parseTransportCSV, exportTransportCSV } from '../utils/csv';
+import type { WeekReportData } from '../utils/pdf';
+import { parseCSV, exportCSV, parseTransportCSV, exportTransportCSV, exportWorkReportCSV, parseWorkReportCSV } from '../utils/csv';
+import { loadAllWeeks, saveAllWeeks } from './WorkReportTab';
 
 interface Props {
   records: AttendanceRecord[];
@@ -22,6 +24,14 @@ export default function CSVImport({ records, transportRecords, onImport, onImpor
   const [trpPreview, setTrpPreview] = useState<TransportRecord[] | null>(null);
   const [trpErrors, setTrpErrors] = useState<string[]>([]);
   const [trpMode, setTrpMode] = useState<'merge' | 'replace'>('merge');
+
+  // 作業報告
+  const now = new Date();
+  const [wrYear, setWrYear] = useState(now.getFullYear());
+  const [wrMonth, setWrMonth] = useState(now.getMonth() + 1);
+  const wrFileRef = useRef<HTMLInputElement>(null);
+  const [wrPreview, setWrPreview] = useState<WeekReportData[] | null>(null);
+  const [wrErrors, setWrErrors] = useState<string[]>([]);
 
   // ── 勤怠 ──
   function handleAttFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -71,6 +81,32 @@ export default function CSVImport({ records, transportRecords, onImport, onImpor
 
   function handleTrpExport() {
     downloadCSV(exportTransportCSV(transportRecords), `交通費データ_${today()}.csv`);
+  }
+
+  // ── 作業報告 ──
+  function handleWrExport() {
+    const weeks = loadAllWeeks(wrYear, wrMonth);
+    downloadCSV(exportWorkReportCSV(weeks), `作業報告_${wrYear}${String(wrMonth).padStart(2, '0')}.csv`);
+  }
+
+  function handleWrFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const result = parseWorkReportCSV(ev.target?.result as string);
+      setWrPreview(result.weeks);
+      setWrErrors(result.errors);
+    };
+    reader.readAsText(file, 'UTF-8');
+  }
+
+  function handleWrImport() {
+    if (!wrPreview) return;
+    saveAllWeeks(wrYear, wrMonth, wrPreview);
+    setWrPreview(null);
+    setWrErrors([]);
+    if (wrFileRef.current) wrFileRef.current.value = '';
   }
 
   return (
@@ -199,6 +235,78 @@ export default function CSVImport({ records, transportRecords, onImport, onImpor
             <div className="form-actions">
               <button className="btn btn-primary" onClick={handleTrpImport}>インポート実行</button>
               <button className="btn btn-secondary" onClick={() => { setTrpPreview(null); setTrpErrors([]); }}>キャンセル</button>
+            </div>
+          </div>
+        )}
+      </div>
+      <hr />
+
+      {/* ── 作業報告 ── */}
+      <h3>作業報告データ</h3>
+
+      <div className="csv-section">
+        <h4>エクスポート</h4>
+        <div className="form-row">
+          <label>対象年月</label>
+          <select value={wrYear} onChange={(e) => setWrYear(Number(e.target.value))}>
+            {[now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map((y) => (
+              <option key={y} value={y}>{y}年</option>
+            ))}
+          </select>
+          <select value={wrMonth} onChange={(e) => setWrMonth(Number(e.target.value))}>
+            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+              <option key={m} value={m}>{m}月</option>
+            ))}
+          </select>
+        </div>
+        <button className="btn btn-secondary" onClick={handleWrExport}>
+          CSVダウンロード ({wrYear}年{wrMonth}月)
+        </button>
+      </div>
+
+      <div className="csv-section">
+        <h4>インポート</h4>
+        <p className="hint">
+          CSVをインポートすると選択した年月のデータが置き換わります。<br />
+          <code>週,開発言語・ツール・作業工程,体調と理由,良かった点,悪かった点,その他(気づいた点)</code>
+        </p>
+        <div className="form-row">
+          <input ref={wrFileRef} type="file" accept=".csv,text/csv" onChange={handleWrFile} />
+        </div>
+        {wrErrors.length > 0 && (
+          <div className="csv-errors">
+            <strong>エラー / 警告:</strong>
+            <ul>{wrErrors.map((e, i) => <li key={i}>{e}</li>)}</ul>
+          </div>
+        )}
+        {wrPreview && (
+          <div className="csv-preview">
+            <strong>プレビュー: {wrYear}年{wrMonth}月に取り込みます（5週分）</strong>
+            <table className="data-table preview-table">
+              <thead>
+                <tr>
+                  <th>週</th><th>開発言語・ツール・作業工程</th><th>体調と理由</th>
+                  <th>良かった点</th><th>悪かった点</th><th>その他</th>
+                </tr>
+              </thead>
+              <tbody>
+                {wrPreview.map((w, i) => (
+                  <tr key={i}>
+                    <td style={{ whiteSpace: 'nowrap', fontWeight: 600 }}>
+                      {['第一週','第二週','第三週','第四週','第五週'][i]}
+                    </td>
+                    <td>{w.tools || '-'}</td>
+                    <td>{w.condition || '-'}</td>
+                    <td>{w.goodPoints || '-'}</td>
+                    <td>{w.badPoints || '-'}</td>
+                    <td>{w.notes || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="form-actions">
+              <button className="btn btn-primary" onClick={handleWrImport}>インポート実行</button>
+              <button className="btn btn-secondary" onClick={() => { setWrPreview(null); setWrErrors([]); }}>キャンセル</button>
             </div>
           </div>
         )}

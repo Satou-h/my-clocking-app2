@@ -15,9 +15,10 @@ import CSVImport from './components/CSVImport';
 import WorkSettingsForm from './components/WorkSettingsForm';
 import TransportTab from './components/TransportTab';
 import ApplicationDocumentsTab from './components/ApplicationDocumentsTab';
+import WorkReportTab from './components/WorkReportTab';
 import './App.css';
 
-type Tab = 'input' | 'list' | 'paid_leave' | 'csv' | 'transport' | 'settings' | 'documents';
+type Tab = 'input' | 'list' | 'paid_leave' | 'csv' | 'transport' | 'settings' | 'documents' | 'report';
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('input');
@@ -150,6 +151,7 @@ export default function App() {
     { key: 'paid_leave', label: '有給管理' },
     { key: 'transport', label: '交通費' },
     { key: 'documents', label: '申請書類' },
+    { key: 'report', label: '作業報告' },
     { key: 'csv', label: 'CSV' },
     { key: 'settings', label: '設定' },
   ];
@@ -230,6 +232,9 @@ export default function App() {
         )}
         {tab === 'documents' && (
           <ApplicationDocumentsTab />
+        )}
+        {tab === 'report' && (
+          <WorkReportTab />
         )}
         {tab === 'csv' && (
           <CSVImport

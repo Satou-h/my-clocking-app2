@@ -729,6 +729,115 @@ hr {
   margin-top: 8px;
 }
 
+/* Work Report Tab */
+.work-report-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  background: #f8f9fc;
+  border: 1px solid #dde1ee;
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+}
+.week-tab-nav {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+.week-tab-btn {
+  padding: 8px 20px;
+  border: 1px solid #dde1ee;
+  border-radius: 6px;
+  background: #f8f9fc;
+  color: #636e72;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  position: relative;
+}
+.week-tab-btn:hover { background: #edf0f7; }
+.week-tab-btn.active {
+  background: #2d6cdf;
+  color: #fff;
+  border-color: #2d6cdf;
+  font-weight: 600;
+}
+.week-tab-btn.has-data:not(.active)::after {
+  content: '';
+  position: absolute;
+  top: 6px; right: 6px;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #00b894;
+}
+.work-report-week {
+  background: #fff;
+  border: 1px solid #dde1ee;
+  border-radius: 8px;
+  padding: 20px 24px;
+  margin-bottom: 20px;
+}
+.work-report-week-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #2d6cdf;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #e8f0fe;
+}
+.work-report-save-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+.work-report-preview {
+  border: 1px solid #dde1ee;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.work-report-preview-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #636e72;
+  padding: 10px 20px;
+  background: #f8f9fc;
+  border-bottom: 1px solid #dde1ee;
+}
+.work-report-preview-week { border-bottom: 1px solid #eee; }
+.work-report-preview-week:last-child { border-bottom: none; }
+.work-report-preview-week-header {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  background: #2d6cdf;
+  padding: 6px 20px;
+}
+.work-report-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.work-report-preview-table th {
+  width: 220px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #444;
+  background: #f8f9fc;
+  border: 1px solid #eee;
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+.work-report-preview-table td {
+  padding: 8px 16px;
+  font-size: 13px;
+  border: 1px solid #eee;
+  vertical-align: top;
+  line-height: 1.6;
+}
+
 @media (max-width: 600px) {
   .app-main { padding: 12px; }
   .form-row { flex-direction: column; align-items: flex-start; }

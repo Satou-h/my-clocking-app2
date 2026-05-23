@@ -1,6 +1,7 @@
 import type { AttendanceRecord, AttendanceType } from '../types/attendance';
 import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
 import type { TransportRecord, TripType } from '../types/transport';
+import type { WeekReportData } from './pdf';
 import { generateId } from './storage';
 
 // ── 勤怠 ──────────────────────────────────────────────
@@ -170,4 +171,86 @@ export function exportTransportCSV(records: TransportRecord[]): string {
       r.notes ?? '',
     ].join(','));
   return [header, ...rows].join('\n');
+}
+
+// ── 作業報告 ───────────────────────────────────────────
+
+const WORK_REPORT_WEEK_LABELS = ['第一週', '第二週', '第三週', '第四週', '第五週'];
+
+function csvQuote(s: string): string {
+  return `"${s.replace(/"/g, '""')}"`;
+}
+
+// RFC4180準拠の1行パーサー（複数フィールド対応）
+function parseCSVLine(line: string): string[] {
+  const fields: string[] = [];
+  let cur = '';
+  let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQ) {
+      if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+      else if (ch === '"') { inQ = false; }
+      else { cur += ch; }
+    } else {
+      if (ch === '"') { inQ = true; }
+      else if (ch === ',') { fields.push(cur); cur = ''; }
+      else { cur += ch; }
+    }
+  }
+  fields.push(cur);
+  return fields;
+}
+
+export interface WorkReportCsvParseResult {
+  weeks: WeekReportData[];
+  errors: string[];
+}
+
+export function exportWorkReportCSV(weeks: WeekReportData[]): string {
+  const header = '週,開発言語・ツール・作業工程,体調と理由,良かった点,悪かった点,その他(気づいた点)';
+  const rows = weeks.map((w, i) => [
+    WORK_REPORT_WEEK_LABELS[i],
+    csvQuote(w.tools),
+    csvQuote(w.condition),
+    csvQuote(w.goodPoints),
+    csvQuote(w.badPoints),
+    csvQuote(w.notes),
+  ].join(','));
+  return [header, ...rows].join('\n');
+}
+
+function emptyWeeks(): WeekReportData[] {
+  return WORK_REPORT_WEEK_LABELS.map(() => ({
+    tools: '', condition: '', goodPoints: '', badPoints: '', notes: '',
+  }));
+}
+
+export function parseWorkReportCSV(text: string): WorkReportCsvParseResult {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length === 0) return { weeks: emptyWeeks(), errors: ['ファイルが空です'] };
+
+  const errors: string[] = [];
+  const weeks = emptyWeeks();
+  const dataLines = lines.slice(1); // ヘッダー行をスキップ
+
+  if (dataLines.length === 0) return { weeks, errors: ['データ行がありません'] };
+  if (dataLines.length !== 5) errors.push(`週の行数が ${dataLines.length} 件です（期待値: 5）`);
+
+  for (let i = 0; i < Math.min(dataLines.length, 5); i++) {
+    const cols = parseCSVLine(dataLines[i]);
+    if (cols.length < 6) {
+      errors.push(`行 ${i + 2}: 列数が不足しています`);
+      continue;
+    }
+    weeks[i] = {
+      tools:      cols[1] ?? '',
+      condition:  cols[2] ?? '',
+      goodPoints: cols[3] ?? '',
+      badPoints:  cols[4] ?? '',
+      notes:      cols[5] ?? '',
+    };
+  }
+
+  return { weeks, errors };
 }
