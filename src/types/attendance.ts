@@ -1,4 +1,4 @@
-export type AttendanceType = 'work' | 'paid_leave' | 'holiday' | 'absence';
+export type AttendanceType = 'work' | 'paid_leave' | 'holiday' | 'absence' | 'am_leave' | 'pm_leave';
 
 export interface AttendanceRecord {
   id: string;
@@ -8,6 +8,8 @@ export interface AttendanceRecord {
   clockOut?: string;
   breakMinutes?: number;
   notes?: string;
+  customStartTime?: string;
+  customEndTime?: string;
 }
 
 export interface PaidLeaveSettings {
@@ -30,4 +32,6 @@ export const ATTENDANCE_TYPE_LABELS: Record<AttendanceType, string> = {
   paid_leave: '有給休暇',
   holiday: '休日',
   absence: '欠勤',
+  am_leave: '午前休',
+  pm_leave: '午後休',
 };

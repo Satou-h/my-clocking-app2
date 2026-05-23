@@ -15,9 +15,13 @@ export default function PaidLeaveManager({ records, settings, onSaveSettings }: 
   const currentSetting = settings.find((s) => s.year === selectedYear);
   const totalDays = currentSetting?.totalDays ?? 0;
 
-  const usedDays = records.filter(
-    (r) => r.type === 'paid_leave' && r.date.startsWith(String(selectedYear))
-  ).length;
+  const usedDays = records
+    .filter((r) => r.date.startsWith(String(selectedYear)))
+    .reduce((acc, r) => {
+      if (r.type === 'paid_leave') return acc + 1;
+      if (r.type === 'am_leave' || r.type === 'pm_leave') return acc + 0.5;
+      return acc;
+    }, 0);
 
   const remainingDays = totalDays - usedDays;
 
@@ -90,9 +94,13 @@ export default function PaidLeaveManager({ records, settings, onSaveSettings }: 
               {settings
                 .sort((a, b) => b.year - a.year)
                 .map((s) => {
-                  const used = records.filter(
-                    (r) => r.type === 'paid_leave' && r.date.startsWith(String(s.year))
-                  ).length;
+                  const used = records
+                    .filter((r) => r.date.startsWith(String(s.year)))
+                    .reduce((acc, r) => {
+                      if (r.type === 'paid_leave') return acc + 1;
+                      if (r.type === 'am_leave' || r.type === 'pm_leave') return acc + 0.5;
+                      return acc;
+                    }, 0);
                   const remaining = s.totalDays - used;
                   return (
                     <tr key={s.year}>

@@ -212,6 +212,8 @@ h3 {
 .row-paid_leave td { background: #fff9e6; }
 .row-holiday td { background: #f0f9f0; }
 .row-absence td { background: #fff0f0; }
+.row-am_leave td { background: #e8f6ff; }
+.row-pm_leave td { background: #fff0f6; }
 .row-off td { background: #f2f3f5; color: #adb5bd; }
 .row-off .dow-sun { color: #ef9a9a; }
 .row-off .dow-sat { color: #90caf9; }
@@ -230,6 +232,8 @@ h3 {
 .badge-paid_leave { background: #fff3cd; color: #856404; }
 .badge-holiday { background: #d4edda; color: #155724; }
 .badge-absence { background: #f8d7da; color: #721c24; }
+.badge-am_leave { background: #e0f2fe; color: #0277bd; }
+.badge-pm_leave { background: #fce4ec; color: #ad1457; }
 
 /* List filter */
 .list-filter {
@@ -353,6 +357,77 @@ h3 {
 .val-latenight { color: #7b1fa2; }
 .text-ok { color: #00b894; font-weight: 600; }
 
+/* Per-day custom time section */
+.custom-time-section {
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  background: #f8f9ff;
+  border: 1px solid #e0e4ef;
+  border-radius: 8px;
+}
+.custom-time-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #636e72;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+}
+.custom-time-toggle input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: #2d6cdf;
+}
+.custom-time-fields {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #e0e4ef;
+}
+.custom-time-fields .form-row {
+  margin-bottom: 8px;
+}
+.custom-time-fields .form-row:last-child {
+  margin-bottom: 0;
+}
+
+/* Quick fill buttons */
+.quick-fill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+  padding: 10px 14px;
+  background: #f8f9ff;
+  border: 1px solid #e0e4ef;
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+.quick-fill-label {
+  font-size: 13px;
+  color: #636e72;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.btn-quick {
+  padding: 5px 14px;
+  border-radius: 6px;
+  border: 2px solid #2d6cdf;
+  background: #fff;
+  color: #2d6cdf;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.btn-quick:hover { background: #2d6cdf; color: #fff; }
+.btn-quick-am { border-color: #0277bd; color: #0277bd; }
+.btn-quick-am:hover { background: #0277bd; color: #fff; }
+.btn-quick-pm { border-color: #ad1457; color: #ad1457; }
+.btn-quick-pm:hover { background: #ad1457; color: #fff; }
+
 /* Std hint in label */
 .std-hint { font-size: 11px; color: #b2bec3; font-weight: 400; }
 
@@ -421,6 +496,8 @@ h3 {
 .att-chip-paid_leave { background: #fff3cd; color: #856404; }
 .att-chip-holiday    { background: #d4edda; color: #155724; }
 .att-chip-absence    { background: #f8d7da; color: #721c24; }
+.att-chip-am_leave   { background: #e0f2fe; color: #0277bd; }
+.att-chip-pm_leave   { background: #fce4ec; color: #ad1457; }
 .badge-roundtrip { background: #e3f2fd; color: #1565c0; }
 .badge-oneway    { background: #fce4ec; color: #880e4f; }
 .td-amount { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }

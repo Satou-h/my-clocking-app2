@@ -23,8 +23,17 @@ export default function AttendanceForm({ existingRecord, workSettings, onSave, o
   const [breakMinutes, setBreakMinutes] = useState(String(existingRecord?.breakMinutes ?? 60));
   const [notes, setNotes] = useState(existingRecord?.notes ?? '');
   const [error, setError] = useState('');
+  const [useCustomTime, setUseCustomTime] = useState(
+    !!(existingRecord?.customStartTime || existingRecord?.customEndTime)
+  );
+  const [customStartTime, setCustomStartTime] = useState(existingRecord?.customStartTime ?? '');
+  const [customEndTime, setCustomEndTime] = useState(existingRecord?.customEndTime ?? '');
 
-  const needsTime = type === 'work' || type === 'absence';
+  const needsTime = type === 'work' || type === 'absence' || type === 'am_leave' || type === 'pm_leave';
+  const isHalfLeave = type === 'am_leave' || type === 'pm_leave';
+
+  const effectiveStart = (useCustomTime && customStartTime) ? customStartTime : workSettings.standardStartTime;
+  const effectiveEnd = (useCustomTime && customEndTime) ? customEndTime : workSettings.standardEndTime;
 
   // リアルタイム計算
   const calc = (() => {
@@ -35,10 +44,31 @@ export default function AttendanceForm({ existingRecord, workSettings, onSave, o
       work,
       overtime: calcOvertimeMinutes(work),
       lateNight: calcLateNightMinutes(clockIn, clockOut),
-      late: isLateArrival(clockIn, workSettings.standardStartTime),
-      early: isEarlyDeparture(clockOut, workSettings.standardEndTime),
+      late: !isHalfLeave && isLateArrival(clockIn, effectiveStart),
+      early: !isHalfLeave && isEarlyDeparture(clockOut, effectiveEnd),
     };
   })();
+
+  function fillStandard() {
+    setType('work');
+    setClockIn(workSettings.standardStartTime);
+    setClockOut(workSettings.standardEndTime);
+    setBreakMinutes('60');
+  }
+
+  function fillAmLeave() {
+    setType('am_leave');
+    setClockIn('13:00');
+    setClockOut(workSettings.standardEndTime);
+    setBreakMinutes('0');
+  }
+
+  function fillPmLeave() {
+    setType('pm_leave');
+    setClockIn(workSettings.standardStartTime);
+    setClockOut('12:00');
+    setBreakMinutes('0');
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -60,12 +90,21 @@ export default function AttendanceForm({ existingRecord, workSettings, onSave, o
       clockOut: needsTime ? clockOut || undefined : undefined,
       breakMinutes: needsTime ? parseInt(breakMinutes) || 0 : 0,
       notes: notes || undefined,
+      customStartTime: useCustomTime && customStartTime ? customStartTime : undefined,
+      customEndTime: useCustomTime && customEndTime ? customEndTime : undefined,
     });
   }
 
   return (
     <form className="attendance-form" onSubmit={handleSubmit}>
       <h2>{existingRecord ? '勤怠編集' : '勤怠入力'}</h2>
+
+      <div className="quick-fill">
+        <span className="quick-fill-label">クイック入力：</span>
+        <button type="button" className="btn-quick" onClick={fillStandard}>定時</button>
+        <button type="button" className="btn-quick btn-quick-am" onClick={fillAmLeave}>午前休</button>
+        <button type="button" className="btn-quick btn-quick-pm" onClick={fillPmLeave}>午後休</button>
+      </div>
 
       <div className="form-row">
         <label>日付</label>
@@ -84,11 +123,11 @@ export default function AttendanceForm({ existingRecord, workSettings, onSave, o
       {needsTime && (
         <>
           <div className="form-row">
-            <label>出勤時間 <span className="std-hint">(基準 {workSettings.standardStartTime})</span></label>
+            <label>出勤時間 <span className="std-hint">(基準 {effectiveStart})</span></label>
             <input type="time" value={clockIn} onChange={(e) => setClockIn(e.target.value)} />
           </div>
           <div className="form-row">
-            <label>退勤時間 <span className="std-hint">(基準 {workSettings.standardEndTime})</span></label>
+            <label>退勤時間 <span className="std-hint">(基準 {effectiveEnd})</span></label>
             <input type="time" value={clockOut} onChange={(e) => setClockOut(e.target.value)} />
           </div>
           <div className="form-row">
@@ -102,6 +141,47 @@ export default function AttendanceForm({ existingRecord, workSettings, onSave, o
             />
           </div>
         </>
+      )}
+
+      {needsTime && !isHalfLeave && (
+        <div className="custom-time-section">
+          <label className="custom-time-toggle">
+            <input
+              type="checkbox"
+              checked={useCustomTime}
+              onChange={(e) => {
+                setUseCustomTime(e.target.checked);
+                if (!e.target.checked) {
+                  setCustomStartTime('');
+                  setCustomEndTime('');
+                }
+              }}
+            />
+            この日の基準時間を変更する
+          </label>
+          {useCustomTime && (
+            <div className="custom-time-fields">
+              <div className="form-row">
+                <label>基準 出勤時間</label>
+                <input
+                  type="time"
+                  value={customStartTime}
+                  onChange={(e) => setCustomStartTime(e.target.value)}
+                  placeholder={workSettings.standardStartTime}
+                />
+              </div>
+              <div className="form-row">
+                <label>基準 退勤時間</label>
+                <input
+                  type="time"
+                  value={customEndTime}
+                  onChange={(e) => setCustomEndTime(e.target.value)}
+                  placeholder={workSettings.standardEndTime}
+                />
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       <div className="form-row">

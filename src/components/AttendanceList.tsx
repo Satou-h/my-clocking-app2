@@ -32,15 +32,20 @@ export default function AttendanceList({ records, workSettings, onEdit, onDelete
     .filter((r) => r.date.startsWith(prefix))
     .sort((a, b) => a.date.localeCompare(b.date));
 
+  const isWorkType = (type: string) => type === 'work' || type === 'am_leave' || type === 'pm_leave';
+
   // 月次集計（実際の登録レコードのみ）
   const summary = filtered.reduce(
     (acc, r) => {
-      if (r.type !== 'work' || !r.clockIn || !r.clockOut) return acc;
+      if (!isWorkType(r.type) || !r.clockIn || !r.clockOut) return acc;
       const work = calcWorkMinutes(r.clockIn, r.clockOut, r.breakMinutes ?? 0);
       const ot = calcOvertimeMinutes(work);
       const ln = calcLateNightMinutes(r.clockIn, r.clockOut);
-      const late = isLateArrival(r.clockIn, workSettings.standardStartTime);
-      const early = isEarlyDeparture(r.clockOut, workSettings.standardEndTime);
+      const refStart = r.customStartTime ?? workSettings.standardStartTime;
+      const refEnd = r.customEndTime ?? workSettings.standardEndTime;
+      const isHalf = r.type === 'am_leave' || r.type === 'pm_leave';
+      const late = !isHalf && isLateArrival(r.clockIn, refStart);
+      const early = !isHalf && isEarlyDeparture(r.clockOut, refEnd);
       return {
         workDays: acc.workDays + 1,
         workMins: acc.workMins + work,
@@ -52,7 +57,11 @@ export default function AttendanceList({ records, workSettings, onEdit, onDelete
     },
     { workDays: 0, workMins: 0, overtimeMins: 0, lateNightMins: 0, lateCount: 0, earlyCount: 0 }
   );
-  const paidDays = filtered.filter((r) => r.type === 'paid_leave').length;
+  const paidDays = filtered.reduce((acc, r) => {
+    if (r.type === 'paid_leave') return acc + 1;
+    if (r.type === 'am_leave' || r.type === 'pm_leave') return acc + 0.5;
+    return acc;
+  }, 0);
 
   // 当月の全日を生成
   const daysInMonth = new Date(filterYear, filterMonth, 0).getDate();
@@ -204,14 +213,17 @@ export default function AttendanceList({ records, workSettings, onEdit, onDelete
               }
 
               const r = row.record;
-              const hasTime = r.type === 'work' && r.clockIn && r.clockOut;
+              const hasTime = isWorkType(r.type) && r.clockIn && r.clockOut;
               const workMin = hasTime
                 ? calcWorkMinutes(r.clockIn!, r.clockOut!, r.breakMinutes ?? 0)
                 : null;
               const otMin = workMin !== null ? calcOvertimeMinutes(workMin) : null;
               const lnMin = hasTime ? calcLateNightMinutes(r.clockIn!, r.clockOut!) : null;
-              const late = hasTime ? isLateArrival(r.clockIn!, workSettings.standardStartTime) : false;
-              const early = hasTime ? isEarlyDeparture(r.clockOut!, workSettings.standardEndTime) : false;
+              const rowRefStart = r.customStartTime ?? workSettings.standardStartTime;
+              const rowRefEnd = r.customEndTime ?? workSettings.standardEndTime;
+              const rowIsHalf = r.type === 'am_leave' || r.type === 'pm_leave';
+              const late = hasTime && !rowIsHalf ? isLateArrival(r.clockIn!, rowRefStart) : false;
+              const early = hasTime && !rowIsHalf ? isEarlyDeparture(r.clockOut!, rowRefEnd) : false;
 
               return (
                 <tr key={r.id} className={`row-${r.type}`}>
@@ -223,7 +235,7 @@ export default function AttendanceList({ records, workSettings, onEdit, onDelete
                   </td>
                   <td>{r.clockIn ?? '-'}</td>
                   <td>{r.clockOut ?? '-'}</td>
-                  <td>{r.type === 'work' ? (r.breakMinutes ?? 0) : '-'}</td>
+                  <td>{isWorkType(r.type) ? (r.breakMinutes ?? 0) : '-'}</td>
                   <td>{workMin !== null ? formatMinutes(workMin) : '-'}</td>
                   <td className={otMin && otMin > 0 ? 'text-overtime' : ''}>
                     {otMin !== null ? (otMin > 0 ? formatMinutes(otMin) : '-') : '-'}
