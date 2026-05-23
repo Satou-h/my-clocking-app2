@@ -8,6 +8,7 @@ import {
 
 interface Props {
   existingRecord?: AttendanceRecord;
+  records: AttendanceRecord[];
   workSettings: WorkSettings;
   onSave: (record: AttendanceRecord) => void;
   onCancel?: () => void;
@@ -15,7 +16,7 @@ interface Props {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-export default function AttendanceForm({ existingRecord, workSettings, onSave, onCancel }: Props) {
+export default function AttendanceForm({ existingRecord, records, workSettings, onSave, onCancel }: Props) {
   const [date, setDate] = useState(existingRecord?.date ?? today());
   const [type, setType] = useState<AttendanceType>(existingRecord?.type ?? 'work');
   const [clockIn, setClockIn] = useState(existingRecord?.clockIn ?? '');
@@ -87,8 +88,33 @@ export default function AttendanceForm({ existingRecord, workSettings, onSave, o
         setError('退勤時間は出勤時間より後にしてください');
         return;
       }
-      if (rawMins > 6 * 60 && parseInt(breakMinutes) < 60) {
+        if (rawMins > 6 * 60 && parseInt(breakMinutes) < 60) {
         setError('勤務時間が6時間を超える場合は60分以上の休憩が必要です');
+        return;
+      }
+    }
+
+    // 法定休日出勤：新規登録時のみ同週 月〜土 の出勤記録を確認
+    if (type === 'legal_holiday_work' && !existingRecord) {
+      const WORK_TYPES = new Set(['work', 'am_leave', 'pm_leave', 'scheduled_holiday_work']);
+      const recordMap = new Map(records.map((r) => [r.date, r]));
+      const [y, m, d] = date.split('-').map(Number);
+      const target = new Date(y, m - 1, d);
+      const dow = target.getDay();
+      const monday = new Date(y, m - 1, d - (dow === 0 ? 6 : dow - 1));
+      const DOW_JA = ['月', '火', '水', '木', '金', '土'];
+      const missing: string[] = [];
+      for (let i = 0; i < 6; i++) {
+        const day = new Date(monday);
+        day.setDate(monday.getDate() + i);
+        const ds = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+        const rec = recordMap.get(ds);
+        if (!rec || !WORK_TYPES.has(rec.type)) {
+          missing.push(`${day.getMonth() + 1}/${day.getDate()}(${DOW_JA[i]})`);
+        }
+      }
+      if (missing.length > 0) {
+        setError(`法定休日出勤は月〜土すべての出勤記録が必要です。未登録: ${missing.join('、')}`);
         return;
       }
     }

@@ -4,9 +4,12 @@ import type { WorkSettings } from '../types/attendance';
 interface Props {
   settings: WorkSettings;
   onSave: (settings: WorkSettings) => void;
+  onClearAttendance: () => void;
+  onClearTransport: () => void;
+  onClearAll: () => void;
 }
 
-export default function WorkSettingsForm({ settings, onSave }: Props) {
+export default function WorkSettingsForm({ settings, onSave, onClearAttendance, onClearTransport, onClearAll }: Props) {
   const [startTime, setStartTime] = useState(settings.standardStartTime);
   const [endTime, setEndTime] = useState(settings.standardEndTime);
   const [saved, setSaved] = useState(false);
@@ -77,6 +80,66 @@ export default function WorkSettingsForm({ settings, onSave }: Props) {
           {saved && <span className="save-notice">保存しました</span>}
         </div>
       </form>
+
+      <hr />
+
+      <div className="danger-zone">
+        <h3>データ管理</h3>
+        <p className="hint">削除したデータは元に戻せません。操作前にCSVエクスポートでバックアップを取ることをお勧めします。</p>
+        <div className="danger-actions">
+          <div className="danger-item">
+            <div className="danger-desc">
+              <strong>勤怠データをクリア</strong>
+              <span>登録済みの勤怠記録をすべて削除します</span>
+            </div>
+            <button
+              type="button"
+              className="btn btn-danger-outline"
+              onClick={() => {
+                if (window.confirm('勤怠データをすべて削除しますか？\nこの操作は元に戻せません。')) {
+                  onClearAttendance();
+                }
+              }}
+            >
+              勤怠データをクリア
+            </button>
+          </div>
+          <div className="danger-item">
+            <div className="danger-desc">
+              <strong>交通費データをクリア</strong>
+              <span>登録済みの交通費記録をすべて削除します</span>
+            </div>
+            <button
+              type="button"
+              className="btn btn-danger-outline"
+              onClick={() => {
+                if (window.confirm('交通費データをすべて削除しますか？\nこの操作は元に戻せません。')) {
+                  onClearTransport();
+                }
+              }}
+            >
+              交通費データをクリア
+            </button>
+          </div>
+          <div className="danger-item danger-item-all">
+            <div className="danger-desc">
+              <strong>すべてのデータをクリア</strong>
+              <span>勤怠・交通費のすべての記録を削除します</span>
+            </div>
+            <button
+              type="button"
+              className="btn btn-danger"
+              onClick={() => {
+                if (window.confirm('すべてのデータを削除しますか？\nこの操作は元に戻せません。')) {
+                  onClearAll();
+                }
+              }}
+            >
+              すべてクリア
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

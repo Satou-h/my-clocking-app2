@@ -10,6 +10,7 @@ interface Props {
   records: TransportRecord[];
   attendanceRecords: AttendanceRecord[];
   onSave: (record: TransportRecord) => void;
+  onSaveMultiple: (records: TransportRecord[]) => void;
   onDelete: (id: string) => void;
 }
 
@@ -19,7 +20,7 @@ function blankForm(date = ''): Omit<TransportRecord, 'id'> {
   return { date, destination: '', from: '', to: '', tripType: 'roundtrip', amount: 0, notes: '' };
 }
 
-export default function TransportTab({ records, attendanceRecords, onSave, onDelete }: Props) {
+export default function TransportTab({ records, attendanceRecords, onSave, onSaveMultiple, onDelete }: Props) {
   const now = new Date();
   const currentYear = now.getFullYear();
   const [filterYear, setFilterYear] = useState(currentYear);
@@ -28,6 +29,9 @@ export default function TransportTab({ records, attendanceRecords, onSave, onDel
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<Omit<TransportRecord, 'id'>>(blankForm());
   const [errors, setErrors] = useState<Partial<Record<keyof TransportRecord, string>>>({});
+  const [useRange, setUseRange] = useState(false);
+  const [dateTo, setDateTo] = useState('');
+  const [skipWeekends, setSkipWeekends] = useState(false);
 
   const prefix = `${filterYear}-${String(filterMonth).padStart(2, '0')}`;
 
@@ -50,6 +54,8 @@ export default function TransportTab({ records, attendanceRecords, onSave, onDel
     setForm(blankForm(`${prefix}-01`));
     setEditId(null);
     setErrors({});
+    setUseRange(false);
+    setDateTo(`${prefix}-01`);
     setShowForm(true);
   }
 
@@ -57,12 +63,14 @@ export default function TransportTab({ records, attendanceRecords, onSave, onDel
     setForm({ date: r.date, destination: r.destination, from: r.from, to: r.to, tripType: r.tripType, amount: r.amount, notes: r.notes });
     setEditId(r.id);
     setErrors({});
+    setUseRange(false);
     setShowForm(true);
   }
 
   function validate(): Partial<Record<keyof TransportRecord, string>> {
     const e: Partial<Record<keyof TransportRecord, string>> = {};
     if (!form.date) e.date = '日付を入力してください';
+    if (useRange && dateTo && dateTo < form.date) e.date = '終了日は開始日以降にしてください';
     if (!form.destination.trim()) e.destination = '行先を入力してください';
     if (!form.from.trim()) e.from = '出発地点を入力してください';
     if (!form.to.trim()) e.to = '到着地点を入力してください';
@@ -70,10 +78,33 @@ export default function TransportTab({ records, attendanceRecords, onSave, onDel
     return e;
   }
 
+  // 開始日〜終了日の日付一覧を生成（ローカル日付で処理し UTC ズレを回避）
+  function dateRange(from: string, to: string): string[] {
+    const dates: string[] = [];
+    const [fy, fm, fd] = from.split('-').map(Number);
+    const [ty, tm, td] = to.split('-').map(Number);
+    const end = new Date(ty, tm - 1, td);
+    for (let d = new Date(fy, fm - 1, fd); d <= end; d.setDate(d.getDate() + 1)) {
+      const dow = d.getDay();
+      if (skipWeekends && (dow === 0 || dow === 6)) continue;
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      dates.push(`${y}-${m}-${day}`);
+    }
+    return dates;
+  }
+
   function handleSubmit() {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
-    onSave({ id: editId ?? generateId(), ...form });
+
+    if (useRange && dateTo && dateTo >= form.date) {
+      const dates = dateRange(form.date, dateTo);
+      onSaveMultiple(dates.map((date) => ({ id: generateId(), ...form, date })));
+    } else {
+      onSave({ id: editId ?? generateId(), ...form });
+    }
     setShowForm(false);
     setErrors({});
   }
@@ -138,14 +169,29 @@ export default function TransportTab({ records, attendanceRecords, onSave, onDel
         <div className="transport-form-card">
           <h3>{editId ? '交通費を編集' : '交通費を追加'}</h3>
 
+          {/* 日付（単一 or 範囲） */}
+          {!editId && (
+            <div className="form-row">
+              <label style={{ width: 140 }} />
+              <label className="range-toggle">
+                <input
+                  type="checkbox"
+                  checked={useRange}
+                  onChange={(e) => setUseRange(e.target.checked)}
+                />
+                日付範囲で一括登録
+              </label>
+            </div>
+          )}
+
           <div className="form-row">
-            <label>日付 <span className="required">*</span></label>
+            <label>{useRange ? '開始日' : '日付'} <span className="required">*</span></label>
             <input
               type="date"
               value={form.date}
               onChange={(e) => set('date', e.target.value)}
             />
-            {monthAttendance.length > 0 && (
+            {!useRange && monthAttendance.length > 0 && (
               <select
                 className="attendance-date-picker"
                 value=""
@@ -165,6 +211,37 @@ export default function TransportTab({ records, attendanceRecords, onSave, onDel
               </select>
             )}
           </div>
+
+          {useRange && (
+            <>
+              <div className="form-row">
+                <label>終了日 <span className="required">*</span></label>
+                <input
+                  type="date"
+                  value={dateTo}
+                  min={form.date}
+                  onChange={(e) => setDateTo(e.target.value)}
+                />
+                {form.date && dateTo && dateTo >= form.date && (
+                  <span className="range-count">
+                    {dateRange(form.date, dateTo).length}日間
+                  </span>
+                )}
+              </div>
+              <div className="form-row">
+                <label style={{ width: 140 }} />
+                <label className="range-toggle">
+                  <input
+                    type="checkbox"
+                    checked={skipWeekends}
+                    onChange={(e) => setSkipWeekends(e.target.checked)}
+                  />
+                  土日を除く
+                </label>
+              </div>
+            </>
+          )}
+
           {errors.date && <div className="form-error">{errors.date}</div>}
 
           <div className="form-row">
@@ -244,7 +321,11 @@ export default function TransportTab({ records, attendanceRecords, onSave, onDel
           </div>
 
           <div className="form-actions">
-            <button className="btn btn-primary" onClick={handleSubmit}>保存</button>
+            <button className="btn btn-primary" onClick={handleSubmit}>
+              {useRange && dateTo >= form.date
+                ? `${dateRange(form.date, dateTo).length}件 一括登録`
+                : '保存'}
+            </button>
             <button className="btn btn-secondary" onClick={() => setShowForm(false)}>キャンセル</button>
           </div>
         </div>

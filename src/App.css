@@ -275,6 +275,8 @@ h3 {
 .summary-item.early { background: #fce4ec; }
 .summary-item.scheduled-holiday { background: #fff3e0; }
 .summary-item.legal-holiday { background: #fbe9e7; }
+.summary-item.legal-holiday-time { background: #fbe9e7; }
+.summary-item.legal-holiday-time .s-value { color: #bf360c; }
 .s-label { font-size: 11px; color: #636e72; font-weight: 500; }
 .s-value { font-size: 16px; font-weight: 700; color: #2d3436; margin-top: 2px; }
 .summary-item.overtime .s-value { color: #e65100; }
@@ -330,6 +332,7 @@ h3 {
 .dow-sat { color: #1e88e5; font-weight: 600; }
 
 .text-overtime { color: #e65100; font-weight: 600; }
+.text-legal-holiday { color: #bf360c; font-weight: 600; }
 .text-latenight { color: #7b1fa2; font-weight: 600; }
 
 /* Status badges */
@@ -438,7 +441,7 @@ h3 {
 .std-hint { font-size: 11px; color: #b2bec3; font-weight: 400; }
 
 /* Work settings */
-.work-settings-form { max-width: 560px; }
+.work-settings-form { max-width: 600px; }
 .settings-info {
   background: #f8f9ff;
   border: 1px solid #e0e4ef;
@@ -460,6 +463,64 @@ h3 {
 .info-value { font-size: 13px; font-weight: 600; color: #2d3436; }
 .save-notice { color: #00b894; font-weight: 600; font-size: 13px; }
 
+/* Danger zone */
+.danger-zone h3 { color: #c0392b; }
+.danger-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+.danger-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  background: #fff8f8;
+  border: 1px solid #fad5d5;
+  border-radius: 8px;
+}
+.danger-item-all {
+  background: #fff3f3;
+  border-color: #f5b7b7;
+}
+.danger-desc {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.danger-desc strong { font-size: 13px; color: #2d3436; }
+.danger-desc span   { font-size: 12px; color: #636e72; }
+.btn-danger-outline {
+  padding: 7px 16px;
+  border-radius: 6px;
+  border: 1.5px solid #e74c3c;
+  background: #fff;
+  color: #e74c3c;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+.btn-danger-outline:hover { background: #e74c3c; color: #fff; }
+.btn-danger {
+  padding: 7px 16px;
+  border-radius: 6px;
+  border: none;
+  background: #e74c3c;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.btn-danger:hover { background: #c0392b; }
+
 /* Transport */
 .transport-form-card {
   background: #f8f9ff;
@@ -480,6 +541,31 @@ h3 {
   flex-shrink: 0;
 }
 .trip-type-group { display: flex; gap: 20px; align-items: center; }
+.range-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #636e72;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+}
+.range-toggle input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: #2d6cdf;
+}
+.range-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2d6cdf;
+  padding: 4px 10px;
+  background: #e8f0fe;
+  border-radius: 12px;
+  white-space: nowrap;
+}
 .radio-label {
   display: flex;
   align-items: center;

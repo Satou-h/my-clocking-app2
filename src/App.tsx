@@ -67,11 +67,32 @@ export default function App() {
     saveWorkSettings(settings);
   }
 
+  function handleClearAttendance() {
+    persistRecords([]);
+  }
+
+  function handleClearTransport() {
+    setTransportRecords([]);
+    saveTransportRecords([]);
+  }
+
+  function handleClearAll() {
+    persistRecords([]);
+    setTransportRecords([]);
+    saveTransportRecords([]);
+  }
+
   function handleSaveTransport(record: TransportRecord) {
     const exists = transportRecords.some((r) => r.id === record.id);
     const next = exists
       ? transportRecords.map((r) => r.id === record.id ? record : r)
       : [...transportRecords, record];
+    setTransportRecords(next);
+    saveTransportRecords(next);
+  }
+
+  function handleSaveTransportMultiple(newRecords: TransportRecord[]) {
+    const next = [...transportRecords, ...newRecords];
     setTransportRecords(next);
     saveTransportRecords(next);
   }
@@ -100,6 +121,18 @@ export default function App() {
       persistRecords(merged);
     }
     setTab('list');
+  }
+
+  function handleImportTransport(imported: TransportRecord[], mode: 'merge' | 'replace') {
+    if (mode === 'replace') {
+      setTransportRecords(imported);
+      saveTransportRecords(imported);
+    } else {
+      const next = [...transportRecords, ...imported];
+      setTransportRecords(next);
+      saveTransportRecords(next);
+    }
+    setTab('transport');
   }
 
   const tabs: { key: Tab; label: string }[] = [
@@ -140,6 +173,7 @@ export default function App() {
           <AttendanceForm
             key={editingRecord?.id ?? 'new'}
             existingRecord={editingRecord}
+            records={records}
             workSettings={workSettings}
             onSave={handleSave}
             onCancel={editingRecord ? () => { setEditingRecord(undefined); setTab('list'); } : undefined}
@@ -161,14 +195,26 @@ export default function App() {
             records={transportRecords}
             attendanceRecords={records}
             onSave={handleSaveTransport}
+            onSaveMultiple={handleSaveTransportMultiple}
             onDelete={handleDeleteTransport}
           />
         )}
         {tab === 'csv' && (
-          <CSVImport records={records} onImport={handleImport} />
+          <CSVImport
+            records={records}
+            transportRecords={transportRecords}
+            onImport={handleImport}
+            onImportTransport={handleImportTransport}
+          />
         )}
         {tab === 'settings' && (
-          <WorkSettingsForm settings={workSettings} onSave={handleSaveWorkSettings} />
+          <WorkSettingsForm
+            settings={workSettings}
+            onSave={handleSaveWorkSettings}
+            onClearAttendance={handleClearAttendance}
+            onClearTransport={handleClearTransport}
+            onClearAll={handleClearAll}
+          />
         )}
       </main>
     </div>

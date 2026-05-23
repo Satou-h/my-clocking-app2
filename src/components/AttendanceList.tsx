@@ -41,25 +41,30 @@ export default function AttendanceList({ records, workSettings, onEdit, onDelete
     (acc, r) => {
       if (!isWorkType(r.type) || !r.clockIn || !r.clockOut) return acc;
       const work = calcWorkMinutes(r.clockIn, r.clockOut, r.breakMinutes ?? 0);
-      const ot = calcOvertimeMinutes(work);
       const ln = calcLateNightMinutes(r.clockIn, r.clockOut);
       const refStart = r.customStartTime ?? workSettings.standardStartTime;
       const refEnd = r.customEndTime ?? workSettings.standardEndTime;
       const isHalf = r.type === 'am_leave' || r.type === 'pm_leave';
       const late = !isHalf && isLateArrival(r.clockIn, refStart);
       const early = !isHalf && isEarlyDeparture(r.clockOut, refEnd, r.clockIn);
+      // 所定休日出勤は全時間を残業に加算、法定休日出勤は専用集計
+      const ot = r.type === 'scheduled_holiday_work' ? work
+        : r.type === 'legal_holiday_work' ? 0
+        : calcOvertimeMinutes(work);
+      const legalHoliday = r.type === 'legal_holiday_work' ? work : 0;
       return {
         workDays: acc.workDays + (r.type === 'work' ? 1 : 0),
         scheduledHolidayDays: acc.scheduledHolidayDays + (r.type === 'scheduled_holiday_work' ? 1 : 0),
         legalHolidayDays: acc.legalHolidayDays + (r.type === 'legal_holiday_work' ? 1 : 0),
         workMins: acc.workMins + work,
         overtimeMins: acc.overtimeMins + ot,
+        legalHolidayMins: acc.legalHolidayMins + legalHoliday,
         lateNightMins: acc.lateNightMins + ln,
         lateCount: acc.lateCount + (late ? 1 : 0),
         earlyCount: acc.earlyCount + (early ? 1 : 0),
       };
     },
-    { workDays: 0, scheduledHolidayDays: 0, legalHolidayDays: 0, workMins: 0, overtimeMins: 0, lateNightMins: 0, lateCount: 0, earlyCount: 0 }
+    { workDays: 0, scheduledHolidayDays: 0, legalHolidayDays: 0, workMins: 0, overtimeMins: 0, legalHolidayMins: 0, lateNightMins: 0, lateCount: 0, earlyCount: 0 }
   );
   const paidDays = filtered.reduce((acc, r) => {
     if (r.type === 'paid_leave') return acc + 1;
@@ -155,6 +160,10 @@ export default function AttendanceList({ records, workSettings, onEdit, onDelete
           <span className="s-label">残業</span>
           <span className="s-value">{formatMinutes(summary.overtimeMins)}</span>
         </div>
+        <div className="summary-item legal-holiday-time">
+          <span className="s-label">法定休日</span>
+          <span className="s-value">{formatMinutes(summary.legalHolidayMins)}</span>
+        </div>
         <div className="summary-item latenight">
           <span className="s-label">深夜</span>
           <span className="s-value">{formatMinutes(summary.lateNightMins)}</span>
@@ -180,6 +189,7 @@ export default function AttendanceList({ records, workSettings, onEdit, onDelete
               <th>休憩</th>
               <th>労働時間</th>
               <th>残業</th>
+              <th>法定休日</th>
               <th>深夜</th>
               <th>状態</th>
               <th>備考</th>
@@ -193,6 +203,7 @@ export default function AttendanceList({ records, workSettings, onEdit, onDelete
                   <tr key={row.date} className="row-off">
                     <td>{formatDay(row.date)}</td>
                     <td><span className="badge badge-holiday">休日</span></td>
+                    <td>-</td>
                     <td>-</td>
                     <td>-</td>
                     <td>-</td>
@@ -217,6 +228,7 @@ export default function AttendanceList({ records, workSettings, onEdit, onDelete
                     <td>-</td>
                     <td>-</td>
                     <td>-</td>
+                    <td>-</td>
                     <td></td>
                     <td></td>
                     <td></td>
@@ -229,7 +241,12 @@ export default function AttendanceList({ records, workSettings, onEdit, onDelete
               const workMin = hasTime
                 ? calcWorkMinutes(r.clockIn!, r.clockOut!, r.breakMinutes ?? 0)
                 : null;
-              const otMin = workMin !== null ? calcOvertimeMinutes(workMin) : null;
+              const otMin = workMin !== null
+                ? r.type === 'scheduled_holiday_work' ? workMin
+                  : r.type === 'legal_holiday_work' ? null
+                  : calcOvertimeMinutes(workMin)
+                : null;
+              const legalHolidayMin = r.type === 'legal_holiday_work' && workMin !== null ? workMin : null;
               const lnMin = hasTime ? calcLateNightMinutes(r.clockIn!, r.clockOut!) : null;
               const rowRefStart = r.customStartTime ?? workSettings.standardStartTime;
               const rowRefEnd = r.customEndTime ?? workSettings.standardEndTime;
@@ -251,6 +268,9 @@ export default function AttendanceList({ records, workSettings, onEdit, onDelete
                   <td>{workMin !== null ? formatMinutes(workMin) : '-'}</td>
                   <td className={otMin && otMin > 0 ? 'text-overtime' : ''}>
                     {otMin !== null ? (otMin > 0 ? formatMinutes(otMin) : '-') : '-'}
+                  </td>
+                  <td className={legalHolidayMin !== null && legalHolidayMin > 0 ? 'text-legal-holiday' : ''}>
+                    {legalHolidayMin !== null ? formatMinutes(legalHolidayMin) : '-'}
                   </td>
                   <td className={lnMin && lnMin > 0 ? 'text-latenight' : ''}>
                     {lnMin !== null ? (lnMin > 0 ? formatMinutes(lnMin) : '-') : '-'}

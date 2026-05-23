@@ -41,7 +41,7 @@ export function printMonthlyAttendance(
 
   // 月次集計
   let workDays = 0, scheduledHolidayDays = 0, legalHolidayDays = 0, paidDays = 0;
-  let workMins = 0, otMins = 0, lnMins = 0, lateCount = 0, earlyCount = 0;
+  let workMins = 0, otMins = 0, legalHolidayMins = 0, lnMins = 0, lateCount = 0, earlyCount = 0;
   for (const r of filtered) {
     if (r.type === 'paid_leave') { paidDays++; continue; }
     if (r.type === 'am_leave' || r.type === 'pm_leave') { paidDays += 0.5; }
@@ -51,7 +51,10 @@ export function printMonthlyAttendance(
     if (r.type === 'legal_holiday_work') legalHolidayDays++;
     const w = calcWorkMinutes(r.clockIn, r.clockOut, r.breakMinutes ?? 0);
     workMins += w;
-    otMins += calcOvertimeMinutes(w);
+    // 所定休日出勤は全時間を残業に加算、法定休日出勤は専用集計
+    if (r.type === 'scheduled_holiday_work') otMins += w;
+    else if (r.type === 'legal_holiday_work') legalHolidayMins += w;
+    else otMins += calcOvertimeMinutes(w);
     lnMins += calcLateNightMinutes(r.clockIn, r.clockOut);
     const refStart = r.customStartTime ?? workSettings.standardStartTime;
     const refEnd   = r.customEndTime   ?? workSettings.standardEndTime;
@@ -73,7 +76,12 @@ export function printMonthlyAttendance(
     if (r) {
       const hasTime = isWorkType(r.type) && r.clockIn && r.clockOut;
       const wMin = hasTime ? calcWorkMinutes(r.clockIn!, r.clockOut!, r.breakMinutes ?? 0) : null;
-      const ot   = wMin !== null ? calcOvertimeMinutes(wMin) : null;
+      const ot   = wMin !== null
+        ? r.type === 'scheduled_holiday_work' ? wMin
+          : r.type === 'legal_holiday_work' ? null
+          : calcOvertimeMinutes(wMin)
+        : null;
+      const legalHolidayMin = r.type === 'legal_holiday_work' && wMin !== null ? wMin : null;
       const ln   = hasTime ? calcLateNightMinutes(r.clockIn!, r.clockOut!) : null;
       const rowRefStart = r.customStartTime ?? workSettings.standardStartTime;
       const rowRefEnd   = r.customEndTime   ?? workSettings.standardEndTime;
@@ -96,6 +104,7 @@ export function printMonthlyAttendance(
           <td>${isWorkType(r.type) ? (r.breakMinutes ?? 0) : '-'}</td>
           <td>${wMin !== null ? formatMinutes(wMin) : '-'}</td>
           <td class="${ot && ot > 0 ? 'td-ot' : ''}">${ot !== null ? (ot > 0 ? formatMinutes(ot) : '-') : '-'}</td>
+          <td class="${legalHolidayMin !== null && legalHolidayMin > 0 ? 'td-lh' : ''}">${legalHolidayMin !== null ? formatMinutes(legalHolidayMin) : '-'}</td>
           <td class="${ln && ln > 0 ? 'td-ln' : ''}">${ln !== null ? (ln > 0 ? formatMinutes(ln) : '-') : '-'}</td>
           <td>${statusBadges(late, early)}</td>
           <td class="td-notes">${r.notes ?? ''}</td>
@@ -110,7 +119,7 @@ export function printMonthlyAttendance(
         <tr class="tr-off">
           <td class="td-date">${fmtDate(dateStr)}</td>
           <td><span class="badge holiday">休日</span></td>
-          <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
+          <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
           <td></td>
           <td class="td-notes td-holiday-name">${holidayName ?? ''}</td>
         </tr>`;
@@ -121,7 +130,7 @@ export function printMonthlyAttendance(
       <tr class="tr-empty">
         <td class="td-date">${fmtDate(dateStr)}</td>
         <td>-</td>
-        <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
+        <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
         <td></td><td></td>
       </tr>`;
   }).join('');
@@ -270,7 +279,7 @@ export function printMonthlyAttendance(
   <thead>
     <tr>
       <th>出勤日数</th><th>所定休日出勤</th><th>法定休日出勤</th><th>有給日数</th>
-      <th>総労働時間</th><th>残業時間</th><th>深夜時間</th><th>遅刻</th><th>早退</th>
+      <th>総労働時間</th><th>残業時間</th><th>法定休日時間</th><th>深夜時間</th><th>遅刻</th><th>早退</th>
     </tr>
   </thead>
   <tbody>
@@ -281,6 +290,7 @@ export function printMonthlyAttendance(
       <td>${paidDays}日</td>
       <td>${formatMinutes(workMins)}</td>
       <td class="ot">${formatMinutes(otMins)}</td>
+      <td class="lh">${formatMinutes(legalHolidayMins)}</td>
       <td class="ln">${formatMinutes(lnMins)}</td>
       <td class="ng">${lateCount}回</td>
       <td class="ng">${earlyCount}回</td>
@@ -292,7 +302,7 @@ export function printMonthlyAttendance(
   <thead>
     <tr>
       <th>日付</th><th>種別</th><th>出勤</th><th>退勤</th>
-      <th>休憩(分)</th><th>労働時間</th><th>残業</th><th>深夜</th><th>状態</th><th>備考</th>
+      <th>休憩(分)</th><th>労働時間</th><th>残業</th><th>法定休日</th><th>深夜</th><th>状態</th><th>備考</th>
     </tr>
   </thead>
   <tbody>
