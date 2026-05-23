@@ -273,10 +273,15 @@ h3 {
 .summary-item.latenight { background: #f3e5f5; }
 .summary-item.late { background: #fce4ec; }
 .summary-item.early { background: #fce4ec; }
+.summary-item.paid-leave-remaining { background: #e8f8f0; }
+.summary-item.paid-leave-remaining .s-value { color: #00b894; }
+.summary-item.paid-leave-low { background: #fce4ec; }
+.summary-item.paid-leave-low .s-value { color: #c62828; }
 .summary-item.scheduled-holiday { background: #fff3e0; }
 .summary-item.legal-holiday { background: #fbe9e7; }
 .summary-item.legal-holiday-time { background: #fbe9e7; }
 .summary-item.legal-holiday-time .s-value { color: #bf360c; }
+.summary-break { flex-basis: 100%; height: 0; }
 .s-label { font-size: 11px; color: #636e72; font-weight: 500; }
 .s-value { font-size: 16px; font-weight: 700; color: #2d3436; margin-top: 2px; }
 .summary-item.overtime .s-value { color: #e65100; }

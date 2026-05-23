@@ -183,6 +183,7 @@ export default function App() {
           <AttendanceList
             records={records}
             workSettings={workSettings}
+            paidLeaveSettings={paidLeave}
             onEdit={handleEdit}
             onDelete={handleDelete}
           />

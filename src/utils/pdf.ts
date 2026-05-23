@@ -29,6 +29,7 @@ export function printMonthlyAttendance(
   workSettings: WorkSettings,
   year: number,
   month: number,
+  plRemaining: number | null = null,
 ) {
   const prefix = `${year}-${String(month).padStart(2, '0')}`;
   const filtered = records
@@ -191,6 +192,9 @@ export function printMonthlyAttendance(
   .summary td.ng { color: #c62828; }
   .summary td.sh { color: #e65100; }
   .summary td.lh { color: #bf360c; }
+  .summary.summary-pl { width: auto; min-width: 120px; }
+  .summary td.pl-ok { color: #00b894; }
+  .summary td.pl-low { color: #c62828; }
 
   /* ── 明細テーブル ── */
   table.detail { width: 100%; border-collapse: collapse; }
@@ -278,7 +282,7 @@ export function printMonthlyAttendance(
 <table class="summary">
   <thead>
     <tr>
-      <th>出勤日数</th><th>所定休日出勤</th><th>法定休日出勤</th><th>有給日数</th>
+      <th>出勤日数</th><th>所定休日出勤</th><th>法定休日出勤</th>
       <th>総労働時間</th><th>残業時間</th><th>法定休日時間</th><th>深夜時間</th><th>遅刻</th><th>早退</th>
     </tr>
   </thead>
@@ -287,13 +291,25 @@ export function printMonthlyAttendance(
       <td>${workDays}日</td>
       <td class="sh">${scheduledHolidayDays}日</td>
       <td class="lh">${legalHolidayDays}日</td>
-      <td>${paidDays}日</td>
       <td>${formatMinutes(workMins)}</td>
       <td class="ot">${formatMinutes(otMins)}</td>
       <td class="lh">${formatMinutes(legalHolidayMins)}</td>
       <td class="ln">${formatMinutes(lnMins)}</td>
       <td class="ng">${lateCount}回</td>
       <td class="ng">${earlyCount}回</td>
+    </tr>
+  </tbody>
+</table>
+<table class="summary summary-pl">
+  <thead>
+    <tr>
+      <th>有給日数</th><th>有給残日数</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>${paidDays}日</td>
+      <td class="${plRemaining !== null && plRemaining <= 5 ? 'pl-low' : 'pl-ok'}">${plRemaining !== null ? `${plRemaining}日` : '未設定'}</td>
     </tr>
   </tbody>
 </table>

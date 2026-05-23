@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { AttendanceRecord, WorkSettings } from '../types/attendance';
+import type { AttendanceRecord, WorkSettings, PaidLeaveSettings } from '../types/attendance';
 import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
 import {
   calcWorkMinutes, calcOvertimeMinutes, calcLateNightMinutes,
@@ -11,6 +11,7 @@ import { getHolidayName } from '../utils/holidays';
 interface Props {
   records: AttendanceRecord[];
   workSettings: WorkSettings;
+  paidLeaveSettings: PaidLeaveSettings[];
   onEdit: (record: AttendanceRecord) => void;
   onDelete: (id: string) => void;
 }
@@ -20,7 +21,7 @@ type DayRow =
   | { kind: 'off'; date: string; label: string }
   | { kind: 'empty'; date: string };
 
-export default function AttendanceList({ records, workSettings, onEdit, onDelete }: Props) {
+export default function AttendanceList({ records, workSettings, paidLeaveSettings, onEdit, onDelete }: Props) {
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
   const [filterYear, setFilterYear] = useState(currentYear);
@@ -71,6 +72,18 @@ export default function AttendanceList({ records, workSettings, onEdit, onDelete
     if (r.type === 'am_leave' || r.type === 'pm_leave') return acc + 0.5;
     return acc;
   }, 0);
+
+  // 有給残日数（年度累計ベース）
+  const plSetting = paidLeaveSettings.find((s) => s.year === filterYear);
+  const plInitial = plSetting?.totalDays ?? null;
+  const plYearUsed = records
+    .filter((r) => r.date.startsWith(String(filterYear)))
+    .reduce((acc, r) => {
+      if (r.type === 'paid_leave') return acc + 1;
+      if (r.type === 'am_leave' || r.type === 'pm_leave') return acc + 0.5;
+      return acc;
+    }, 0);
+  const plRemaining = plInitial !== null ? plInitial - plYearUsed : null;
 
   // 当月の全日を生成
   const daysInMonth = new Date(filterYear, filterMonth, 0).getDate();
@@ -128,7 +141,7 @@ export default function AttendanceList({ records, workSettings, onEdit, onDelete
         </select>
         <button
           className="btn btn-pdf"
-          onClick={() => printMonthlyAttendance(records, workSettings, filterYear, filterMonth)}
+          onClick={() => printMonthlyAttendance(records, workSettings, filterYear, filterMonth, plRemaining)}
           title={`${filterYear}年${filterMonth}月をPDF出力`}
         >
           PDF出力
@@ -147,10 +160,6 @@ export default function AttendanceList({ records, workSettings, onEdit, onDelete
         <div className="summary-item legal-holiday">
           <span className="s-label">法定休日出勤</span>
           <span className="s-value">{summary.legalHolidayDays}日</span>
-        </div>
-        <div className="summary-item">
-          <span className="s-label">有給</span>
-          <span className="s-value">{paidDays}日</span>
         </div>
         <div className="summary-item">
           <span className="s-label">総労働</span>
@@ -175,6 +184,17 @@ export default function AttendanceList({ records, workSettings, onEdit, onDelete
         <div className="summary-item early">
           <span className="s-label">早退</span>
           <span className="s-value">{summary.earlyCount}回</span>
+        </div>
+        <div className="summary-break" />
+        <div className="summary-item">
+          <span className="s-label">有給</span>
+          <span className="s-value">{paidDays}日</span>
+        </div>
+        <div className={`summary-item ${plRemaining !== null && plRemaining <= 5 ? 'paid-leave-low' : 'paid-leave-remaining'}`}>
+          <span className="s-label">有給残日数</span>
+          <span className="s-value">
+            {plRemaining !== null ? `${plRemaining}日` : '未設定'}
+          </span>
         </div>
       </div>
 
