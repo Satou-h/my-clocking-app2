@@ -29,7 +29,8 @@ export default function AttendanceForm({ existingRecord, workSettings, onSave, o
   const [customStartTime, setCustomStartTime] = useState(existingRecord?.customStartTime ?? '');
   const [customEndTime, setCustomEndTime] = useState(existingRecord?.customEndTime ?? '');
 
-  const needsTime = type === 'work' || type === 'absence' || type === 'am_leave' || type === 'pm_leave';
+  const needsTime = type === 'work' || type === 'absence' || type === 'am_leave' || type === 'pm_leave'
+    || type === 'scheduled_holiday_work' || type === 'legal_holiday_work';
   const isHalfLeave = type === 'am_leave' || type === 'pm_leave';
 
   const effectiveStart = (useCustomTime && customStartTime) ? customStartTime : workSettings.standardStartTime;

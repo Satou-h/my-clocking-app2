@@ -32,7 +32,9 @@ export default function AttendanceList({ records, workSettings, onEdit, onDelete
     .filter((r) => r.date.startsWith(prefix))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  const isWorkType = (type: string) => type === 'work' || type === 'am_leave' || type === 'pm_leave';
+  const isWorkType = (type: string) =>
+    type === 'work' || type === 'am_leave' || type === 'pm_leave'
+    || type === 'scheduled_holiday_work' || type === 'legal_holiday_work';
 
   // 月次集計（実際の登録レコードのみ）
   const summary = filtered.reduce(
@@ -47,7 +49,9 @@ export default function AttendanceList({ records, workSettings, onEdit, onDelete
       const late = !isHalf && isLateArrival(r.clockIn, refStart);
       const early = !isHalf && isEarlyDeparture(r.clockOut, refEnd, r.clockIn);
       return {
-        workDays: acc.workDays + 1,
+        workDays: acc.workDays + (r.type === 'work' ? 1 : 0),
+        scheduledHolidayDays: acc.scheduledHolidayDays + (r.type === 'scheduled_holiday_work' ? 1 : 0),
+        legalHolidayDays: acc.legalHolidayDays + (r.type === 'legal_holiday_work' ? 1 : 0),
         workMins: acc.workMins + work,
         overtimeMins: acc.overtimeMins + ot,
         lateNightMins: acc.lateNightMins + ln,
@@ -55,7 +59,7 @@ export default function AttendanceList({ records, workSettings, onEdit, onDelete
         earlyCount: acc.earlyCount + (early ? 1 : 0),
       };
     },
-    { workDays: 0, workMins: 0, overtimeMins: 0, lateNightMins: 0, lateCount: 0, earlyCount: 0 }
+    { workDays: 0, scheduledHolidayDays: 0, legalHolidayDays: 0, workMins: 0, overtimeMins: 0, lateNightMins: 0, lateCount: 0, earlyCount: 0 }
   );
   const paidDays = filtered.reduce((acc, r) => {
     if (r.type === 'paid_leave') return acc + 1;
@@ -130,6 +134,14 @@ export default function AttendanceList({ records, workSettings, onEdit, onDelete
         <div className="summary-item">
           <span className="s-label">出勤</span>
           <span className="s-value">{summary.workDays}日</span>
+        </div>
+        <div className="summary-item scheduled-holiday">
+          <span className="s-label">所定休日出勤</span>
+          <span className="s-value">{summary.scheduledHolidayDays}日</span>
+        </div>
+        <div className="summary-item legal-holiday">
+          <span className="s-label">法定休日出勤</span>
+          <span className="s-value">{summary.legalHolidayDays}日</span>
         </div>
         <div className="summary-item">
           <span className="s-label">有給</span>

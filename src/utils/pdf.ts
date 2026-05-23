@@ -35,19 +35,29 @@ export function printMonthlyAttendance(
     .filter((r) => r.date.startsWith(prefix))
     .sort((a, b) => a.date.localeCompare(b.date));
 
+  const isWorkType = (t: string) =>
+    t === 'work' || t === 'am_leave' || t === 'pm_leave'
+    || t === 'scheduled_holiday_work' || t === 'legal_holiday_work';
+
   // 月次集計
-  let workDays = 0, paidDays = 0;
+  let workDays = 0, scheduledHolidayDays = 0, legalHolidayDays = 0, paidDays = 0;
   let workMins = 0, otMins = 0, lnMins = 0, lateCount = 0, earlyCount = 0;
   for (const r of filtered) {
     if (r.type === 'paid_leave') { paidDays++; continue; }
-    if (r.type !== 'work' || !r.clockIn || !r.clockOut) continue;
-    workDays++;
+    if (r.type === 'am_leave' || r.type === 'pm_leave') { paidDays += 0.5; }
+    if (!isWorkType(r.type) || !r.clockIn || !r.clockOut) continue;
+    if (r.type === 'work') workDays++;
+    if (r.type === 'scheduled_holiday_work') scheduledHolidayDays++;
+    if (r.type === 'legal_holiday_work') legalHolidayDays++;
     const w = calcWorkMinutes(r.clockIn, r.clockOut, r.breakMinutes ?? 0);
     workMins += w;
     otMins += calcOvertimeMinutes(w);
     lnMins += calcLateNightMinutes(r.clockIn, r.clockOut);
-    if (isLateArrival(r.clockIn, workSettings.standardStartTime)) lateCount++;
-    if (isEarlyDeparture(r.clockOut, workSettings.standardEndTime)) earlyCount++;
+    const refStart = r.customStartTime ?? workSettings.standardStartTime;
+    const refEnd   = r.customEndTime   ?? workSettings.standardEndTime;
+    const isHalf   = r.type === 'am_leave' || r.type === 'pm_leave';
+    if (!isHalf && isLateArrival(r.clockIn, refStart)) lateCount++;
+    if (!isHalf && isEarlyDeparture(r.clockOut, refEnd, r.clockIn)) earlyCount++;
   }
 
   // 当月の全日を生成
@@ -61,20 +71,29 @@ export function printMonthlyAttendance(
 
     // 登録済みレコード
     if (r) {
-      const hasTime = r.type === 'work' && r.clockIn && r.clockOut;
+      const hasTime = isWorkType(r.type) && r.clockIn && r.clockOut;
       const wMin = hasTime ? calcWorkMinutes(r.clockIn!, r.clockOut!, r.breakMinutes ?? 0) : null;
       const ot   = wMin !== null ? calcOvertimeMinutes(wMin) : null;
       const ln   = hasTime ? calcLateNightMinutes(r.clockIn!, r.clockOut!) : null;
-      const late  = hasTime ? isLateArrival(r.clockIn!, workSettings.standardStartTime) : false;
-      const early = hasTime ? isEarlyDeparture(r.clockOut!, workSettings.standardEndTime) : false;
-      const typeClass = r.type === 'paid_leave' ? 'tr-paid' : r.type === 'holiday' ? 'tr-holiday' : r.type === 'absence' ? 'tr-absence' : '';
+      const rowRefStart = r.customStartTime ?? workSettings.standardStartTime;
+      const rowRefEnd   = r.customEndTime   ?? workSettings.standardEndTime;
+      const rowIsHalf   = r.type === 'am_leave' || r.type === 'pm_leave';
+      const late  = hasTime && !rowIsHalf ? isLateArrival(r.clockIn!, rowRefStart) : false;
+      const early = hasTime && !rowIsHalf ? isEarlyDeparture(r.clockOut!, rowRefEnd, r.clockIn) : false;
+      const typeClass = r.type === 'paid_leave' ? 'tr-paid'
+        : r.type === 'am_leave' || r.type === 'pm_leave' ? 'tr-paid'
+        : r.type === 'holiday' ? 'tr-holiday'
+        : r.type === 'absence' ? 'tr-absence'
+        : r.type === 'scheduled_holiday_work' ? 'tr-scheduled-holiday'
+        : r.type === 'legal_holiday_work' ? 'tr-legal-holiday'
+        : '';
       return `
         <tr class="${typeClass}">
           <td class="td-date">${fmtDate(dateStr)}</td>
           <td><span class="badge ${r.type}">${ATTENDANCE_TYPE_LABELS[r.type]}</span></td>
           <td>${r.clockIn ?? '-'}</td>
           <td>${r.clockOut ?? '-'}</td>
-          <td>${r.type === 'work' ? (r.breakMinutes ?? 0) : '-'}</td>
+          <td>${isWorkType(r.type) ? (r.breakMinutes ?? 0) : '-'}</td>
           <td>${wMin !== null ? formatMinutes(wMin) : '-'}</td>
           <td class="${ot && ot > 0 ? 'td-ot' : ''}">${ot !== null ? (ot > 0 ? formatMinutes(ot) : '-') : '-'}</td>
           <td class="${ln && ln > 0 ? 'td-ln' : ''}">${ln !== null ? (ln > 0 ? formatMinutes(ln) : '-') : '-'}</td>
@@ -137,6 +156,7 @@ export function printMonthlyAttendance(
   /* ── サマリー（1行テーブル） ── */
   .summary {
     width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
     margin-bottom: 5px;
     font-size: 8.5px;
@@ -145,21 +165,23 @@ export function printMonthlyAttendance(
     background: #f1f3f9;
     color: #636e72;
     font-weight: 600;
-    padding: 2px 6px;
+    padding: 2px 4px;
     border: 1px solid #dde1ee;
     text-align: center;
-    white-space: nowrap;
+    overflow: hidden;
   }
   .summary td {
-    padding: 2px 6px;
+    padding: 2px 4px;
     border: 1px solid #dde1ee;
     text-align: center;
     font-weight: 700;
-    white-space: nowrap;
+    overflow: hidden;
   }
   .summary td.ot { color: #e65100; }
   .summary td.ln { color: #7b1fa2; }
   .summary td.ng { color: #c62828; }
+  .summary td.sh { color: #e65100; }
+  .summary td.lh { color: #bf360c; }
 
   /* ── 明細テーブル ── */
   table.detail { width: 100%; border-collapse: collapse; }
@@ -210,8 +232,14 @@ export function printMonthlyAttendance(
   .badge.paid_leave { background: #fff9c4; color: #856404; }
   .badge.holiday    { background: #e8f5e9; color: #2e7d32; }
   .badge.absence    { background: #fce4ec; color: #c62828; }
+  .badge.am_leave   { background: #e0f2fe; color: #0277bd; }
+  .badge.pm_leave   { background: #fce4ec; color: #ad1457; }
+  .badge.scheduled_holiday_work { background: #fff3e0; color: #e65100; }
+  .badge.legal_holiday_work     { background: #fbe9e7; color: #bf360c; }
   .badge.late       { background: #fce4ec; color: #c62828; }
   .badge.early      { background: #fff8e1; color: #f57f17; }
+  .tr-scheduled-holiday td { background: #fff8f0 !important; }
+  .tr-legal-holiday     td { background: #fff4f2 !important; }
 
   .print-btn {
     position: fixed; top: 12px; right: 16px;
@@ -241,13 +269,15 @@ export function printMonthlyAttendance(
 <table class="summary">
   <thead>
     <tr>
-      <th>出勤日数</th><th>有給日数</th><th>総労働時間</th>
-      <th>残業時間</th><th>深夜時間</th><th>遅刻</th><th>早退</th>
+      <th>出勤日数</th><th>所定休日出勤</th><th>法定休日出勤</th><th>有給日数</th>
+      <th>総労働時間</th><th>残業時間</th><th>深夜時間</th><th>遅刻</th><th>早退</th>
     </tr>
   </thead>
   <tbody>
     <tr>
       <td>${workDays}日</td>
+      <td class="sh">${scheduledHolidayDays}日</td>
+      <td class="lh">${legalHolidayDays}日</td>
       <td>${paidDays}日</td>
       <td>${formatMinutes(workMins)}</td>
       <td class="ot">${formatMinutes(otMins)}</td>

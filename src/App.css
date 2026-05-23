@@ -214,6 +214,8 @@ h3 {
 .row-absence td { background: #fff0f0; }
 .row-am_leave td { background: #e8f6ff; }
 .row-pm_leave td { background: #fff0f6; }
+.row-scheduled_holiday_work td { background: #fff8f0; }
+.row-legal_holiday_work td { background: #fff4f2; }
 .row-off td { background: #f2f3f5; color: #adb5bd; }
 .row-off .dow-sun { color: #ef9a9a; }
 .row-off .dow-sat { color: #90caf9; }
@@ -234,6 +236,8 @@ h3 {
 .badge-absence { background: #f8d7da; color: #721c24; }
 .badge-am_leave { background: #e0f2fe; color: #0277bd; }
 .badge-pm_leave { background: #fce4ec; color: #ad1457; }
+.badge-scheduled_holiday_work { background: #fff3e0; color: #e65100; }
+.badge-legal_holiday_work { background: #fbe9e7; color: #bf360c; }
 
 /* List filter */
 .list-filter {
@@ -269,6 +273,8 @@ h3 {
 .summary-item.latenight { background: #f3e5f5; }
 .summary-item.late { background: #fce4ec; }
 .summary-item.early { background: #fce4ec; }
+.summary-item.scheduled-holiday { background: #fff3e0; }
+.summary-item.legal-holiday { background: #fbe9e7; }
 .s-label { font-size: 11px; color: #636e72; font-weight: 500; }
 .s-value { font-size: 16px; font-weight: 700; color: #2d3436; margin-top: 2px; }
 .summary-item.overtime .s-value { color: #e65100; }
@@ -498,6 +504,8 @@ h3 {
 .att-chip-absence    { background: #f8d7da; color: #721c24; }
 .att-chip-am_leave   { background: #e0f2fe; color: #0277bd; }
 .att-chip-pm_leave   { background: #fce4ec; color: #ad1457; }
+.att-chip-scheduled_holiday_work { background: #fff3e0; color: #e65100; }
+.att-chip-legal_holiday_work     { background: #fbe9e7; color: #bf360c; }
 .badge-roundtrip { background: #e3f2fd; color: #1565c0; }
 .badge-oneway    { background: #fce4ec; color: #880e4f; }
 .td-amount { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
