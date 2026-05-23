@@ -341,6 +341,135 @@ export function printMonthlyAttendance(
   win.document.close();
 }
 
+function fmtJpDate(d: string): string {
+  if (!d) return '';
+  const date = new Date(d + 'T00:00:00');
+  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+}
+
+export interface LeaveApplicationData {
+  applicationDate: string;
+  name: string;
+  leaveLabel: string;
+  startDate: string;
+  endDate: string;
+  leaveDays: number;
+  reason: string;
+}
+
+export function printLeaveApplication(data: LeaveApplicationData) {
+  const { applicationDate, name, leaveLabel, startDate, endDate, leaveDays, reason } = data;
+  const dateRange = startDate === endDate
+    ? fmtJpDate(startDate)
+    : `${fmtJpDate(startDate)} 〜 ${fmtJpDate(endDate)}`;
+
+  const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>休暇申請書</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', 'Meiryo', sans-serif;
+    font-size: 11pt;
+    color: #1a1a2e;
+    background: #fff;
+    padding: 20mm 24mm;
+  }
+  h1 {
+    text-align: center;
+    font-size: 20pt;
+    font-weight: 700;
+    margin-bottom: 20px;
+    letter-spacing: 6px;
+    border-bottom: 2px solid #2d6cdf;
+    padding-bottom: 10px;
+  }
+  .meta-block {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 24px;
+    font-size: 10pt;
+    color: #444;
+  }
+  .applicant-block { text-align: right; }
+  .name-row { margin-bottom: 6px; }
+  .seals-row { display: flex; justify-content: flex-end; gap: 6px; }
+  .seal-item { display: flex; flex-direction: column; align-items: center; }
+  .seal-label { font-size: 8pt; color: #555; margin-bottom: 2px; }
+  .seal-box { width: 44px; height: 44px; border: 1px solid #666; display: block; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 24px;
+    font-size: 11pt;
+  }
+  table th {
+    background: #f1f3f9;
+    font-weight: 600;
+    padding: 10px 14px;
+    border: 1px solid #aab;
+    width: 26%;
+    text-align: left;
+    color: #444;
+  }
+  table td {
+    padding: 10px 14px;
+    border: 1px solid #aab;
+    min-height: 36px;
+    vertical-align: top;
+  }
+  .print-btn {
+    position: fixed; top: 12px; right: 16px;
+    background: #2d6cdf; color: #fff; border: none;
+    padding: 6px 14px; border-radius: 5px;
+    cursor: pointer; font-size: 12px; font-weight: 600; z-index: 999;
+  }
+  @page { size: A4 portrait; margin: 15mm; }
+  @media print { .print-btn { display: none; } }
+</style>
+</head>
+<body>
+<button class="print-btn" onclick="window.print()">印刷 / PDF保存</button>
+
+<h1>休　暇　申　請　書</h1>
+
+<div class="meta-block">
+  <div>申請日: ${fmtJpDate(applicationDate)}</div>
+  <div class="applicant-block">
+    <div class="name-row">氏名: ${name || '　　　　　　　'}</div>
+    <div class="seals-row">
+      <div class="seal-item"><div class="seal-label">承認印</div><div class="seal-box"></div></div>
+      <div class="seal-item"><div class="seal-label">検印</div><div class="seal-box"></div></div>
+      <div class="seal-item"><div class="seal-label">本人印</div><div class="seal-box"></div></div>
+    </div>
+  </div>
+</div>
+
+<table>
+  <tr><th>休暇種別</th><td>${leaveLabel}</td></tr>
+  <tr><th>休暇期間</th><td>${dateRange}</td></tr>
+  <tr><th>取得日数</th><td>${leaveDays}日</td></tr>
+  <tr><th>取得理由</th><td>${reason.replace(/\n/g, '<br>')}</td></tr>
+</table>
+
+<script>
+  window.addEventListener('load', () => setTimeout(() => window.print(), 400));
+<\/script>
+</body>
+</html>`;
+
+  const win = window.open('', '_blank', 'width=800,height=1000');
+  if (!win) {
+    alert('ポップアップがブロックされました。ブラウザの設定でポップアップを許可してください。');
+    return;
+  }
+  win.document.write(html);
+  win.document.close();
+}
+
 export function printTransportRecords(
   records: TransportRecord[],
   year: number,

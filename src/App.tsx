@@ -13,9 +13,10 @@ import PaidLeaveManager from './components/PaidLeaveManager';
 import CSVImport from './components/CSVImport';
 import WorkSettingsForm from './components/WorkSettingsForm';
 import TransportTab from './components/TransportTab';
+import ApplicationDocumentsTab from './components/ApplicationDocumentsTab';
 import './App.css';
 
-type Tab = 'input' | 'list' | 'paid_leave' | 'csv' | 'transport' | 'settings';
+type Tab = 'input' | 'list' | 'paid_leave' | 'csv' | 'transport' | 'settings' | 'documents';
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('input');
@@ -140,6 +141,7 @@ export default function App() {
     { key: 'list', label: '勤怠一覧' },
     { key: 'paid_leave', label: '有給管理' },
     { key: 'transport', label: '交通費' },
+    { key: 'documents', label: '申請書類' },
     { key: 'csv', label: 'CSV' },
     { key: 'settings', label: '設定' },
   ];
@@ -199,6 +201,9 @@ export default function App() {
             onSaveMultiple={handleSaveTransportMultiple}
             onDelete={handleDeleteTransport}
           />
+        )}
+        {tab === 'documents' && (
+          <ApplicationDocumentsTab />
         )}
         {tab === 'csv' && (
           <CSVImport

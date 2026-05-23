@@ -639,6 +639,70 @@ hr {
   margin: 24px 0;
 }
 
+/* Application Documents Tab */
+.app-doc-tab {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+.app-doc-sidebar {
+  width: 150px;
+  flex-shrink: 0;
+  background: #f8f9fc;
+  border: 1px solid #dde1ee;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.app-doc-menu-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #636e72;
+  padding: 10px 14px 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.app-doc-menu-item {
+  padding: 10px 14px;
+  font-size: 14px;
+  cursor: pointer;
+  color: #2d3436;
+  border-left: 3px solid transparent;
+}
+.app-doc-menu-item:hover { background: #edf0f7; }
+.app-doc-menu-item.active {
+  background: #e8f0fe;
+  border-left-color: #2d6cdf;
+  color: #2d6cdf;
+  font-weight: 600;
+}
+.app-doc-content { flex: 1; min-width: 0; }
+.leave-app-section {
+  background: #fff;
+  border: 1px solid #dde1ee;
+  border-radius: 8px;
+  padding: 20px 24px;
+  margin-bottom: 20px;
+}
+.leave-app-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2d3436;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #eee;
+}
+.leave-days-display {
+  font-size: 16px;
+  font-weight: 700;
+  color: #2d6cdf;
+  padding: 6px 0;
+}
+.leave-app-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
 @media (max-width: 600px) {
   .app-main { padding: 12px; }
   .form-row { flex-direction: column; align-items: flex-start; }
