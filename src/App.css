@@ -283,6 +283,8 @@ h3 {
 .summary-item.latenight .s-value { color: #7b1fa2; }
 .summary-item.late .s-value, .summary-item.early .s-value { color: #c62828; }
 
+
+
 .empty-message {
   text-align: center;
   color: #b2bec3;

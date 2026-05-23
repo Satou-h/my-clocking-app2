@@ -5,6 +5,7 @@ import type { TransportRecord, TripType } from '../types/transport';
 import { TRIP_TYPE_LABELS } from '../types/transport';
 import { generateId } from '../utils/storage';
 import { printTransportRecords } from '../utils/pdf';
+import { getHolidayName } from '../utils/holidays';
 
 interface Props {
   records: TransportRecord[];
@@ -86,11 +87,13 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
     const end = new Date(ty, tm - 1, td);
     for (let d = new Date(fy, fm - 1, fd); d <= end; d.setDate(d.getDate() + 1)) {
       const dow = d.getDay();
-      if (skipWeekends && (dow === 0 || dow === 6)) continue;
       const y = d.getFullYear();
       const m = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
-      dates.push(`${y}-${m}-${day}`);
+      const ds = `${y}-${m}-${day}`;
+      if (skipWeekends && (dow === 0 || dow === 6)) continue;
+      if (skipWeekends && getHolidayName(ds)) continue;
+      dates.push(ds);
     }
     return dates;
   }
@@ -236,7 +239,7 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
                     checked={skipWeekends}
                     onChange={(e) => setSkipWeekends(e.target.checked)}
                   />
-                  土日を除く
+                  土日・祝日を除く
                 </label>
               </div>
             </>

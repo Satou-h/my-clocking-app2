@@ -7,30 +7,33 @@ interface Props {
   onSaveSettings: (settings: PaidLeaveSettings[]) => void;
 }
 
-export default function PaidLeaveManager({ records, settings, onSaveSettings }: Props) {
-  const currentYear = new Date().getFullYear();
-  const [selectedYear, setSelectedYear] = useState(currentYear);
-  const [totalInput, setTotalInput] = useState('');
-
-  const currentSetting = settings.find((s) => s.year === selectedYear);
-  const totalDays = currentSetting?.totalDays ?? 0;
-
-  const usedDays = records
-    .filter((r) => r.date.startsWith(String(selectedYear)))
+function calcUsed(records: AttendanceRecord[], year: number): number {
+  return records
+    .filter((r) => r.date.startsWith(String(year)))
     .reduce((acc, r) => {
       if (r.type === 'paid_leave') return acc + 1;
       if (r.type === 'am_leave' || r.type === 'pm_leave') return acc + 0.5;
       return acc;
     }, 0);
+}
 
-  const remainingDays = totalDays - usedDays;
+export default function PaidLeaveManager({ records, settings, onSaveSettings }: Props) {
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [input, setInput] = useState('');
+
+  const currentSetting = settings.find((s) => s.year === selectedYear);
+  // totalDays は「残日数の初期設定値」として使用
+  const initialRemaining = currentSetting?.totalDays ?? 0;
+  const usedDays = calcUsed(records, selectedYear);
+  const currentRemaining = initialRemaining - usedDays;
 
   function handleSave() {
-    const val = parseFloat(totalInput);
+    const val = parseFloat(input);
     if (isNaN(val) || val < 0) return;
     const updated = settings.filter((s) => s.year !== selectedYear);
     onSaveSettings([...updated, { year: selectedYear, totalDays: val }]);
-    setTotalInput('');
+    setInput('');
   }
 
   const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
@@ -48,31 +51,32 @@ export default function PaidLeaveManager({ records, settings, onSaveSettings }: 
 
       <div className="paid-leave-stats">
         <div className="stat-card">
-          <span className="stat-label">付与日数</span>
-          <span className="stat-value">{totalDays} 日</span>
+          <span className="stat-label">残日数（設定値）</span>
+          <span className="stat-value">{initialRemaining} 日</span>
         </div>
         <div className="stat-card">
           <span className="stat-label">使用日数</span>
           <span className="stat-value used">{usedDays} 日</span>
         </div>
-        <div className={`stat-card ${remainingDays <= 5 ? 'warning' : ''}`}>
-          <span className="stat-label">残日数</span>
-          <span className="stat-value remaining">{remainingDays} 日</span>
+        <div className={`stat-card ${currentRemaining <= 5 ? 'warning' : ''}`}>
+          <span className="stat-label">現在残日数</span>
+          <span className="stat-value remaining">{currentRemaining} 日</span>
         </div>
       </div>
 
       <div className="paid-leave-set">
-        <h3>付与日数の設定</h3>
+        <h3>残日数の設定</h3>
+        <p className="hint">有給休暇の残日数を直接入力してください。使用日数は勤怠記録から自動集計されます。</p>
         <div className="form-row">
-          <label>{selectedYear}年 付与日数</label>
+          <label>{selectedYear}年 残日数</label>
           <input
             type="number"
             min={0}
             max={40}
             step={0.5}
-            placeholder={String(totalDays)}
-            value={totalInput}
-            onChange={(e) => setTotalInput(e.target.value)}
+            placeholder={String(initialRemaining)}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
           />
           <button className="btn btn-primary" onClick={handleSave}>設定</button>
         </div>
@@ -85,22 +89,16 @@ export default function PaidLeaveManager({ records, settings, onSaveSettings }: 
             <thead>
               <tr>
                 <th>年度</th>
-                <th>付与日数</th>
+                <th>残日数（設定値）</th>
                 <th>使用日数</th>
-                <th>残日数</th>
+                <th>現在残日数</th>
               </tr>
             </thead>
             <tbody>
               {settings
                 .sort((a, b) => b.year - a.year)
                 .map((s) => {
-                  const used = records
-                    .filter((r) => r.date.startsWith(String(s.year)))
-                    .reduce((acc, r) => {
-                      if (r.type === 'paid_leave') return acc + 1;
-                      if (r.type === 'am_leave' || r.type === 'pm_leave') return acc + 0.5;
-                      return acc;
-                    }, 0);
+                  const used = calcUsed(records, s.year);
                   const remaining = s.totalDays - used;
                   return (
                     <tr key={s.year}>
