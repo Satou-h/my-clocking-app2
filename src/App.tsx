@@ -16,9 +16,10 @@ import WorkSettingsForm from './components/WorkSettingsForm';
 import TransportTab from './components/TransportTab';
 import ApplicationDocumentsTab from './components/ApplicationDocumentsTab';
 import WorkReportTab from './components/WorkReportTab';
+import SkillTab from './components/SkillTab';
 import './App.css';
 
-type Tab = 'input' | 'list' | 'paid_leave' | 'csv' | 'transport' | 'settings' | 'documents' | 'report';
+type Tab = 'input' | 'list' | 'paid_leave' | 'csv' | 'transport' | 'settings' | 'documents' | 'report' | 'skill';
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('input');
@@ -152,6 +153,7 @@ export default function App() {
     { key: 'transport', label: '交通費' },
     { key: 'documents', label: '申請書類' },
     { key: 'report', label: '作業報告' },
+    { key: 'skill', label: 'スキル表' },
     { key: 'csv', label: 'CSV' },
     { key: 'settings', label: '設定' },
   ];
@@ -170,7 +172,7 @@ export default function App() {
             type="text"
             value={userProfile.employeeId}
             onChange={(e) => handleProfileChange('employeeId', e.target.value)}
-            placeholder="例: SS01"
+            placeholder="例: SS00"
           />
           <label className="header-profile-label">苗字</label>
           <input
@@ -232,6 +234,9 @@ export default function App() {
         )}
         {tab === 'documents' && (
           <ApplicationDocumentsTab />
+        )}
+        {tab === 'skill' && (
+          <SkillTab />
         )}
         {tab === 'report' && (
           <WorkReportTab />

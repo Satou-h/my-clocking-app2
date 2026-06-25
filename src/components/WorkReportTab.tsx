@@ -21,6 +21,10 @@ export function workReportKey(year: number, month: number) {
   return `clocking_work_report_${year}_${String(month).padStart(2, '0')}`;
 }
 
+function summaryKey(year: number, month: number) {
+  return `clocking_work_report_summary_${year}_${String(month).padStart(2, '0')}`;
+}
+
 export function loadAllWeeks(year: number, month: number): WeekReportData[] {
   try {
     const raw = localStorage.getItem(workReportKey(year, month));
@@ -32,6 +36,14 @@ export function loadAllWeeks(year: number, month: number): WeekReportData[] {
 
 export function saveAllWeeks(year: number, month: number, weeks: WeekReportData[]) {
   localStorage.setItem(workReportKey(year, month), JSON.stringify(weeks));
+}
+
+function loadSummary(year: number, month: number): string {
+  return localStorage.getItem(summaryKey(year, month)) ?? '';
+}
+
+function saveSummary(year: number, month: number, text: string) {
+  localStorage.setItem(summaryKey(year, month), text);
 }
 
 function loadName(): string {
@@ -64,11 +76,16 @@ export default function WorkReportTab() {
   const [form, setForm] = useState<WeekReportData>({ ...EMPTY_WEEK });
   const [savedWeeks, setSavedWeeks] = useState<WeekReportData[]>(() => loadAllWeeks(currentYear, currentMonth));
   const [name, setName] = useState(loadName);
+  const [monthlySummary, setMonthlySummary] = useState(() => loadSummary(currentYear, currentMonth));
+  const [summaryDraft, setSummaryDraft] = useState(() => loadSummary(currentYear, currentMonth));
 
   useEffect(() => {
     const loaded = loadAllWeeks(year, month);
     setSavedWeeks(loaded);
     setForm({ ...loaded[selectedWeek] });
+    const s = loadSummary(year, month);
+    setMonthlySummary(s);
+    setSummaryDraft(s);
   }, [year, month]);
 
   function handleWeekSelect(index: number) {
@@ -91,13 +108,18 @@ export default function WorkReportTab() {
     saveName(value);
   }
 
+  function handleSaveSummary() {
+    saveSummary(year, month, summaryDraft);
+    setMonthlySummary(summaryDraft);
+  }
+
   function handlePrint() {
     const { employeeId, lastName } = loadUserProfile();
     if (!employeeId || !lastName) {
       alert('画面上部に社員番号と苗字を入力してください。');
       return;
     }
-    printWorkReport(year, month, name, savedWeeks, employeeId, lastName);
+    printWorkReport(year, month, name, savedWeeks, employeeId, lastName, monthlySummary);
   }
 
   const years = [currentYear - 1, currentYear, currentYear + 1];
@@ -157,6 +179,21 @@ export default function WorkReportTab() {
         ))}
         <div className="work-report-save-row">
           <button className="btn btn-primary" onClick={handleSave}>保存</button>
+        </div>
+      </div>
+
+      {/* 総括欄 */}
+      <div className="work-report-summary-section">
+        <h3 className="work-report-summary-title">総括欄（今月のまとめ）</h3>
+        <textarea
+          className="work-report-summary-textarea"
+          value={summaryDraft}
+          onChange={(e) => setSummaryDraft(e.target.value)}
+          rows={4}
+          placeholder="今月全体のまとめ・振り返りを記述してください"
+        />
+        <div className="work-report-save-row">
+          <button className="btn btn-primary" onClick={handleSaveSummary}>総括を保存</button>
         </div>
       </div>
 

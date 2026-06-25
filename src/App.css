@@ -141,7 +141,8 @@ h3 {
   color: #636e72;
 }
 .form-row input,
-.form-row select {
+.form-row select,
+.form-row textarea {
   flex: 1;
   padding: 8px 10px;
   border: 1px solid #dfe6e9;
@@ -151,10 +152,17 @@ h3 {
   transition: border-color 0.2s;
 }
 .form-row input:focus,
-.form-row select:focus {
+.form-row select:focus,
+.form-row textarea:focus {
   outline: none;
   border-color: #2d6cdf;
   background: #fff;
+}
+.form-row textarea {
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.6;
+  align-self: flex-start;
 }
 
 .form-error {
@@ -792,6 +800,41 @@ hr {
   justify-content: flex-end;
   margin-top: 12px;
 }
+.work-report-summary-section {
+  border: 1.5px solid #2d6cdf;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+.work-report-summary-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  background: #2d6cdf;
+  padding: 8px 16px;
+  letter-spacing: 2px;
+}
+.work-report-summary-textarea {
+  display: block;
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 14px;
+  border: none;
+  border-bottom: 1px solid #dde1ee;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.7;
+  color: #1a1a2e;
+  box-sizing: border-box;
+}
+.work-report-summary-textarea:focus {
+  outline: none;
+  background: #f0f5ff;
+}
+.work-report-summary-section .work-report-save-row {
+  padding: 8px 16px;
+  background: #f8f9fc;
+}
 .work-report-preview {
   border: 1px solid #dde1ee;
   border-radius: 8px;
@@ -837,6 +880,140 @@ hr {
   vertical-align: top;
   line-height: 1.6;
 }
+
+/* ── スキル表タブ ── */
+.skill-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.skill-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  background: #f8f9fc;
+  border: 1px solid #dde1ee;
+  border-radius: 8px;
+}
+.skill-form-section {
+  border: 1px solid #dde1ee;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.skill-form-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  background: #2d6cdf;
+  padding: 8px 16px;
+  letter-spacing: 1px;
+}
+.skill-form-grid {
+  padding: 12px 16px 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 0;
+}
+.skill-form-grid .form-row {
+  width: 100%;
+}
+.skill-form-actions {
+  display: flex;
+  gap: 10px;
+  padding: 8px 16px 12px;
+}
+.skill-empty {
+  text-align: center;
+  color: #aaa;
+  padding: 32px;
+  font-size: 14px;
+  border: 1px dashed #dde1ee;
+  border-radius: 8px;
+}
+.skill-table-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.skill-category-block {
+  border: 1px solid #dde1ee;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.skill-category-header {
+  background: #2d6cdf;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 7px 16px;
+  letter-spacing: 2px;
+}
+.skill-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.skill-table th {
+  background: #f1f3f9;
+  font-size: 13px;
+  font-weight: 600;
+  color: #444;
+  padding: 7px 14px;
+  border-bottom: 1px solid #dde1ee;
+  text-align: left;
+}
+.skill-table th.th-actions { text-align: center; width: 120px; }
+.skill-table td {
+  padding: 8px 14px;
+  font-size: 14px;
+  border-bottom: 1px solid #eef0f5;
+}
+.skill-table tr:last-child td { border-bottom: none; }
+.skill-table tr:nth-child(even) td { background: #f9faff; }
+.skill-table tr.tr-editing td { background: #fff8e1 !important; }
+.skill-table td.td-exp { text-align: center; color: #444; width: 160px; }
+.skill-table td.td-actions { text-align: center; width: 120px; }
+
+/* 職歴フォーム: 横並びフィールドグループ */
+.wh-form-row-group {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  padding: 0 16px;
+  margin-bottom: 4px;
+}
+.wh-form-row-group .form-row {
+  flex: 1;
+  margin-bottom: 10px;
+}
+.wh-form-row-group .form-row label {
+  width: 60px;
+  min-width: 60px;
+}
+.btn-row-edit {
+  background: #e8f0fe;
+  color: #2d6cdf;
+  border: none;
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-right: 6px;
+}
+.btn-row-edit:hover { background: #c5d9fb; }
+.btn-row-delete {
+  background: #fce4ec;
+  color: #c62828;
+  border: none;
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-row-delete:hover { background: #f8bbd0; }
 
 @media (max-width: 600px) {
   .app-main { padding: 12px; }

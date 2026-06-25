@@ -1,12 +1,18 @@
 import type { AttendanceRecord, PaidLeaveSettings, WorkSettings } from '../types/attendance';
 import { DEFAULT_WORK_SETTINGS } from '../types/attendance';
 import type { TransportRecord } from '../types/transport';
+import type { SkillEntry, Certification, SkillSheetProfile, WorkHistoryEntry } from '../types/skill';
+import { DEFAULT_SKILL_SHEET_PROFILE } from '../types/skill';
 
 const RECORDS_KEY = 'clocking_records';
 const PAID_LEAVE_KEY = 'clocking_paid_leave';
 const WORK_SETTINGS_KEY = 'clocking_work_settings';
 const TRANSPORT_KEY = 'clocking_transport';
 const USER_PROFILE_KEY = 'clocking_user_profile';
+const SKILL_KEY = 'clocking_skill_entries';
+const SKILL_PROFILE_KEY = 'clocking_skill_profile';
+const CERTIFICATIONS_KEY = 'clocking_certifications';
+const WORK_HISTORY_KEY = 'clocking_work_history';
 
 export interface UserProfile {
   employeeId: string;
@@ -76,6 +82,58 @@ export function loadTransportRecords(): TransportRecord[] {
 
 export function saveTransportRecords(records: TransportRecord[]): void {
   localStorage.setItem(TRANSPORT_KEY, JSON.stringify(records));
+}
+
+export function loadSkillEntries(): SkillEntry[] {
+  try {
+    const raw = localStorage.getItem(SKILL_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveSkillEntries(entries: SkillEntry[]): void {
+  localStorage.setItem(SKILL_KEY, JSON.stringify(entries));
+}
+
+export function loadSkillProfile(): SkillSheetProfile {
+  try {
+    const raw = localStorage.getItem(SKILL_PROFILE_KEY);
+    return raw ? { ...DEFAULT_SKILL_SHEET_PROFILE, ...JSON.parse(raw) } : DEFAULT_SKILL_SHEET_PROFILE;
+  } catch {
+    return DEFAULT_SKILL_SHEET_PROFILE;
+  }
+}
+
+export function saveSkillProfile(profile: SkillSheetProfile): void {
+  localStorage.setItem(SKILL_PROFILE_KEY, JSON.stringify(profile));
+}
+
+export function loadCertifications(): Certification[] {
+  try {
+    const raw = localStorage.getItem(CERTIFICATIONS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveCertifications(certs: Certification[]): void {
+  localStorage.setItem(CERTIFICATIONS_KEY, JSON.stringify(certs));
+}
+
+export function loadWorkHistory(): WorkHistoryEntry[] {
+  try {
+    const raw = localStorage.getItem(WORK_HISTORY_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveWorkHistory(entries: WorkHistoryEntry[]): void {
+  localStorage.setItem(WORK_HISTORY_KEY, JSON.stringify(entries));
 }
 
 export function timeToMins(t: string): number {
