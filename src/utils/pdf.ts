@@ -1019,21 +1019,21 @@ export function printSkillSheet(
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: 'Hiragino Sans', 'Yu Gothic', 'Meiryo', 'Segoe UI', sans-serif;
-    font-size: 9.5pt;
+    font-size: 11pt;
     color: #1a1a1a;
     background: #fff;
-    padding: 12mm 14mm;
+    padding: 8mm 10mm;
   }
   .page-title {
     text-align: center;
-    font-size: 16pt;
+    font-size: 18pt;
     font-weight: 700;
     letter-spacing: 6px;
     margin-bottom: 4px;
   }
   .note-text {
     text-align: right;
-    font-size: 7pt;
+    font-size: 8pt;
     color: #555;
     margin-bottom: 6px;
   }
@@ -1044,9 +1044,9 @@ export function printSkillSheet(
   }
   th, td {
     border: 1px solid #888;
-    padding: 4px 8px;
+    padding: 5px 9px;
     vertical-align: middle;
-    font-size: 9.5pt;
+    font-size: 11pt;
   }
   .th-label {
     background: #c6d9a0;
@@ -1223,10 +1223,10 @@ export function printWorkHistory(
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: 'Hiragino Sans', 'Yu Gothic', 'Meiryo', 'Segoe UI', sans-serif;
-    font-size: 8.5pt;
+    font-size: 10pt;
     color: #1a1a1a;
     background: #fff;
-    padding: 8mm 10mm;
+    padding: 5mm 7mm;
   }
   .page-header {
     display: flex;
@@ -1235,20 +1235,20 @@ export function printWorkHistory(
     margin-bottom: 8px;
   }
   .page-header-title {
-    font-size: 14pt;
+    font-size: 16pt;
     font-weight: 700;
     letter-spacing: 4px;
     border-bottom: 2px solid #333;
     padding-bottom: 2px;
     padding-right: 20px;
   }
-  .page-header-name { font-size: 9pt; }
+  .page-header-name { font-size: 10.5pt; }
   table { width: 100%; border-collapse: collapse; }
   th, td {
     border: 1px solid #aaa;
-    padding: 3px 5px;
+    padding: 4px 6px;
     vertical-align: middle;
-    font-size: 8pt;
+    font-size: 9.5pt;
   }
   thead th {
     background: #dce6f0;
@@ -1261,15 +1261,15 @@ export function printWorkHistory(
     white-space: nowrap;
     vertical-align: middle;
     width: 10%;
-    font-size: 7.5pt;
+    font-size: 9pt;
   }
   .td-client { font-weight: 500; }
-  .td-system { font-size: 7.5pt; color: #333; padding-left: 18px; }
+  .td-system { font-size: 9pt; color: #333; padding-left: 18px; }
   .td-center { text-align: center; white-space: nowrap; }
-  .td-db { vertical-align: middle; font-size: 7.5pt; }
+  .td-db { vertical-align: middle; font-size: 9pt; }
   .td-role { vertical-align: middle; }
-  .td-process { font-size: 7.5pt; }
-  .page-footer { margin-top: 6px; font-size: 7pt; color: #555; text-align: center; }
+  .td-process { font-size: 9pt; }
+  .page-footer { margin-top: 6px; font-size: 8pt; color: #555; text-align: center; }
   .print-btn {
     position: fixed; top: 12px; right: 16px;
     background: #2d6cdf; color: #fff; border: none;
