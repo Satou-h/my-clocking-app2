@@ -1015,12 +1015,287 @@ hr {
 }
 .btn-row-delete:hover { background: #f8bbd0; }
 
+/* ── モバイル対応 (768px以下: タブレット・スマホ共通) ── */
+@media (max-width: 768px) {
+  /* ヘッダー */
+  .app-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 14px;
+  }
+  .header-sub {
+    font-size: 12px;
+  }
+  .header-profile {
+    margin-left: 0;
+    flex-wrap: wrap;
+    width: 100%;
+    gap: 6px;
+  }
+  .header-profile-input {
+    width: calc(50% - 56px);
+    min-width: 80px;
+    flex: 1;
+  }
+
+  /* タブナビ: 横スクロール */
+  .tab-nav {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 0 8px;
+    flex-wrap: nowrap;
+  }
+  .tab-nav::-webkit-scrollbar { display: none; }
+  .tab-btn {
+    padding: 10px 14px;
+    font-size: 13px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* メインコンテンツ */
+  .app-main {
+    padding: 12px;
+  }
+
+  /* カード */
+  .attendance-form,
+  .attendance-list,
+  .paid-leave-manager,
+  .csv-import,
+  .transport-tab {
+    padding: 16px;
+  }
+
+  /* フォーム */
+  .form-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .form-row label {
+    width: auto;
+    margin-bottom: 2px;
+  }
+  .form-row input,
+  .form-row select,
+  .form-row textarea {
+    width: 100%;
+  }
+  .form-error {
+    margin-left: 0;
+  }
+
+  /* 計算プレビュー: 1列 */
+  .calc-preview {
+    grid-template-columns: 1fr;
+    gap: 6px 0;
+  }
+
+  /* テーブル横スクロール */
+  .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .data-table {
+    font-size: 12px;
+    min-width: 600px;
+  }
+
+  /* 月次サマリー */
+  .monthly-summary {
+    gap: 6px;
+  }
+  .summary-item {
+    min-width: 60px;
+    padding: 6px 10px;
+  }
+
+  /* 有給統計 */
+  .paid-leave-stats {
+    flex-direction: column;
+  }
+
+  /* 申請書類タブ: サイドバーをタブ形式に */
+  .app-doc-tab {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .app-doc-sidebar {
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    background: #f8f9fc;
+    border: 1px solid #dde1ee;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .app-doc-menu-title {
+    display: none;
+  }
+  .app-doc-menu-item {
+    flex: 1;
+    min-width: max-content;
+    text-align: center;
+    border-left: none;
+    border-bottom: 3px solid transparent;
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+  .app-doc-menu-item.active {
+    background: #e8f0fe;
+    border-left-color: transparent;
+    border-bottom-color: #2d6cdf;
+  }
+
+  /* 作業報告ツールバー */
+  .work-report-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+  .week-tab-nav {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .week-tab-btn {
+    padding: 6px 14px;
+    font-size: 13px;
+  }
+
+  /* 職歴フォームの横並びを縦に */
+  .wh-form-row-group {
+    flex-direction: column;
+    padding: 0 8px;
+    gap: 0;
+  }
+  .wh-form-row-group .form-row label {
+    width: auto;
+  }
+
+  /* 設定のグリッド */
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* 危険操作エリア */
+  .danger-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .btn-danger-outline,
+  .btn-danger {
+    align-self: flex-end;
+  }
+
+  /* 交通費 */
+  .trip-type-group {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  /* スキルテーブル横スクロール */
+  .skill-category-block {
+    overflow-x: auto;
+  }
+  .skill-table {
+    min-width: 500px;
+  }
+  .skill-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  /* 作業報告プレビューテーブル */
+  .work-report-preview {
+    overflow-x: auto;
+  }
+  .work-report-preview-table {
+    min-width: 400px;
+  }
+  .work-report-preview-table th {
+    width: 110px;
+    min-width: 110px;
+  }
+}
+
+/* ── スマホ専用 (600px以下) ── */
 @media (max-width: 600px) {
-  .app-main { padding: 12px; }
-  .form-row { flex-direction: column; align-items: flex-start; }
-  .form-row label { width: auto; }
-  .paid-leave-stats { flex-direction: column; }
-  .monthly-summary { flex-direction: column; gap: 8px; }
-  .tab-btn { padding: 10px 12px; font-size: 13px; }
-  .data-table { font-size: 12px; }
+  .app-header h1 {
+    font-size: 17px;
+  }
+  .tab-btn {
+    padding: 9px 11px;
+    font-size: 12px;
+  }
+
+  /* ボタンのタップ領域を広く */
+  .btn {
+    padding: 11px 18px;
+    font-size: 14px;
+  }
+  .btn-icon {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  /* クイックフィル */
+  .quick-fill {
+    gap: 6px;
+    padding: 8px 10px;
+  }
+  .btn-quick {
+    padding: 7px 12px;
+    font-size: 12px;
+  }
+
+  /* フォームアクション */
+  .form-actions {
+    flex-direction: column;
+  }
+  .form-actions .btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  /* リストフィルター */
+  .list-filter {
+    flex-wrap: wrap;
+  }
+  .list-filter select {
+    flex: 1;
+    min-width: 100px;
+  }
+
+  /* 月次サマリーを横スクロールに */
+  .monthly-summary {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 6px;
+  }
+  .monthly-summary::-webkit-scrollbar { display: none; }
+  .summary-break { display: none; }
+  .summary-item {
+    flex-shrink: 0;
+  }
+
+  /* 作業報告週タブ */
+  .week-tab-btn {
+    flex: 1;
+    text-align: center;
+    padding: 8px 8px;
+    font-size: 12px;
+  }
+
+  /* 有給管理スタット */
+  .stat-value {
+    font-size: 22px;
+  }
 }
