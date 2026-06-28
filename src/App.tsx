@@ -10,7 +10,6 @@ import {
 } from './utils/storage';
 import AttendanceForm from './components/AttendanceForm';
 import AttendanceList from './components/AttendanceList';
-import PaidLeaveManager from './components/PaidLeaveManager';
 import CSVImport from './components/CSVImport';
 import WorkSettingsForm from './components/WorkSettingsForm';
 import TransportTab from './components/TransportTab';
@@ -19,7 +18,7 @@ import WorkReportTab from './components/WorkReportTab';
 import SkillTab from './components/SkillTab';
 import './App.css';
 
-type Tab = 'input' | 'list' | 'paid_leave' | 'csv' | 'transport' | 'settings' | 'documents' | 'report' | 'skill';
+type Tab = 'input' | 'list' | 'csv' | 'transport' | 'settings' | 'documents' | 'report' | 'skill';
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('input');
@@ -149,7 +148,6 @@ export default function App() {
   const tabs: { key: Tab; label: string }[] = [
     { key: 'input', label: '勤怠入力' },
     { key: 'list', label: '勤怠一覧' },
-    { key: 'paid_leave', label: '有給管理' },
     { key: 'transport', label: '交通費' },
     { key: 'documents', label: '申請書類' },
     { key: 'report', label: '作業報告' },
@@ -218,10 +216,8 @@ export default function App() {
             paidLeaveSettings={paidLeave}
             onEdit={handleEdit}
             onDelete={handleDelete}
+            onSavePaidLeave={handleSavePaidLeave}
           />
-        )}
-        {tab === 'paid_leave' && (
-          <PaidLeaveManager records={records} settings={paidLeave} onSaveSettings={handleSavePaidLeave} />
         )}
         {tab === 'transport' && (
           <TransportTab

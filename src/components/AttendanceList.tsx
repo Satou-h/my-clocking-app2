@@ -14,6 +14,7 @@ interface Props {
   paidLeaveSettings: PaidLeaveSettings[];
   onEdit: (record: AttendanceRecord) => void;
   onDelete: (id: string) => void;
+  onSavePaidLeave: (settings: PaidLeaveSettings[]) => void;
 }
 
 type DayRow =
@@ -21,11 +22,12 @@ type DayRow =
   | { kind: 'off'; date: string; label: string }
   | { kind: 'empty'; date: string };
 
-export default function AttendanceList({ records, workSettings, paidLeaveSettings, onEdit, onDelete }: Props) {
+export default function AttendanceList({ records, workSettings, paidLeaveSettings, onEdit, onDelete, onSavePaidLeave }: Props) {
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
   const [filterYear, setFilterYear] = useState(currentYear);
   const [filterMonth, setFilterMonth] = useState(currentMonth);
+  const [plInput, setPlInput] = useState('');
 
   const prefix = `${filterYear}-${String(filterMonth).padStart(2, '0')}`;
 
@@ -84,6 +86,14 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
       return acc;
     }, 0);
   const plRemaining = plInitial !== null ? plInitial - plYearUsed : null;
+
+  function handleSavePaidLeave() {
+    const val = parseFloat(plInput);
+    if (isNaN(val) || val < 0) return;
+    const updated = paidLeaveSettings.filter((s) => s.year !== filterYear);
+    onSavePaidLeave([...updated, { year: filterYear, totalDays: val }]);
+    setPlInput('');
+  }
 
   // 当月の全日を生成
   const daysInMonth = new Date(filterYear, filterMonth, 0).getDate();
@@ -200,6 +210,23 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
             {plRemaining !== null ? `${plRemaining}日` : '未設定'}
           </span>
         </div>
+      </div>
+
+      <div className="paid-leave-inline-set">
+        <span className="paid-leave-inline-label">{filterYear}年 有給残日数</span>
+        <input
+          type="number"
+          min={0}
+          max={40}
+          step={0.5}
+          className="paid-leave-inline-input"
+          value={plInput}
+          onChange={(e) => setPlInput(e.target.value)}
+          placeholder={plInitial !== null ? String(plInitial) : '未設定'}
+          onKeyDown={(e) => e.key === 'Enter' && handleSavePaidLeave()}
+        />
+        <span className="paid-leave-inline-unit">日</span>
+        <button className="btn btn-primary" style={{ padding: '5px 14px', fontSize: '13px' }} onClick={handleSavePaidLeave}>設定</button>
       </div>
 
       <div className="table-wrap">

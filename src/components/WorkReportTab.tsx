@@ -4,17 +4,17 @@ import { printWorkReport } from '../utils/pdf';
 import type { WeekReportData } from '../utils/pdf';
 
 const WEEK_LABELS = ['第一週', '第二週', '第三週', '第四週', '第五週'];
-
-const FIELD_LABELS: { key: keyof WeekReportData; label: string }[] = [
-  { key: 'tools',      label: '開発言語・ツール・作業工程' },
-  { key: 'condition',  label: '体調と理由' },
-  { key: 'goodPoints', label: '良かった点' },
-  { key: 'badPoints',  label: '悪かった点' },
-  { key: 'notes',      label: 'その他(気づいた点)' },
-];
+const CONDITIONS = ['', '◎', '○', '△', '×'];
 
 const EMPTY_WEEK: WeekReportData = {
-  tools: '', condition: '', goodPoints: '', badPoints: '', notes: '',
+  tools: '',
+  conditionFirst: '○',
+  reasonFirst: '',
+  conditionSecond: '○',
+  reasonSecond: '',
+  goodPoints: '',
+  badPoints: '',
+  notes: '',
 };
 
 export function workReportKey(year: number, month: number) {
@@ -25,10 +25,25 @@ function summaryKey(year: number, month: number) {
   return `clocking_work_report_summary_${year}_${String(month).padStart(2, '0')}`;
 }
 
+function migrateWeek(w: Record<string, string>): WeekReportData {
+  return {
+    tools:           w.tools           ?? '',
+    conditionFirst:  w.conditionFirst  ?? (w.condition ? '○' : '○'),
+    reasonFirst:     w.reasonFirst     ?? (w.condition ?? ''),
+    conditionSecond: w.conditionSecond ?? '○',
+    reasonSecond:    w.reasonSecond    ?? '',
+    goodPoints:      w.goodPoints      ?? '',
+    badPoints:       w.badPoints       ?? '',
+    notes:           w.notes           ?? '',
+  };
+}
+
 export function loadAllWeeks(year: number, month: number): WeekReportData[] {
   try {
     const raw = localStorage.getItem(workReportKey(year, month));
-    return raw ? JSON.parse(raw) : WEEK_LABELS.map(() => ({ ...EMPTY_WEEK }));
+    if (!raw) return WEEK_LABELS.map(() => ({ ...EMPTY_WEEK }));
+    const parsed = JSON.parse(raw);
+    return (parsed as Record<string, string>[]).map(migrateWeek);
   } catch {
     return WEEK_LABELS.map(() => ({ ...EMPTY_WEEK }));
   }
@@ -62,7 +77,8 @@ function saveName(name: string) {
 }
 
 function hasContent(w: WeekReportData) {
-  return Object.values(w).some((v) => v.trim() !== '');
+  return w.tools.trim() !== '' || w.goodPoints.trim() !== '' || w.badPoints.trim() !== '' ||
+    w.notes.trim() !== '' || w.reasonFirst.trim() !== '' || w.reasonSecond.trim() !== '';
 }
 
 export default function WorkReportTab() {
@@ -76,8 +92,8 @@ export default function WorkReportTab() {
   const [form, setForm] = useState<WeekReportData>({ ...EMPTY_WEEK });
   const [savedWeeks, setSavedWeeks] = useState<WeekReportData[]>(() => loadAllWeeks(currentYear, currentMonth));
   const [name, setName] = useState(loadName);
-  const [monthlySummary, setMonthlySummary] = useState(() => loadSummary(currentYear, currentMonth));
   const [summaryDraft, setSummaryDraft] = useState(() => loadSummary(currentYear, currentMonth));
+  const [monthlySummary, setMonthlySummary] = useState(() => loadSummary(currentYear, currentMonth));
 
   useEffect(() => {
     const loaded = loadAllWeeks(year, month);
@@ -93,7 +109,7 @@ export default function WorkReportTab() {
     setForm({ ...savedWeeks[index] });
   }
 
-  function updateField(field: keyof WeekReportData, value: string) {
+  function updateField<K extends keyof WeekReportData>(field: K, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
@@ -167,16 +183,84 @@ export default function WorkReportTab() {
       {/* 入力フォーム */}
       <div className="work-report-week">
         <h3 className="work-report-week-title">{WEEK_LABELS[selectedWeek]}</h3>
-        {FIELD_LABELS.map(({ key, label }) => (
-          <div className="form-row" key={key}>
-            <label>{label}</label>
-            <textarea
-              value={form[key]}
-              onChange={(e) => updateField(key, e.target.value)}
-              rows={2}
-            />
+
+        <div className="form-row">
+          <label>開発言語/ツール/作業工程</label>
+          <textarea
+            value={form.tools}
+            onChange={(e) => updateField('tools', e.target.value)}
+            rows={3}
+            placeholder="例: Java、TypeScript&#10;Git&#10;VSCODE、A5SQL"
+          />
+        </div>
+
+        <div className="wr-half-section">
+          <div className="wr-half-label">前半</div>
+          <div className="wr-half-fields">
+            <div className="form-row">
+              <label>体調</label>
+              <select value={form.conditionFirst} onChange={(e) => updateField('conditionFirst', e.target.value)}>
+                {CONDITIONS.map((c) => <option key={c} value={c}>{c || '（未選択）'}</option>)}
+              </select>
+            </div>
+            <div className="form-row">
+              <label>理由</label>
+              <input
+                type="text"
+                value={form.reasonFirst}
+                onChange={(e) => updateField('reasonFirst', e.target.value)}
+                placeholder="例: 特に問題なし"
+              />
+            </div>
           </div>
-        ))}
+        </div>
+
+        <div className="wr-half-section">
+          <div className="wr-half-label">後半</div>
+          <div className="wr-half-fields">
+            <div className="form-row">
+              <label>体調</label>
+              <select value={form.conditionSecond} onChange={(e) => updateField('conditionSecond', e.target.value)}>
+                {CONDITIONS.map((c) => <option key={c} value={c}>{c || '（未選択）'}</option>)}
+              </select>
+            </div>
+            <div className="form-row">
+              <label>理由</label>
+              <input
+                type="text"
+                value={form.reasonSecond}
+                onChange={(e) => updateField('reasonSecond', e.target.value)}
+                placeholder="例: 特に問題なし"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="form-row">
+          <label>良かった点</label>
+          <textarea
+            value={form.goodPoints}
+            onChange={(e) => updateField('goodPoints', e.target.value)}
+            rows={2}
+          />
+        </div>
+        <div className="form-row">
+          <label>悪かった点</label>
+          <textarea
+            value={form.badPoints}
+            onChange={(e) => updateField('badPoints', e.target.value)}
+            rows={2}
+          />
+        </div>
+        <div className="form-row">
+          <label>その他（気づいた点等）</label>
+          <textarea
+            value={form.notes}
+            onChange={(e) => updateField('notes', e.target.value)}
+            rows={2}
+          />
+        </div>
+
         <div className="work-report-save-row">
           <button className="btn btn-primary" onClick={handleSave}>保存</button>
         </div>
@@ -207,15 +291,25 @@ export default function WorkReportTab() {
                 <div className="work-report-preview-week-header">{WEEK_LABELS[i]}</div>
                 <table className="work-report-preview-table">
                   <tbody>
-                    {FIELD_LABELS.map(({ key, label }) =>
-                      w[key].trim() ? (
-                        <tr key={key}>
-                          <th>{label}</th>
-                          <td>{w[key].split('\n').map((line, j) => (
-                            <span key={j}>{line}<br /></span>
-                          ))}</td>
-                        </tr>
-                      ) : null
+                    {w.tools.trim() && (
+                      <tr><th>開発言語/ツール/作業工程</th><td>{w.tools.split('\n').map((l, j) => <span key={j}>{l}<br /></span>)}</td></tr>
+                    )}
+                    <tr>
+                      <th>前半 体調 / 理由</th>
+                      <td>{w.conditionFirst}{w.reasonFirst ? `　${w.reasonFirst}` : ''}</td>
+                    </tr>
+                    <tr>
+                      <th>後半 体調 / 理由</th>
+                      <td>{w.conditionSecond}{w.reasonSecond ? `　${w.reasonSecond}` : ''}</td>
+                    </tr>
+                    {w.goodPoints.trim() && (
+                      <tr><th>良かった点</th><td>{w.goodPoints.split('\n').map((l, j) => <span key={j}>{l}<br /></span>)}</td></tr>
+                    )}
+                    {w.badPoints.trim() && (
+                      <tr><th>悪かった点</th><td>{w.badPoints.split('\n').map((l, j) => <span key={j}>{l}<br /></span>)}</td></tr>
+                    )}
+                    {w.notes.trim() && (
+                      <tr><th>その他</th><td>{w.notes.split('\n').map((l, j) => <span key={j}>{l}<br /></span>)}</td></tr>
                     )}
                   </tbody>
                 </table>

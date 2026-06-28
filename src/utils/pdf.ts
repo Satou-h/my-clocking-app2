@@ -608,7 +608,10 @@ const WEEK_LABELS_PDF = ['第一週', '第二週', '第三週', '第四週', '�
 
 export interface WeekReportData {
   tools: string;
-  condition: string;
+  conditionFirst: string;
+  reasonFirst: string;
+  conditionSecond: string;
+  reasonSecond: string;
   goodPoints: string;
   badPoints: string;
   notes: string;
@@ -623,127 +626,307 @@ export function printWorkReport(
   lastName = '',
   monthlySummary = '',
 ) {
-  const weekRows = weeks.map((w, i) => `
-    <tr class="week-header-row"><td colspan="2">${WEEK_LABELS_PDF[i]}</td></tr>
-    <tr><th>開発言語・ツール・作業工程</th><td>${w.tools.replace(/\n/g, '<br>')}</td></tr>
-    <tr><th>体調と理由</th><td>${w.condition.replace(/\n/g, '<br>')}</td></tr>
-    <tr><th>良かった点</th><td>${w.goodPoints.replace(/\n/g, '<br>')}</td></tr>
-    <tr><th>悪かった点</th><td>${w.badPoints.replace(/\n/g, '<br>')}</td></tr>
-    <tr><th>その他(気づいた点)</th><td>${w.notes.replace(/\n/g, '<br>')}</td></tr>
-  `).join('');
+  const nl2br = (s: string) => s.replace(/\n/g, '<br>').replace(/・/g, '・');
 
-  const summarySection = monthlySummary.trim() ? `
-  <div class="monthly-summary">
-    <div class="monthly-summary-header">総　括</div>
-    <div class="monthly-summary-body">${monthlySummary.replace(/\n/g, '<br>')}</div>
-  </div>` : '';
+  const weekRows = weeks.map((w, i) => `
+    <tr>
+      <td rowspan="2" class="td-week">${WEEK_LABELS_PDF[i]}</td>
+      <td rowspan="2" class="td-tools">${nl2br(w.tools)}</td>
+      <td rowspan="2" class="td-internal"></td>
+      <td rowspan="2" class="td-time"></td>
+      <td class="td-half">前半</td>
+      <td class="td-condition">${w.conditionFirst}</td>
+      <td class="td-reason">${nl2br(w.reasonFirst)}</td>
+      <td rowspan="2" class="td-good">${nl2br(w.goodPoints)}</td>
+      <td rowspan="2" class="td-bad">${nl2br(w.badPoints)}</td>
+      <td rowspan="2" class="td-other">${nl2br(w.notes)}</td>
+    </tr>
+    <tr>
+      <td class="td-half">後半</td>
+      <td class="td-condition">${w.conditionSecond}</td>
+      <td class="td-reason">${nl2br(w.reasonSecond)}</td>
+    </tr>`).join('');
 
   const html = `<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>${buildFilename('作業報告書', `${year}${String(month).padStart(2, '0')}`, employeeId, lastName)}</title>
+<title>${buildFilename('作業状況報告書', `${year}${String(month).padStart(2, '0')}`, employeeId, lastName)}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', 'Meiryo', sans-serif;
-    font-size: 10pt;
-    color: #1a1a2e;
+    font-family: 'Hiragino Sans', 'Yu Gothic', 'Meiryo', 'Segoe UI', sans-serif;
+    font-size: 8.5pt;
+    color: #1a1a1a;
     background: #fff;
-    padding: 15mm 20mm;
+    padding: 6mm 8mm 4mm;
   }
-  h1 {
-    text-align: center;
-    font-size: 18pt;
-    font-weight: 700;
-    margin-bottom: 16px;
-    letter-spacing: 4px;
-    border-bottom: 2px solid #2d6cdf;
-    padding-bottom: 8px;
+
+  /* フォーム番号 */
+  .form-no {
+    text-align: right;
+    font-size: 7.5pt;
+    color: #555;
+    margin-bottom: 2px;
   }
-  .meta-block {
+
+  /* ヘッダーエリア */
+  .doc-header {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-    font-size: 10pt;
-    color: #444;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 5px;
   }
-  table {
+  .meta-boxes {
+    border: 1px solid #888;
+    border-collapse: collapse;
+    flex-shrink: 0;
+    font-size: 8.5pt;
+  }
+  .meta-row {
+    display: flex;
+    border-bottom: 1px solid #888;
+  }
+  .meta-row:last-child { border-bottom: none; }
+  .meta-label {
+    padding: 3px 8px;
+    background: #f0f0f0;
+    font-weight: 700;
+    border-right: 1px solid #888;
+    white-space: nowrap;
+    min-width: 4.5em;
+    text-align: center;
+    letter-spacing: 1px;
+  }
+  .meta-value {
+    padding: 3px 14px;
+    min-width: 9em;
+    font-size: 9pt;
+    font-weight: 600;
+  }
+  .doc-title-block {
+    flex: 1;
+    text-align: center;
+  }
+  .doc-title {
+    font-size: 15pt;
+    font-weight: 700;
+    letter-spacing: 8px;
+    display: block;
+    margin-bottom: 4px;
+  }
+  .doc-note {
+    font-size: 7pt;
+    color: #555;
+    text-align: right;
+    display: block;
+    line-height: 1.4;
+  }
+
+  /* メインテーブル */
+  table.main {
     width: 100%;
     border-collapse: collapse;
-    font-size: 10pt;
+    font-size: 8pt;
+    table-layout: fixed;
   }
-  table th {
-    background: #f1f3f9;
-    font-weight: 600;
-    padding: 7px 12px;
-    border: 1px solid #aab;
-    width: 28%;
-    text-align: left;
-    color: #444;
-    vertical-align: top;
+  table.main th, table.main td {
+    border: 1px solid #888;
+    vertical-align: middle;
+    padding: 2px 3px;
   }
-  table td {
-    padding: 7px 12px;
-    border: 1px solid #aab;
-    vertical-align: top;
-    min-height: 28px;
-  }
-  .week-header-row td {
-    background: #2d6cdf;
-    color: #fff;
+  table.main thead th {
+    background: #e8e8e8;
     font-weight: 700;
-    font-size: 11pt;
-    padding: 6px 12px;
+    text-align: center;
+    font-size: 7.5pt;
+    white-space: nowrap;
+    padding: 3px 2px;
+  }
+
+  /* 週 列 */
+  .td-week {
+    text-align: center;
+    font-weight: 700;
+    writing-mode: vertical-rl;
+    text-orientation: upright;
     letter-spacing: 2px;
+    font-size: 8.5pt;
+    padding: 3px 1px;
+    background: #f5f5f5;
+    width: 2em;
   }
-  .monthly-summary {
-    margin-top: 20px;
-    border: 1.5px solid #2d6cdf;
-    border-radius: 4px;
-    overflow: hidden;
-  }
-  .monthly-summary-header {
-    background: #2d6cdf;
-    color: #fff;
-    font-weight: 700;
-    font-size: 11pt;
-    padding: 6px 12px;
-    letter-spacing: 4px;
-  }
-  .monthly-summary-body {
-    padding: 10px 14px;
-    min-height: 60px;
-    font-size: 10pt;
+  /* 開発言語列 */
+  .td-tools {
+    vertical-align: top;
+    font-size: 7.5pt;
+    padding: 4px 5px;
     line-height: 1.7;
-    color: #1a1a2e;
+    width: 13%;
   }
+  /* 社内作業 */
+  .td-internal {
+    vertical-align: top;
+    font-size: 7.5pt;
+    padding: 3px 3px;
+    width: 5%;
+    text-align: center;
+  }
+  /* 時間 */
+  .td-time {
+    text-align: center;
+    font-size: 7.5pt;
+    width: 3.5%;
+  }
+  /* 前半/後半 */
+  .td-half {
+    text-align: center;
+    font-size: 7.5pt;
+    white-space: nowrap;
+    background: #fafafa;
+    padding: 2px;
+    width: 2.5em;
+  }
+  /* 体調 */
+  .td-condition {
+    text-align: center;
+    font-size: 10pt;
+    font-weight: 700;
+    width: 2em;
+  }
+  /* 理由 */
+  .td-reason {
+    font-size: 7.5pt;
+    vertical-align: top;
+    padding: 3px 4px;
+    line-height: 1.5;
+    width: 9%;
+  }
+  /* 良かった点 / 悪かった点 / その他 */
+  .td-good, .td-bad, .td-other {
+    font-size: 7.5pt;
+    vertical-align: top;
+    padding: 3px 5px;
+    line-height: 1.6;
+  }
+  .td-good { width: 19%; }
+  .td-bad  { width: 19%; }
+  .td-other { width: 19%; }
+
+  /* 総括欄行 */
+  .td-sum-label {
+    background: #e8e8e8;
+    font-weight: 700;
+    text-align: center;
+    font-size: 8pt;
+    letter-spacing: 1px;
+    vertical-align: middle;
+    white-space: nowrap;
+    padding: 4px 3px;
+  }
+  .td-sum-content {
+    vertical-align: top;
+    padding: 6px 8px;
+    font-size: 8pt;
+    line-height: 1.7;
+    min-height: 36px;
+  }
+  .td-sum-meta {
+    text-align: center;
+    font-size: 7.5pt;
+    font-weight: 700;
+    vertical-align: middle;
+    white-space: nowrap;
+    background: #f5f5f5;
+    padding: 4px 2px;
+  }
+
+  /* フッター注記 */
+  .td-footer-note {
+    font-size: 7pt;
+    color: #444;
+    padding: 3px 5px;
+    background: #f9f9f9;
+    text-align: left;
+  }
+
+  /* 印刷ボタン */
   .print-btn {
     position: fixed; top: 12px; right: 16px;
     background: #2d6cdf; color: #fff; border: none;
     padding: 6px 14px; border-radius: 5px;
     cursor: pointer; font-size: 12px; font-weight: 600; z-index: 999;
   }
-  @page { size: A4 portrait; margin: 15mm; }
+  .print-btn:hover { background: #1a54c4; }
+
+  @page { size: A4 landscape; margin: 8mm; }
   @media print { .print-btn { display: none; } }
 </style>
 </head>
 <body>
 <button class="print-btn" onclick="window.print()">印刷 / PDF保存</button>
 
-<h1>作　業　報　告　書</h1>
+<div class="form-no">様式1-2-26.1</div>
 
-<div class="meta-block">
-  <div>${year}年${month}月</div>
-  <div>氏名: ${name || '　　　　　　　'}</div>
+<div class="doc-header">
+  <div class="meta-boxes">
+    <div class="meta-row">
+      <div class="meta-label">申請月</div>
+      <div class="meta-value">${year}年${month}月</div>
+    </div>
+    <div class="meta-row">
+      <div class="meta-label">氏　名</div>
+      <div class="meta-value">${name || ''}</div>
+    </div>
+  </div>
+  <div class="doc-title-block">
+    <span class="doc-title">作　業　状　況　報　告　書</span>
+    <span class="doc-note">※記載例を参考に開発言語/ツール/作業工程の欄には主に現場業務を記載するが、コメント欄には作業内容ではなく主に気持ちの部分を記載して下さい。</span>
+  </div>
 </div>
 
-<table>
-  ${weekRows}
+<table class="main">
+  <colgroup>
+    <col style="width:2em">
+    <col style="width:13%">
+    <col style="width:5%">
+    <col style="width:3.5%">
+    <col style="width:2.5em">
+    <col style="width:2em">
+    <col style="width:9%">
+    <col>
+    <col>
+    <col>
+  </colgroup>
+  <thead>
+    <tr>
+      <th>週</th>
+      <th>開発言語/ツール/作業工程</th>
+      <th>社内作業</th>
+      <th>時間</th>
+      <th></th>
+      <th>体調</th>
+      <th>理由</th>
+      <th>良かった点</th>
+      <th>悪かった点</th>
+      <th>その他（気づいた点等）</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${weekRows}
+  </tbody>
+  <tfoot>
+    <tr>
+      <td class="td-sum-label">総<br>括<br>欄</td>
+      <td colspan="7" class="td-sum-content">${nl2br(monthlySummary)}</td>
+      <td class="td-sum-meta">社内作業<br><br>h</td>
+      <td class="td-sum-meta">承認時間<br><br>h</td>
+    </tr>
+    <tr>
+      <td colspan="10" class="td-footer-note">【作業工程】　要件定義　分析　調査　基本設計　詳細設計　プログラミング　単体テスト　結合テスト　その他（　　）　　　　【体調欄】　◎良好　○普通　△やや悪い　×悪い</td>
+    </tr>
+  </tfoot>
 </table>
-
-${summarySection}
 
 <script>
   window.addEventListener('load', () => setTimeout(() => window.print(), 400));
@@ -751,7 +934,7 @@ ${summarySection}
 </body>
 </html>`;
 
-  const win = window.open('', '_blank', 'width=800,height=1100');
+  const win = window.open('', '_blank', 'width=1200,height=800');
   if (!win) {
     alert('ポップアップがブロックされました。ブラウザの設定でポップアップを許可してください。');
     return;
