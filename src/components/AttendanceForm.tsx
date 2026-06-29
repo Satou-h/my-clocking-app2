@@ -5,18 +5,20 @@ import {
   generateId, calcWorkMinutes, calcOvertimeMinutes,
   calcLateNightMinutes, isLateArrival, isEarlyDeparture, formatMinutes,
 } from '../utils/storage';
+import { getHolidayName } from '../utils/holidays';
 
 interface Props {
   existingRecord?: AttendanceRecord;
   records: AttendanceRecord[];
   workSettings: WorkSettings;
   onSave: (record: AttendanceRecord) => void;
+  onSaveMultiple: (records: AttendanceRecord[]) => void;
   onCancel?: () => void;
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-export default function AttendanceForm({ existingRecord, records, workSettings, onSave, onCancel }: Props) {
+export default function AttendanceForm({ existingRecord, records, workSettings, onSave, onSaveMultiple, onCancel }: Props) {
   const [date, setDate] = useState(existingRecord?.date ?? today());
   const [type, setType] = useState<AttendanceType>(existingRecord?.type ?? 'work');
   const [clockIn, setClockIn] = useState(existingRecord?.clockIn ?? '');
@@ -29,6 +31,29 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
   );
   const [customStartTime, setCustomStartTime] = useState(existingRecord?.customStartTime ?? '');
   const [customEndTime, setCustomEndTime] = useState(existingRecord?.customEndTime ?? '');
+  const [useRange, setUseRange] = useState(false);
+  const [dateTo, setDateTo] = useState(existingRecord?.date ?? today());
+  const [skipWeekends, setSkipWeekends] = useState(true);
+
+  function buildDateRange(from: string, to: string): string[] {
+    const dates: string[] = [];
+    const [fy, fm, fd] = from.split('-').map(Number);
+    const [ty, tm, td] = to.split('-').map(Number);
+    const end = new Date(ty, tm - 1, td);
+    for (let d = new Date(fy, fm - 1, fd); d <= end; d.setDate(d.getDate() + 1)) {
+      const dow = d.getDay();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const ds = `${y}-${m}-${day}`;
+      if (skipWeekends && (dow === 0 || dow === 6)) continue;
+      if (skipWeekends && getHolidayName(ds)) continue;
+      dates.push(ds);
+    }
+    return dates;
+  }
+
+  const rangeCount = useRange && dateTo >= date ? buildDateRange(date, dateTo).length : 0;
 
   const needsTime = type === 'work' || type === 'absence' || type === 'am_leave' || type === 'pm_leave'
     || type === 'scheduled_holiday_work' || type === 'legal_holiday_work';
@@ -76,6 +101,11 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
     e.preventDefault();
     setError('');
 
+    if (useRange && dateTo < date) {
+      setError('終了日は開始日以降にしてください');
+      return;
+    }
+
     if (needsTime) {
       if (!clockIn) { setError('出勤時間を入力してください'); return; }
       if (!clockOut) { setError('退勤時間を入力してください'); return; }
@@ -88,10 +118,28 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
         setError('退勤時間は出勤時間より後にしてください');
         return;
       }
-        if (rawMins > 6 * 60 && parseInt(breakMinutes) < 60) {
+      if (rawMins > 6 * 60 && parseInt(breakMinutes) < 60) {
         setError('勤務時間が6時間を超える場合は60分以上の休憩が必要です');
         return;
       }
+    }
+
+    const baseRecord = {
+      type,
+      clockIn: needsTime ? clockIn || undefined : undefined,
+      clockOut: needsTime ? clockOut || undefined : undefined,
+      breakMinutes: needsTime ? parseInt(breakMinutes) || 0 : 0,
+      notes: notes || undefined,
+      customStartTime: useCustomTime && customStartTime ? customStartTime : undefined,
+      customEndTime: useCustomTime && customEndTime ? customEndTime : undefined,
+    };
+
+    // 一括登録
+    if (useRange && dateTo >= date) {
+      const dates = buildDateRange(date, dateTo);
+      if (dates.length === 0) { setError('対象日がありません'); return; }
+      onSaveMultiple(dates.map((d) => ({ id: generateId(), date: d, ...baseRecord })));
+      return;
     }
 
     // 法定休日出勤：新規登録時のみ同週 月〜土 の出勤記録を確認
@@ -119,17 +167,7 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
       }
     }
 
-    onSave({
-      id: existingRecord?.id ?? generateId(),
-      date,
-      type,
-      clockIn: needsTime ? clockIn || undefined : undefined,
-      clockOut: needsTime ? clockOut || undefined : undefined,
-      breakMinutes: needsTime ? parseInt(breakMinutes) || 0 : 0,
-      notes: notes || undefined,
-      customStartTime: useCustomTime && customStartTime ? customStartTime : undefined,
-      customEndTime: useCustomTime && customEndTime ? customEndTime : undefined,
-    });
+    onSave({ id: existingRecord?.id ?? generateId(), date, ...baseRecord });
   }
 
   return (
@@ -143,10 +181,55 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
         <button type="button" className="btn-quick btn-quick-pm" onClick={fillPmLeave}>午後休</button>
       </div>
 
+      {!existingRecord && (
+        <div className="form-row">
+          <label style={{ width: 140 }} />
+          <label className="range-toggle">
+            <input
+              type="checkbox"
+              checked={useRange}
+              onChange={(e) => {
+                setUseRange(e.target.checked);
+                if (e.target.checked) setDateTo(date);
+              }}
+            />
+            日付範囲で一括登録
+          </label>
+        </div>
+      )}
+
       <div className="form-row">
-        <label>日付</label>
+        <label>{useRange ? '開始日' : '日付'}</label>
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
       </div>
+
+      {useRange && (
+        <>
+          <div className="form-row">
+            <label>終了日</label>
+            <input
+              type="date"
+              value={dateTo}
+              min={date}
+              onChange={(e) => setDateTo(e.target.value)}
+            />
+            {dateTo >= date && rangeCount > 0 && (
+              <span className="range-count">{rangeCount}日間</span>
+            )}
+          </div>
+          <div className="form-row">
+            <label style={{ width: 140 }} />
+            <label className="range-toggle">
+              <input
+                type="checkbox"
+                checked={skipWeekends}
+                onChange={(e) => setSkipWeekends(e.target.checked)}
+              />
+              土日・祝日を除く
+            </label>
+          </div>
+        </>
+      )}
 
       <div className="form-row">
         <label>種別</label>
@@ -259,7 +342,9 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
       )}
 
       <div className="form-actions">
-        <button type="submit" className="btn btn-primary">保存</button>
+        <button type="submit" className="btn btn-primary">
+          {useRange && rangeCount > 0 ? `${rangeCount}件 一括登録` : '保存'}
+        </button>
         {onCancel && <button type="button" className="btn btn-secondary" onClick={onCancel}>キャンセル</button>}
       </div>
     </form>

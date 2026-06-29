@@ -58,6 +58,20 @@ export default function App() {
     setTab('list');
   }
 
+  function handleSaveMultiple(newRecords: AttendanceRecord[]) {
+    let next = [...records];
+    for (const record of newRecords) {
+      const sameDate = next.find((r) => r.date === record.date);
+      if (sameDate) {
+        next = next.map((r) => r.date === record.date ? { ...record, id: r.id } : r);
+      } else {
+        next.push(record);
+      }
+    }
+    persistRecords(next);
+    setTab('list');
+  }
+
   function handleDelete(id: string) {
     persistRecords(records.filter((r) => r.id !== id));
   }
@@ -206,6 +220,7 @@ export default function App() {
             records={records}
             workSettings={workSettings}
             onSave={handleSave}
+            onSaveMultiple={handleSaveMultiple}
             onCancel={editingRecord ? () => { setEditingRecord(undefined); setTab('list'); } : undefined}
           />
         )}
