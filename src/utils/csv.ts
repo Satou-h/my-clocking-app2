@@ -208,11 +208,14 @@ export interface WorkReportCsvParseResult {
 }
 
 export function exportWorkReportCSV(weeks: WeekReportData[]): string {
-  const header = '週,開発言語・ツール・作業工程,体調と理由,良かった点,悪かった点,その他(気づいた点)';
+  const header = '週,開発言語・ツール・作業工程,前半体調,前半理由,後半体調,後半理由,良かった点,悪かった点,その他(気づいた点)';
   const rows = weeks.map((w, i) => [
     WORK_REPORT_WEEK_LABELS[i],
     csvQuote(w.tools),
-    csvQuote(w.condition),
+    csvQuote(w.conditionFirst),
+    csvQuote(w.reasonFirst),
+    csvQuote(w.conditionSecond),
+    csvQuote(w.reasonSecond),
     csvQuote(w.goodPoints),
     csvQuote(w.badPoints),
     csvQuote(w.notes),
@@ -222,7 +225,8 @@ export function exportWorkReportCSV(weeks: WeekReportData[]): string {
 
 function emptyWeeks(): WeekReportData[] {
   return WORK_REPORT_WEEK_LABELS.map(() => ({
-    tools: '', condition: '', goodPoints: '', badPoints: '', notes: '',
+    tools: '', conditionFirst: '○', reasonFirst: '', conditionSecond: '○', reasonSecond: '',
+    goodPoints: '', badPoints: '', notes: '',
   }));
 }
 
@@ -239,16 +243,19 @@ export function parseWorkReportCSV(text: string): WorkReportCsvParseResult {
 
   for (let i = 0; i < Math.min(dataLines.length, 5); i++) {
     const cols = parseCSVLine(dataLines[i]);
-    if (cols.length < 6) {
+    if (cols.length < 9) {
       errors.push(`行 ${i + 2}: 列数が不足しています`);
       continue;
     }
     weeks[i] = {
-      tools:      cols[1] ?? '',
-      condition:  cols[2] ?? '',
-      goodPoints: cols[3] ?? '',
-      badPoints:  cols[4] ?? '',
-      notes:      cols[5] ?? '',
+      tools:           cols[1] ?? '',
+      conditionFirst:  cols[2] ?? '',
+      reasonFirst:     cols[3] ?? '',
+      conditionSecond: cols[4] ?? '',
+      reasonSecond:    cols[5] ?? '',
+      goodPoints:      cols[6] ?? '',
+      badPoints:       cols[7] ?? '',
+      notes:           cols[8] ?? '',
     };
   }
 

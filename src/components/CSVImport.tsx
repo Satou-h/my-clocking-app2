@@ -268,7 +268,7 @@ export default function CSVImport({ records, transportRecords, onImport, onImpor
         <h4>インポート</h4>
         <p className="hint">
           CSVをインポートすると選択した年月のデータが置き換わります。<br />
-          <code>週,開発言語・ツール・作業工程,体調と理由,良かった点,悪かった点,その他(気づいた点)</code>
+          <code>週,開発言語・ツール・作業工程,前半体調,前半理由,後半体調,後半理由,良かった点,悪かった点,その他(気づいた点)</code>
         </p>
         <div className="form-row">
           <input ref={wrFileRef} type="file" accept=".csv,text/csv" onChange={handleWrFile} />
@@ -285,7 +285,7 @@ export default function CSVImport({ records, transportRecords, onImport, onImpor
             <table className="data-table preview-table">
               <thead>
                 <tr>
-                  <th>週</th><th>開発言語・ツール・作業工程</th><th>体調と理由</th>
+                  <th>週</th><th>開発言語・ツール・作業工程</th><th>前半体調/理由</th><th>後半体調/理由</th>
                   <th>良かった点</th><th>悪かった点</th><th>その他</th>
                 </tr>
               </thead>
@@ -296,7 +296,8 @@ export default function CSVImport({ records, transportRecords, onImport, onImpor
                       {['第一週','第二週','第三週','第四週','第五週'][i]}
                     </td>
                     <td>{w.tools || '-'}</td>
-                    <td>{w.condition || '-'}</td>
+                    <td>{w.conditionFirst}{w.reasonFirst ? ` ${w.reasonFirst}` : ''}</td>
+                    <td>{w.conditionSecond}{w.reasonSecond ? ` ${w.reasonSecond}` : ''}</td>
                     <td>{w.goodPoints || '-'}</td>
                     <td>{w.badPoints || '-'}</td>
                     <td>{w.notes || '-'}</td>
