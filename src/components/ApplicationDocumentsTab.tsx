@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { printLeaveApplication, printLateEarlyApplication } from '../utils/pdf';
+import type { LeaveApplicationEntry } from '../utils/pdf';
 import { loadUserProfile } from '../utils/storage';
 
 const LEAVE_APP_SETTINGS_KEY = 'clocking_leave_app_settings';
@@ -29,11 +30,12 @@ const LEAVE_LABELS: Record<LeaveType, string> = {
   pm_leave: '午後休',
 };
 
-function countLeaveDays(start: string, end: string): number {
-  if (!start || !end || start > end) return 0;
-  const s = new Date(start + 'T00:00:00');
-  const e = new Date(end + 'T00:00:00');
-  return Math.round((e.getTime() - s.getTime()) / 86400000) + 1;
+const DOW_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
+
+function fmtDateJp(d: string): string {
+  if (!d) return '';
+  const dt = new Date(d + 'T00:00:00');
+  return `${dt.getMonth() + 1}月${dt.getDate()}日(${DOW_LABELS[dt.getDay()]})`;
 }
 
 function today() {
@@ -48,9 +50,11 @@ export default function ApplicationDocumentsTab() {
 
   // 休暇申請
   const [applicationDate, setApplicationDate] = useState(today);
-  const [leaveType, setLeaveType] = useState<LeaveType>('paid_leave');
-  const [startDate, setStartDate] = useState(today);
-  const [endDate, setEndDate] = useState(today);
+  const [dateEntries, setDateEntries] = useState<{ date: string; leaveType: LeaveType }[]>([
+    { date: today(), leaveType: 'paid_leave' },
+  ]);
+  const [addingDate, setAddingDate] = useState(today);
+  const [addingType, setAddingType] = useState<LeaveType>('paid_leave');
   const [reason, setReason] = useState('');
 
   // 遅早退申請
@@ -67,20 +71,43 @@ export default function ApplicationDocumentsTab() {
     saveLeaveAppSettings(next);
   }
 
-  const effectiveEnd = leaveType === 'paid_leave' ? endDate : startDate;
-  const leaveDays = leaveType === 'paid_leave'
-    ? countLeaveDays(startDate, effectiveEnd)
-    : 0.5;
+  const leaveDays = dateEntries.reduce(
+    (sum, e) => sum + (e.leaveType === 'paid_leave' ? 1 : 0.5),
+    0,
+  );
+
+  function addDate() {
+    if (!addingDate) return;
+    if (dateEntries.some((e) => e.date === addingDate)) return;
+    setDateEntries((prev) =>
+      [...prev, { date: addingDate, leaveType: addingType }].sort((a, b) =>
+        a.date.localeCompare(b.date),
+      ),
+    );
+  }
+
+  function removeDate(d: string) {
+    setDateEntries((prev) => prev.filter((e) => e.date !== d));
+  }
+
+  function updateEntryType(date: string, type: LeaveType) {
+    setDateEntries((prev) =>
+      prev.map((e) => (e.date === date ? { ...e, leaveType: type } : e)),
+    );
+  }
 
   function handlePrintLeave() {
     const { employeeId, lastName } = loadUserProfile();
     if (!employeeId || !lastName) { alert('画面上部に社員番号と苗字を入力してください。'); return; }
+    if (dateEntries.length === 0) { alert('日付を1つ以上追加してください。'); return; }
+    const entries: LeaveApplicationEntry[] = dateEntries.map((e) => ({
+      date: e.date,
+      leaveLabel: LEAVE_LABELS[e.leaveType],
+    }));
     printLeaveApplication({
       applicationDate,
       name: settings.name,
-      leaveLabel: LEAVE_LABELS[leaveType],
-      startDate,
-      endDate: effectiveEnd,
+      dateEntries: entries,
       leaveDays,
       reason,
     }, employeeId, lastName);
@@ -146,39 +173,57 @@ export default function ApplicationDocumentsTab() {
                   onChange={(e) => setApplicationDate(e.target.value)}
                 />
               </div>
+              <div className="form-row" style={{ alignItems: 'flex-start' }}>
+                <label style={{ paddingTop: 6 }}>取得日一覧</label>
+                <div className="date-entry-list">
+                  {dateEntries.map((entry) => (
+                    <div key={entry.date} className="date-entry">
+                      <span className="date-entry-label">{fmtDateJp(entry.date)}</span>
+                      <select
+                        className="date-entry-type"
+                        value={entry.leaveType}
+                        onChange={(e) => updateEntryType(entry.date, e.target.value as LeaveType)}
+                      >
+                        {(Object.keys(LEAVE_LABELS) as LeaveType[]).map((k) => (
+                          <option key={k} value={k}>{LEAVE_LABELS[k]}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        className="date-tag-remove"
+                        onClick={() => removeDate(entry.date)}
+                      >×</button>
+                    </div>
+                  ))}
+                  {dateEntries.length === 0 && (
+                    <span className="no-dates">日付が未選択です</span>
+                  )}
+                </div>
+              </div>
               <div className="form-row">
-                <label>休暇種別</label>
+                <label>日付を追加</label>
+                <input
+                  type="date"
+                  value={addingDate}
+                  onChange={(e) => setAddingDate(e.target.value)}
+                />
                 <select
-                  value={leaveType}
-                  onChange={(e) => setLeaveType(e.target.value as LeaveType)}
+                  className="date-entry-type"
+                  style={{ marginLeft: 8 }}
+                  value={addingType}
+                  onChange={(e) => setAddingType(e.target.value as LeaveType)}
                 >
                   {(Object.keys(LEAVE_LABELS) as LeaveType[]).map((k) => (
                     <option key={k} value={k}>{LEAVE_LABELS[k]}</option>
                   ))}
                 </select>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ marginLeft: 8, padding: '5px 14px', fontSize: '13px' }}
+                  onClick={addDate}
+                >追加</button>
               </div>
-              <div className="form-row">
-                <label>{leaveType === 'paid_leave' ? '開始日' : '取得日'}</label>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => {
-                    setStartDate(e.target.value);
-                    if (endDate < e.target.value) setEndDate(e.target.value);
-                  }}
-                />
-              </div>
-              {leaveType === 'paid_leave' && (
-                <div className="form-row">
-                  <label>終了日</label>
-                  <input
-                    type="date"
-                    value={endDate}
-                    min={startDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                  />
-                </div>
-              )}
               <div className="form-row">
                 <label>取得日数</label>
                 <span className="leave-days-display">{leaveDays}日</span>

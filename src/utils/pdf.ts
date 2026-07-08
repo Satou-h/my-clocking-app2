@@ -279,6 +279,7 @@ export function printMonthlyAttendance(
 <body>
 <button class="print-btn" onclick="window.print()">印刷 / PDF保存</button>
 
+<div id="page">
 <div class="report-header">
   <div>
     <div class="report-title">${year}年${month}月　勤怠一覧</div>
@@ -333,9 +334,23 @@ export function printMonthlyAttendance(
     ${rows}
   </tbody>
 </table>
+</div>
 
 <script>
-  window.addEventListener('load', () => setTimeout(() => window.print(), 400));
+  window.addEventListener('load', () => {
+    const page = document.getElementById('page');
+    const usableH = (210 - 16) * (96 / 25.4);
+    const usableW = (297 - 16) * (96 / 25.4);
+    const h = page.scrollHeight;
+    const w = page.scrollWidth;
+    const scale = Math.min(usableH / h, usableW / w, 1);
+    if (scale < 1) {
+      const s = document.createElement('style');
+      s.textContent = '@media print { body { zoom: ' + scale.toFixed(4) + '; } }';
+      document.head.appendChild(s);
+    }
+    setTimeout(() => window.print(), 400);
+  });
 <\/script>
 </body>
 </html>`;
@@ -355,22 +370,26 @@ function fmtJpDate(d: string): string {
   return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
 }
 
+export interface LeaveApplicationEntry {
+  date: string;
+  leaveLabel: string;
+}
+
 export interface LeaveApplicationData {
   applicationDate: string;
   name: string;
-  leaveLabel: string;
-  startDate: string;
-  endDate: string;
+  dateEntries: LeaveApplicationEntry[];
   leaveDays: number;
   reason: string;
 }
 
 export function printLeaveApplication(data: LeaveApplicationData, employeeId = '', lastName = '') {
-  const { applicationDate, name, leaveLabel, startDate, endDate, leaveDays, reason } = data;
+  const { applicationDate, name, dateEntries, leaveDays, reason } = data;
   const yymmdd = applicationDate.replace(/-/g, '').slice(2);
-  const dateRange = startDate === endDate
-    ? fmtJpDate(startDate)
-    : `${fmtJpDate(startDate)} 〜 ${fmtJpDate(endDate)}`;
+  const sorted = [...dateEntries].sort((a, b) => a.date.localeCompare(b.date));
+  const dateScheduleHtml = sorted.length === 0
+    ? '-'
+    : sorted.map((e) => `${fmtJpDate(e.date)}　${e.leaveLabel}`).join('<br>');
 
   const html = `<!DOCTYPE html>
 <html lang="ja">
@@ -458,8 +477,7 @@ export function printLeaveApplication(data: LeaveApplicationData, employeeId = '
 </div>
 
 <table>
-  <tr><th>休暇種別</th><td>${leaveLabel}</td></tr>
-  <tr><th>休暇期間</th><td>${dateRange}</td></tr>
+  <tr><th>休暇日程</th><td style="line-height:1.8">${dateScheduleHtml}</td></tr>
   <tr><th>取得日数</th><td>${leaveDays}日</td></tr>
   <tr><th>取得理由</th><td>${reason.replace(/\n/g, '<br>')}</td></tr>
 </table>

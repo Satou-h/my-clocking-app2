@@ -736,6 +736,50 @@ hr {
   justify-content: flex-end;
   margin-top: 8px;
 }
+.date-entry-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.date-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8f9ff;
+  border: 1px solid #dde1ee;
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+.date-entry-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #2d3436;
+  min-width: 130px;
+}
+.date-entry-type {
+  font-size: 13px;
+  padding: 3px 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+}
+.date-tag-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #aaa;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+  margin-left: auto;
+}
+.date-tag-remove:hover { color: #c62828; }
+.no-dates {
+  font-size: 13px;
+  color: #aaa;
+  padding: 6px 0;
+}
 
 /* Work Report Tab */
 .work-report-toolbar {
