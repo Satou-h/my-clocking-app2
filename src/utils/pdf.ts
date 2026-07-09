@@ -16,6 +16,18 @@ function buildFilename(prefix: string, dateStr: string, employeeId: string, last
   return `${prefix}${dateStr}${userPart}`;
 }
 
+function openPrintWindow(html: string): void {
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const win = window.open(url, '_blank');
+  if (!win) {
+    URL.revokeObjectURL(url);
+    alert('ポップアップがブロックされました。ブラウザの設定でポップアップを許可してください。');
+    return;
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
 function fmtDate(d: string) {
   const date = new Date(d + 'T00:00:00');
   const day = date.getDate();
@@ -355,13 +367,7 @@ export function printMonthlyAttendance(
 </body>
 </html>`;
 
-  const win = window.open('', '_blank', 'width=1100,height=750');
-  if (!win) {
-    alert('ポップアップがブロックされました。ブラウザの設定でポップアップを許可してください。');
-    return;
-  }
-  win.document.write(html);
-  win.document.close();
+  openPrintWindow(html);
 }
 
 function fmtJpDate(d: string): string {
@@ -423,11 +429,11 @@ export function printLeaveApplication(data: LeaveApplicationData, employeeId = '
     color: #444;
   }
   .applicant-block { text-align: right; }
-  .name-row { margin-bottom: 6px; }
-  .seals-row { display: flex; justify-content: flex-end; gap: 6px; }
-  .seal-item { display: flex; flex-direction: column; align-items: center; }
-  .seal-label { font-size: 8pt; color: #555; margin-bottom: 2px; }
-  .seal-box { width: 44px; height: 44px; border: 1px solid #666; display: block; }
+  .name-row { margin-bottom: 10px; }
+  .sign-row { display: flex; justify-content: flex-end; gap: 20px; }
+  .sign-item { display: flex; flex-direction: column; align-items: center; }
+  .sign-label { font-size: 8pt; color: #555; margin-bottom: 4px; }
+  .sign-box { width: 100px; height: 40px; border-bottom: 1.5px solid #555; display: block; }
   table {
     width: 100%;
     border-collapse: collapse;
@@ -468,10 +474,10 @@ export function printLeaveApplication(data: LeaveApplicationData, employeeId = '
   <div>申請日: ${fmtJpDate(applicationDate)}</div>
   <div class="applicant-block">
     <div class="name-row">氏名: ${name || '　　　　　　　'}</div>
-    <div class="seals-row">
-      <div class="seal-item"><div class="seal-label">承認印</div><div class="seal-box"></div></div>
-      <div class="seal-item"><div class="seal-label">検印</div><div class="seal-box"></div></div>
-      <div class="seal-item"><div class="seal-label">本人印</div><div class="seal-box"></div></div>
+    <div class="sign-row">
+      <div class="sign-item"><div class="sign-label">承認</div><div class="sign-box"></div></div>
+      <div class="sign-item"><div class="sign-label">確認</div><div class="sign-box"></div></div>
+      <div class="sign-item"><div class="sign-label">本人</div><div class="sign-box"></div></div>
     </div>
   </div>
 </div>
@@ -488,13 +494,7 @@ export function printLeaveApplication(data: LeaveApplicationData, employeeId = '
 </body>
 </html>`;
 
-  const win = window.open('', '_blank', 'width=800,height=1000');
-  if (!win) {
-    alert('ポップアップがブロックされました。ブラウザの設定でポップアップを許可してください。');
-    return;
-  }
-  win.document.write(html);
-  win.document.close();
+  openPrintWindow(html);
 }
 
 export interface LateEarlyApplicationData {
@@ -512,11 +512,11 @@ export function printLateEarlyApplication(data: LateEarlyApplicationData, employ
   const yymmdd = applicationDate.replace(/-/g, '').slice(2);
 
   const sealCss = `
-  .name-row { margin-bottom: 6px; }
-  .seals-row { display: flex; justify-content: flex-end; gap: 6px; }
-  .seal-item { display: flex; flex-direction: column; align-items: center; }
-  .seal-label { font-size: 8pt; color: #555; margin-bottom: 2px; }
-  .seal-box { width: 44px; height: 44px; border: 1px solid #666; display: block; }`;
+  .name-row { margin-bottom: 10px; }
+  .sign-row { display: flex; justify-content: flex-end; gap: 20px; }
+  .sign-item { display: flex; flex-direction: column; align-items: center; }
+  .sign-label { font-size: 8pt; color: #555; margin-bottom: 4px; }
+  .sign-box { width: 100px; height: 40px; border-bottom: 1.5px solid #555; display: block; }`;
 
   const html = `<!DOCTYPE html>
 <html lang="ja">
@@ -591,10 +591,10 @@ export function printLateEarlyApplication(data: LateEarlyApplicationData, employ
   <div>申請日: ${fmtJpDate(applicationDate)}</div>
   <div class="applicant-block">
     <div class="name-row">氏名: ${name || '　　　　　　　'}</div>
-    <div class="seals-row">
-      <div class="seal-item"><div class="seal-label">承認印</div><div class="seal-box"></div></div>
-      <div class="seal-item"><div class="seal-label">検印</div><div class="seal-box"></div></div>
-      <div class="seal-item"><div class="seal-label">本人印</div><div class="seal-box"></div></div>
+    <div class="sign-row">
+      <div class="sign-item"><div class="sign-label">承認</div><div class="sign-box"></div></div>
+      <div class="sign-item"><div class="sign-label">確認</div><div class="sign-box"></div></div>
+      <div class="sign-item"><div class="sign-label">本人</div><div class="sign-box"></div></div>
     </div>
   </div>
 </div>
@@ -613,13 +613,7 @@ export function printLateEarlyApplication(data: LateEarlyApplicationData, employ
 </body>
 </html>`;
 
-  const win = window.open('', '_blank', 'width=800,height=1000');
-  if (!win) {
-    alert('ポップアップがブロックされました。ブラウザの設定でポップアップを許可してください。');
-    return;
-  }
-  win.document.write(html);
-  win.document.close();
+  openPrintWindow(html);
 }
 
 const WEEK_LABELS_PDF = ['第一週', '第二週', '第三週', '第四週', '第五週'];
@@ -952,13 +946,7 @@ export function printWorkReport(
 </body>
 </html>`;
 
-  const win = window.open('', '_blank', 'width=1200,height=800');
-  if (!win) {
-    alert('ポップアップがブロックされました。ブラウザの設定でポップアップを許可してください。');
-    return;
-  }
-  win.document.write(html);
-  win.document.close();
+  openPrintWindow(html);
 }
 
 export function printTransportRecords(
@@ -1019,12 +1007,17 @@ export function printTransportRecords(
   .report-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-end;
     border-bottom: 1.5px solid #2d6cdf;
     padding-bottom: 4px;
     margin-bottom: 5px;
   }
   .report-title { font-size: 13px; font-weight: 700; color: #2d6cdf; }
+  .header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+  .sign-row { display: flex; gap: 14px; }
+  .sign-item { display: flex; flex-direction: column; align-items: center; }
+  .sign-label { font-size: 7.5px; color: #666; margin-bottom: 3px; }
+  .sign-box { width: 70px; height: 32px; border-bottom: 1.5px solid #555; display: block; }
   .print-date   { font-size: 8px; color: #999; }
 
   .summary {
@@ -1115,7 +1108,13 @@ export function printTransportRecords(
 
 <div class="report-header">
   <div class="report-title">${year}年${month}月　交通費一覧</div>
-  <div class="print-date">出力日: ${new Date().toLocaleDateString('ja-JP')}</div>
+  <div class="header-right">
+    <div class="sign-row">
+      <div class="sign-item"><div class="sign-label">検印</div><div class="sign-box"></div></div>
+      <div class="sign-item"><div class="sign-label">受領印</div><div class="sign-box"></div></div>
+    </div>
+    <div class="print-date">出力日: ${new Date().toLocaleDateString('ja-JP')}</div>
+  </div>
 </div>
 
 <table class="summary">
@@ -1153,13 +1152,7 @@ export function printTransportRecords(
 </body>
 </html>`;
 
-  const win = window.open('', '_blank', 'width=900,height=700');
-  if (!win) {
-    alert('ポップアップがブロックされました。ブラウザの設定でポップアップを許可してください。');
-    return;
-  }
-  win.document.write(html);
-  win.document.close();
+  openPrintWindow(html);
 }
 
 export function printSkillSheet(
@@ -1248,6 +1241,7 @@ export function printSkillSheet(
     padding: 5px 9px;
     vertical-align: middle;
     font-size: 11pt;
+    height: 26px;
   }
   .th-label {
     background: #c6d9a0;
@@ -1277,7 +1271,7 @@ export function printSkillSheet(
   .td-pr {
     vertical-align: top;
     line-height: 1.9;
-    min-height: 80px;
+    height: 80px;
     padding: 6px 10px;
   }
   .td-pr p { margin: 0 0 2px; }
@@ -1358,13 +1352,7 @@ export function printSkillSheet(
 </body>
 </html>`;
 
-  const win = window.open('', '_blank', 'width=800,height=1100');
-  if (!win) {
-    alert('ポップアップがブロックされました。ブラウザの設定でポップアップを許可してください。');
-    return;
-  }
-  win.document.write(html);
-  win.document.close();
+  openPrintWindow(html);
 }
 
 export function printWorkHistory(
@@ -1516,11 +1504,5 @@ export function printWorkHistory(
 </body>
 </html>`;
 
-  const wh = window.open('', '_blank', 'width=1100,height=750');
-  if (!wh) {
-    alert('ポップアップがブロックされました。ブラウザの設定でポップアップを許可してください。');
-    return;
-  }
-  wh.document.write(whHtml);
-  wh.document.close();
+  openPrintWindow(whHtml);
 }
