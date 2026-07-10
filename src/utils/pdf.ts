@@ -16,16 +16,40 @@ function buildFilename(prefix: string, dateStr: string, employeeId: string, last
   return `${prefix}${dateStr}${userPart}`;
 }
 
-function openPrintWindow(html: string): void {
+function openPrintWindow(html: string, landscape = false): void {
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
   const url = URL.createObjectURL(blob);
-  const win = window.open(url, '_blank');
+  const feats = landscape
+    ? 'width=1300,height=950,scrollbars=yes,resizable=yes'
+    : 'width=900,height=1200,scrollbars=yes,resizable=yes';
+  const win = window.open(url, '_blank', feats);
   if (!win) {
     URL.revokeObjectURL(url);
     alert('ポップアップがブロックされました。ブラウザの設定でポップアップを許可してください。');
     return;
   }
   setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+// usableW/H: @page マージン除いた使用可能領域(mm)
+// 3% 安全マージン込み（スクリーン計測と印刷レンダリングのズレを吸収）
+function fitScript(usableW: number, usableH: number): string {
+  const uw = (usableW * 0.97).toFixed(2);
+  const uh = (usableH * 0.97).toFixed(2);
+  return `<script>
+window.addEventListener('load', function() {
+  var MM = 96 / 25.4;
+  var uw = ${uw} * MM, uh = ${uh} * MM;
+  var w = document.body.scrollWidth, h = document.body.scrollHeight;
+  var scale = Math.min(uw / w, uh / h, 1);
+  if (scale < 1) {
+    var s = document.createElement('style');
+    s.textContent = '@media print { body { zoom: ' + scale.toFixed(4) + '; } }';
+    document.head.appendChild(s);
+  }
+  setTimeout(function() { window.print(); }, 500);
+});
+<\/script>`;
 }
 
 function fmtDate(d: string) {
@@ -160,6 +184,7 @@ export function printMonthlyAttendance(
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=1200">
 <title>${buildFilename('勤務表', `${year}${String(month).padStart(2, '0')}`, employeeId, lastName)}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -168,6 +193,8 @@ export function printMonthlyAttendance(
     font-size: 9px;
     color: #1a1a2e;
     background: #fff;
+    max-width: 281mm;
+    margin: 0 auto;
   }
 
   /* ── ヘッダー ── */
@@ -199,6 +226,7 @@ export function printMonthlyAttendance(
     border: 1px solid #dde1ee;
     text-align: center;
     overflow: hidden;
+    line-height: 1.2;
   }
   .summary td {
     padding: 2px 4px;
@@ -206,6 +234,7 @@ export function printMonthlyAttendance(
     text-align: center;
     font-weight: 700;
     overflow: hidden;
+    line-height: 1.2;
   }
   .summary td.ot { color: #e65100; }
   .summary td.ln { color: #7b1fa2; }
@@ -227,15 +256,17 @@ export function printMonthlyAttendance(
     text-align: center;
     white-space: nowrap;
     border: 1px solid #1a54c4;
+    line-height: 1.2;
   }
   table.detail td {
-    padding: 2px 5px;
+    padding: 1px 5px;
     border-bottom: 1px solid #eef0f5;
     border-right: 1px solid #eef0f5;
     vertical-align: middle;
     white-space: nowrap;
     font-size: 9px;
     text-align: center;
+    line-height: 1.2;
   }
   table.detail td.td-notes { text-align: left; white-space: normal; max-width: 80px; font-size: 8px; color: #636e72; }
   table.detail tr:nth-child(even) td { background: #f9faff; }
@@ -348,26 +379,11 @@ export function printMonthlyAttendance(
 </table>
 </div>
 
-<script>
-  window.addEventListener('load', () => {
-    const page = document.getElementById('page');
-    const usableH = (210 - 16) * (96 / 25.4);
-    const usableW = (297 - 16) * (96 / 25.4);
-    const h = page.scrollHeight;
-    const w = page.scrollWidth;
-    const scale = Math.min(usableH / h, usableW / w, 1);
-    if (scale < 1) {
-      const s = document.createElement('style');
-      s.textContent = '@media print { body { zoom: ' + scale.toFixed(4) + '; } }';
-      document.head.appendChild(s);
-    }
-    setTimeout(() => window.print(), 400);
-  });
-<\/script>
+${fitScript(281, 194)}
 </body>
 </html>`;
 
-  openPrintWindow(html);
+  openPrintWindow(html, true);
 }
 
 function fmtJpDate(d: string): string {
@@ -401,6 +417,7 @@ export function printLeaveApplication(data: LeaveApplicationData, employeeId = '
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=800">
 <title>${buildFilename('休暇申請書', yymmdd, employeeId, lastName)}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -410,6 +427,8 @@ export function printLeaveApplication(data: LeaveApplicationData, employeeId = '
     color: #1a1a2e;
     background: #fff;
     padding: 20mm 24mm;
+    max-width: 180mm;
+    margin: 0 auto;
   }
   h1 {
     text-align: center;
@@ -488,13 +507,11 @@ export function printLeaveApplication(data: LeaveApplicationData, employeeId = '
   <tr><th>取得理由</th><td>${reason.replace(/\n/g, '<br>')}</td></tr>
 </table>
 
-<script>
-  window.addEventListener('load', () => setTimeout(() => window.print(), 400));
-<\/script>
+${fitScript(180, 267)}
 </body>
 </html>`;
 
-  openPrintWindow(html);
+  openPrintWindow(html, false);
 }
 
 export interface LateEarlyApplicationData {
@@ -522,6 +539,7 @@ export function printLateEarlyApplication(data: LateEarlyApplicationData, employ
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=800">
 <title>${buildFilename('遅早退申請書', yymmdd, employeeId, lastName)}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -531,6 +549,8 @@ export function printLateEarlyApplication(data: LateEarlyApplicationData, employ
     color: #1a1a2e;
     background: #fff;
     padding: 20mm 24mm;
+    max-width: 180mm;
+    margin: 0 auto;
   }
   h1 {
     text-align: center;
@@ -607,13 +627,11 @@ export function printLateEarlyApplication(data: LateEarlyApplicationData, employ
   <tr><th>理由</th><td>${reason.replace(/\n/g, '<br>')}</td></tr>
 </table>
 
-<script>
-  window.addEventListener('load', () => setTimeout(() => window.print(), 400));
-<\/script>
+${fitScript(180, 267)}
 </body>
 </html>`;
 
-  openPrintWindow(html);
+  openPrintWindow(html, false);
 }
 
 const WEEK_LABELS_PDF = ['第一週', '第二週', '第三週', '第四週', '第五週'];
@@ -663,6 +681,7 @@ export function printWorkReport(
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=1200">
 <title>${buildFilename('作業状況報告書', `${year}${String(month).padStart(2, '0')}`, employeeId, lastName)}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -672,6 +691,8 @@ export function printWorkReport(
     color: #1a1a1a;
     background: #fff;
     padding: 6mm 8mm 4mm;
+    max-width: 281mm;
+    margin: 0 auto;
   }
 
   /* フォーム番号 */
@@ -940,13 +961,11 @@ export function printWorkReport(
   </tfoot>
 </table>
 
-<script>
-  window.addEventListener('load', () => setTimeout(() => window.print(), 400));
-<\/script>
+${fitScript(281, 194)}
 </body>
 </html>`;
 
-  openPrintWindow(html);
+  openPrintWindow(html, true);
 }
 
 export function printTransportRecords(
@@ -994,6 +1013,7 @@ export function printTransportRecords(
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=800">
 <title>${buildFilename('小口交通費', `${year}${String(month).padStart(2, '0')}`, employeeId, lastName)}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1002,6 +1022,8 @@ export function printTransportRecords(
     font-size: 9px;
     color: #1a1a2e;
     background: #fff;
+    max-width: 190mm;
+    margin: 0 auto;
   }
 
   .report-header {
@@ -1146,13 +1168,11 @@ export function printTransportRecords(
   ${totalRow ? `<tfoot>${totalRow}</tfoot>` : ''}
 </table>
 
-<script>
-  window.addEventListener('load', () => setTimeout(() => window.print(), 400));
-<\/script>
+${fitScript(190, 277)}
 </body>
 </html>`;
 
-  openPrintWindow(html);
+  openPrintWindow(html, false);
 }
 
 export function printSkillSheet(
@@ -1208,6 +1228,7 @@ export function printSkillSheet(
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=1200">
 <title>${buildFilename('スキルシート', '', employeeId, lastName)}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1217,6 +1238,8 @@ export function printSkillSheet(
     color: #1a1a1a;
     background: #fff;
     padding: 8mm 10mm;
+    max-width: 277mm;
+    margin: 0 auto;
   }
   .page-title {
     text-align: center;
@@ -1346,13 +1369,11 @@ export function printSkillSheet(
   </tr>
 </table>
 
-<script>
-  window.addEventListener('load', () => setTimeout(() => window.print(), 400));
-<\/script>
+${fitScript(277, 190)}
 </body>
 </html>`;
 
-  openPrintWindow(html);
+  openPrintWindow(html, true);
 }
 
 export function printWorkHistory(
@@ -1407,6 +1428,7 @@ export function printWorkHistory(
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=1200">
 <title>${buildFilename('スキル一覧', '', employeeId, lastName)}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1416,6 +1438,8 @@ export function printWorkHistory(
     color: #1a1a1a;
     background: #fff;
     padding: 5mm 7mm;
+    max-width: 281mm;
+    margin: 0 auto;
   }
   .page-header {
     display: flex;
@@ -1498,11 +1522,9 @@ export function printWorkHistory(
 
 <div class="page-footer">作業工程例：要件定義・調査・分析・基本設計・プログラミング・単体テスト・結合テスト・システムテスト・リリース・運用・研修</div>
 
-<script>
-  window.addEventListener('load', () => setTimeout(() => window.print(), 400));
-<\/script>
+${fitScript(281, 194)}
 </body>
 </html>`;
 
-  openPrintWindow(whHtml);
+  openPrintWindow(whHtml, true);
 }
