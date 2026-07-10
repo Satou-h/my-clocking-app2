@@ -271,7 +271,10 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
               checked={useCustomTime}
               onChange={(e) => {
                 setUseCustomTime(e.target.checked);
-                if (!e.target.checked) {
+                if (e.target.checked) {
+                  if (!customStartTime) setCustomStartTime(clockIn);
+                  if (!customEndTime) setCustomEndTime(clockOut);
+                } else {
                   setCustomStartTime('');
                   setCustomEndTime('');
                 }
