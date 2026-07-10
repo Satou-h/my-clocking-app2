@@ -28,6 +28,8 @@ export default function App() {
   const [transportRecords, setTransportRecords] = useState<TransportRecord[]>(loadTransportRecords);
   const [editingRecord, setEditingRecord] = useState<AttendanceRecord | undefined>();
   const [userProfile, setUserProfile] = useState(loadUserProfile);
+  const [listYear, setListYear] = useState(new Date().getFullYear());
+  const [listMonth, setListMonth] = useState(new Date().getMonth() + 1);
 
   function handleProfileChange(key: 'employeeId' | 'lastName', value: string) {
     const next = { ...userProfile, [key]: value };
@@ -229,6 +231,9 @@ export default function App() {
             records={records}
             workSettings={workSettings}
             paidLeaveSettings={paidLeave}
+            filterYear={listYear}
+            filterMonth={listMonth}
+            onFilterChange={(y, m) => { setListYear(y); setListMonth(m); }}
             onEdit={handleEdit}
             onDelete={handleDelete}
             onSavePaidLeave={handleSavePaidLeave}

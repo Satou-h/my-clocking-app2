@@ -21,8 +21,8 @@ const today = () => new Date().toISOString().slice(0, 10);
 export default function AttendanceForm({ existingRecord, records, workSettings, onSave, onSaveMultiple, onCancel }: Props) {
   const [date, setDate] = useState(existingRecord?.date ?? today());
   const [type, setType] = useState<AttendanceType>(existingRecord?.type ?? 'work');
-  const [clockIn, setClockIn] = useState(existingRecord?.clockIn ?? '');
-  const [clockOut, setClockOut] = useState(existingRecord?.clockOut ?? '');
+  const [clockIn, setClockIn] = useState(existingRecord?.clockIn ?? workSettings.standardStartTime);
+  const [clockOut, setClockOut] = useState(existingRecord?.clockOut ?? workSettings.standardEndTime);
   const [breakMinutes, setBreakMinutes] = useState(String(existingRecord?.breakMinutes ?? 60));
   const [notes, setNotes] = useState(existingRecord?.notes ?? '');
   const [error, setError] = useState('');

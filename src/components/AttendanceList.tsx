@@ -12,6 +12,9 @@ interface Props {
   records: AttendanceRecord[];
   workSettings: WorkSettings;
   paidLeaveSettings: PaidLeaveSettings[];
+  filterYear: number;
+  filterMonth: number;
+  onFilterChange: (year: number, month: number) => void;
   onEdit: (record: AttendanceRecord) => void;
   onDelete: (id: string) => void;
   onSavePaidLeave: (settings: PaidLeaveSettings[]) => void;
@@ -22,11 +25,8 @@ type DayRow =
   | { kind: 'off'; date: string; label: string }
   | { kind: 'empty'; date: string };
 
-export default function AttendanceList({ records, workSettings, paidLeaveSettings, onEdit, onDelete, onSavePaidLeave }: Props) {
+export default function AttendanceList({ records, workSettings, paidLeaveSettings, filterYear, filterMonth, onFilterChange, onEdit, onDelete, onSavePaidLeave }: Props) {
   const currentYear = new Date().getFullYear();
-  const currentMonth = new Date().getMonth() + 1;
-  const [filterYear, setFilterYear] = useState(currentYear);
-  const [filterMonth, setFilterMonth] = useState(currentMonth);
   const [plInput, setPlInput] = useState('');
 
   const prefix = `${filterYear}-${String(filterMonth).padStart(2, '0')}`;
@@ -143,10 +143,10 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
       <h2>勤怠一覧</h2>
 
       <div className="list-filter">
-        <select value={filterYear} onChange={(e) => setFilterYear(Number(e.target.value))}>
+        <select value={filterYear} onChange={(e) => onFilterChange(Number(e.target.value), filterMonth)}>
           {years.map((y) => <option key={y} value={y}>{y}年</option>)}
         </select>
-        <select value={filterMonth} onChange={(e) => setFilterMonth(Number(e.target.value))}>
+        <select value={filterMonth} onChange={(e) => onFilterChange(filterYear, Number(e.target.value))}>
           {months.map((m) => <option key={m} value={m}>{m}月</option>)}
         </select>
         <button
