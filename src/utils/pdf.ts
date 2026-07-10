@@ -184,7 +184,7 @@ export function printMonthlyAttendance(
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=1200">
+<meta name="viewport" content="width=900">
 <title>${buildFilename('勤務表', `${year}${String(month).padStart(2, '0')}`, employeeId, lastName)}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -193,7 +193,7 @@ export function printMonthlyAttendance(
     font-size: 9px;
     color: #1a1a2e;
     background: #fff;
-    max-width: 281mm;
+    max-width: 194mm;
     margin: 0 auto;
   }
 
@@ -250,8 +250,8 @@ export function printMonthlyAttendance(
   table.detail th {
     background: #2d6cdf;
     color: #fff;
-    padding: 3px 5px;
-    font-size: 8.5px;
+    padding: 2px 3px;
+    font-size: 8px;
     font-weight: 600;
     text-align: center;
     white-space: nowrap;
@@ -259,16 +259,16 @@ export function printMonthlyAttendance(
     line-height: 1.2;
   }
   table.detail td {
-    padding: 1px 5px;
+    padding: 1px 3px;
     border-bottom: 1px solid #eef0f5;
     border-right: 1px solid #eef0f5;
     vertical-align: middle;
     white-space: nowrap;
-    font-size: 9px;
+    font-size: 8px;
     text-align: center;
     line-height: 1.2;
   }
-  table.detail td.td-notes { text-align: left; white-space: normal; max-width: 80px; font-size: 8px; color: #636e72; }
+  table.detail td.td-notes { text-align: left; white-space: normal; max-width: 60px; font-size: 7.5px; color: #636e72; }
   table.detail tr:nth-child(even) td { background: #f9faff; }
   .tr-paid    td { background: #fffde7 !important; }
   .tr-holiday td { background: #f1f8e9 !important; }
@@ -313,7 +313,7 @@ export function printMonthlyAttendance(
   }
   .print-btn:hover { background: #1a54c4; }
 
-  @page { size: A4 landscape; margin: 8mm; }
+  @page { size: A4 portrait; margin: 8mm; }
   @media print {
     .print-btn { display: none; }
   }
@@ -379,11 +379,11 @@ export function printMonthlyAttendance(
 </table>
 </div>
 
-${fitScript(281, 194)}
+${fitScript(194, 281)}
 </body>
 </html>`;
 
-  openPrintWindow(html, true);
+  openPrintWindow(html, false);
 }
 
 function fmtJpDate(d: string): string {

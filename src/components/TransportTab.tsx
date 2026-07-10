@@ -21,6 +21,8 @@ function blankForm(date = ''): Omit<TransportRecord, 'id'> {
   return { date, destination: '', from: '', to: '', tripType: 'roundtrip', amount: 0, notes: '' };
 }
 
+const WORK_TYPES = new Set(['work', 'am_leave', 'pm_leave', 'scheduled_holiday_work', 'legal_holiday_work']);
+
 export default function TransportTab({ records, attendanceRecords, onSave, onSaveMultiple, onDelete }: Props) {
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -33,6 +35,14 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
   const [useRange, setUseRange] = useState(false);
   const [dateTo, setDateTo] = useState('');
   const [skipWeekends, setSkipWeekends] = useState(false);
+
+  // 勤務日一括登録
+  const [showBulkForm, setShowBulkForm] = useState(false);
+  const [bulkForm, setBulkForm] = useState<Omit<TransportRecord, 'id' | 'date'>>(
+    { destination: '', from: '', to: '', tripType: 'roundtrip', amount: 0, notes: '' }
+  );
+  const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
+  const [bulkErrors, setBulkErrors] = useState<Partial<Record<keyof TransportRecord, string>>>({});
 
   const prefix = `${filterYear}-${String(filterMonth).padStart(2, '0')}`;
 
@@ -51,12 +61,49 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
   const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
 
+  // 当月の勤務日（交通費未登録のものをデフォルト選択）
+  const workDays = attendanceRecords
+    .filter((r) => r.date.startsWith(prefix) && WORK_TYPES.has(r.type))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const existingDates = new Set(monthRecords.map((r) => r.date));
+
+  function openBulkAdd() {
+    const initial = new Set(workDays.filter((r) => !existingDates.has(r.date)).map((r) => r.date));
+    setBulkSelected(initial);
+    setBulkForm({ destination: '', from: '', to: '', tripType: 'roundtrip', amount: 0, notes: '' });
+    setBulkErrors({});
+    setShowForm(false);
+    setShowBulkForm(true);
+  }
+
+  function setBulk<K extends keyof typeof bulkForm>(key: K, val: (typeof bulkForm)[K]) {
+    setBulkForm((f) => ({ ...f, [key]: val }));
+  }
+
+  function validateBulk(): Partial<Record<keyof TransportRecord, string>> {
+    const e: Partial<Record<keyof TransportRecord, string>> = {};
+    if (bulkSelected.size === 0) e.date = '登録する日付を1日以上選択してください';
+    if (!bulkForm.destination.trim()) e.destination = '行先を入力してください';
+    if (!bulkForm.from.trim()) e.from = '出発地点を入力してください';
+    if (!bulkForm.to.trim()) e.to = '到着地点を入力してください';
+    if (bulkForm.amount < 0) e.amount = '金額は0以上を入力してください';
+    return e;
+  }
+
+  function handleBulkSubmit() {
+    const e = validateBulk();
+    if (Object.keys(e).length) { setBulkErrors(e); return; }
+    onSaveMultiple([...bulkSelected].sort().map((date) => ({ id: generateId(), ...bulkForm, date })));
+    setShowBulkForm(false);
+  }
+
   function openAdd() {
     setForm(blankForm(`${prefix}-01`));
     setEditId(null);
     setErrors({});
     setUseRange(false);
     setDateTo(`${prefix}-01`);
+    setShowBulkForm(false);
     setShowForm(true);
   }
 
@@ -130,13 +177,17 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
   const fromCandidates = candidates('from');
   const toCandidates   = candidates('to');
 
-  function HistorySelect({ list, field }: { list: string[]; field: 'destination' | 'from' | 'to' }) {
+  function HistorySelect({ list, field, onSelect }: { list: string[]; field: 'destination' | 'from' | 'to'; onSelect?: (v: string) => void }) {
     if (list.length === 0) return null;
     return (
       <select
         className="attendance-date-picker"
         value=""
-        onChange={(e) => { if (e.target.value) set(field, e.target.value); }}
+        onChange={(e) => {
+          if (!e.target.value) return;
+          if (onSelect) onSelect(e.target.value);
+          else set(field, e.target.value);
+        }}
       >
         <option value="">履歴から選択…</option>
         {list.map((v) => <option key={v} value={v}>{v}</option>)}
@@ -155,8 +206,13 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
         <select value={filterMonth} onChange={(e) => setFilterMonth(Number(e.target.value))}>
           {months.map((m) => <option key={m} value={m}>{m}月</option>)}
         </select>
-        {!showForm && (
-          <button className="btn btn-primary" onClick={openAdd}>+ 追加</button>
+        {!showForm && !showBulkForm && (
+          <>
+            <button className="btn btn-primary" onClick={openAdd}>+ 追加</button>
+            {workDays.length > 0 && (
+              <button className="btn btn-secondary" onClick={openBulkAdd}>勤務日一括登録</button>
+            )}
+          </>
         )}
         <button
           className="btn btn-pdf"
@@ -334,6 +390,111 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
                 : '保存'}
             </button>
             <button className="btn btn-secondary" onClick={() => setShowForm(false)}>キャンセル</button>
+          </div>
+        </div>
+      )}
+
+      {/* 勤務日一括登録フォーム */}
+      {showBulkForm && (
+        <div className="transport-form-card">
+          <h3>勤務日一括登録</h3>
+          <p className="hint">当月の勤務日に同じ交通費をまとめて登録します。</p>
+
+          {/* 勤務日チェックリスト */}
+          <div className="form-row" style={{ alignItems: 'flex-start' }}>
+            <label style={{ paddingTop: 4 }}>対象日</label>
+            <div className="bulk-day-list">
+              <label className="bulk-select-all">
+                <input
+                  type="checkbox"
+                  checked={bulkSelected.size === workDays.length}
+                  onChange={(e) => {
+                    if (e.target.checked) setBulkSelected(new Set(workDays.map((r) => r.date)));
+                    else setBulkSelected(new Set());
+                  }}
+                />
+                すべて選択 / 解除
+              </label>
+              {workDays.map((r) => {
+                const d = new Date(r.date + 'T00:00:00');
+                const dow = DOW[d.getDay()];
+                const hasRecord = existingDates.has(r.date);
+                return (
+                  <label key={r.date} className={`bulk-day-item${hasRecord ? ' bulk-day-exists' : ''}`}>
+                    <input
+                      type="checkbox"
+                      checked={bulkSelected.has(r.date)}
+                      onChange={(e) => {
+                        const next = new Set(bulkSelected);
+                        if (e.target.checked) next.add(r.date);
+                        else next.delete(r.date);
+                        setBulkSelected(next);
+                      }}
+                    />
+                    {d.getMonth() + 1}/{d.getDate()}({dow}) {ATTENDANCE_TYPE_LABELS[r.type]}
+                    {hasRecord && <span className="bulk-exists-badge">登録済</span>}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+          {bulkErrors.date && <div className="form-error">{bulkErrors.date}</div>}
+
+          <div className="form-row">
+            <label>行先 <span className="required">*</span></label>
+            <input type="text" placeholder="例: 〇〇株式会社" value={bulkForm.destination}
+              onChange={(e) => setBulk('destination', e.target.value)} />
+            <HistorySelect list={destCandidates} field="destination" onSelect={(v) => setBulk('destination', v)} />
+          </div>
+          {bulkErrors.destination && <div className="form-error">{bulkErrors.destination}</div>}
+
+          <div className="form-row">
+            <label>出発地点 <span className="required">*</span></label>
+            <input type="text" placeholder="例: さっぽろ駅" value={bulkForm.from}
+              onChange={(e) => setBulk('from', e.target.value)} />
+            <HistorySelect list={fromCandidates} field="from" onSelect={(v) => setBulk('from', v)} />
+          </div>
+          {bulkErrors.from && <div className="form-error">{bulkErrors.from}</div>}
+
+          <div className="form-row">
+            <label>到着地点 <span className="required">*</span></label>
+            <input type="text" placeholder="例: 麻生駅" value={bulkForm.to}
+              onChange={(e) => setBulk('to', e.target.value)} />
+            <HistorySelect list={toCandidates} field="to" onSelect={(v) => setBulk('to', v)} />
+          </div>
+          {bulkErrors.to && <div className="form-error">{bulkErrors.to}</div>}
+
+          <div className="form-row">
+            <label>往復 / 片道</label>
+            <div className="trip-type-group">
+              {(['roundtrip', 'oneway'] as TripType[]).map((t) => (
+                <label key={t} className="radio-label">
+                  <input type="radio" name="bulkTripType" value={t}
+                    checked={bulkForm.tripType === t} onChange={() => setBulk('tripType', t)} />
+                  {TRIP_TYPE_LABELS[t]}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="form-row">
+            <label>金額（円）<span className="required">*</span></label>
+            <input type="number" min={0} step={10} value={bulkForm.amount}
+              onChange={(e) => setBulk('amount', Math.max(0, Number(e.target.value)))} />
+          </div>
+          {bulkErrors.amount && <div className="form-error">{bulkErrors.amount}</div>}
+
+          <div className="form-row">
+            <label>備考</label>
+            <input type="text" placeholder="メモなど" value={bulkForm.notes}
+              onChange={(e) => setBulk('notes', e.target.value)} />
+          </div>
+
+          <div className="form-actions">
+            <button className="btn btn-primary" onClick={handleBulkSubmit}>
+              {bulkSelected.size}件 一括登録
+            </button>
+            <button className="btn btn-secondary" onClick={() => setShowBulkForm(false)}>キャンセル</button>
           </div>
         </div>
       )}

@@ -571,6 +571,49 @@ h3 {
   margin-bottom: 20px;
 }
 .transport-form-card h3 { margin: 0 0 16px; }
+
+/* 勤務日一括登録 */
+.bulk-day-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid #e0e4ef;
+  border-radius: 6px;
+  padding: 8px 12px;
+  background: #fff;
+}
+.bulk-select-all {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2d6cdf;
+  cursor: pointer;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #eee;
+  margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bulk-day-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 0;
+}
+.bulk-day-item.bulk-day-exists { color: #aaa; }
+.bulk-exists-badge {
+  font-size: 11px;
+  background: #e0e4ef;
+  color: #636e72;
+  border-radius: 4px;
+  padding: 0 5px;
+  margin-left: 4px;
+}
+
 .attendance-date-picker {
   padding: 7px 10px;
   border: 1px solid #dfe6e9;
