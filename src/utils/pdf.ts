@@ -31,26 +31,6 @@ function openPrintWindow(html: string, landscape = false): void {
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
-// usableW/H: @page マージン除いた使用可能領域(mm)
-// 3% 安全マージン込み（スクリーン計測と印刷レンダリングのズレを吸収）
-function fitScript(usableW: number, usableH: number): string {
-  const uw = (usableW * 0.97).toFixed(2);
-  const uh = (usableH * 0.97).toFixed(2);
-  return `<script>
-window.addEventListener('load', function() {
-  var MM = 96 / 25.4;
-  var uw = ${uw} * MM, uh = ${uh} * MM;
-  var w = document.body.scrollWidth, h = document.body.scrollHeight;
-  var scale = Math.min(uw / w, uh / h, 1);
-  if (scale < 1) {
-    var s = document.createElement('style');
-    s.textContent = '@media print { body { zoom: ' + scale.toFixed(4) + '; } }';
-    document.head.appendChild(s);
-  }
-  setTimeout(function() { window.print(); }, 500);
-});
-<\/script>`;
-}
 
 function fmtDate(d: string) {
   const date = new Date(d + 'T00:00:00');
@@ -316,6 +296,9 @@ export function printMonthlyAttendance(
   @page { size: A4 portrait; margin: 8mm; }
   @media print {
     .print-btn { display: none; }
+    html { font-size: 8px; }
+    body { width: 194mm; max-width: 194mm; margin: 0 auto; }
+    table.detail { table-layout: fixed; width: 100%; }
   }
 </style>
 </head>
@@ -379,7 +362,7 @@ export function printMonthlyAttendance(
 </table>
 </div>
 
-${fitScript(194, 281)}
+<script>window.addEventListener('load', function() { setTimeout(function() { window.print(); }, 400); });<\/script>
 </body>
 </html>`;
 
@@ -481,7 +464,10 @@ export function printLeaveApplication(data: LeaveApplicationData, employeeId = '
     cursor: pointer; font-size: 12px; font-weight: 600; z-index: 999;
   }
   @page { size: A4 portrait; margin: 15mm; }
-  @media print { .print-btn { display: none; } }
+  @media print {
+    .print-btn { display: none; }
+    body { width: 180mm; max-width: 180mm; margin: 0 auto; }
+  }
 </style>
 </head>
 <body>
@@ -507,7 +493,7 @@ export function printLeaveApplication(data: LeaveApplicationData, employeeId = '
   <tr><th>取得理由</th><td>${reason.replace(/\n/g, '<br>')}</td></tr>
 </table>
 
-${fitScript(180, 267)}
+<script>window.addEventListener('load', function() { setTimeout(function() { window.print(); }, 400); });<\/script>
 </body>
 </html>`;
 
@@ -599,7 +585,10 @@ export function printLateEarlyApplication(data: LateEarlyApplicationData, employ
     cursor: pointer; font-size: 12px; font-weight: 600; z-index: 999;
   }
   @page { size: A4 portrait; margin: 15mm; }
-  @media print { .print-btn { display: none; } }
+  @media print {
+    .print-btn { display: none; }
+    body { width: 180mm; max-width: 180mm; margin: 0 auto; }
+  }
 </style>
 </head>
 <body>
@@ -627,7 +616,7 @@ export function printLateEarlyApplication(data: LateEarlyApplicationData, employ
   <tr><th>理由</th><td>${reason.replace(/\n/g, '<br>')}</td></tr>
 </table>
 
-${fitScript(180, 267)}
+<script>window.addEventListener('load', function() { setTimeout(function() { window.print(); }, 400); });<\/script>
 </body>
 </html>`;
 
@@ -893,7 +882,10 @@ export function printWorkReport(
   .print-btn:hover { background: #1a54c4; }
 
   @page { size: A4 landscape; margin: 8mm; }
-  @media print { .print-btn { display: none; } }
+  @media print {
+    .print-btn { display: none; }
+    body { width: 281mm; max-width: 281mm; margin: 0 auto; }
+  }
 </style>
 </head>
 <body>
@@ -961,7 +953,7 @@ export function printWorkReport(
   </tfoot>
 </table>
 
-${fitScript(281, 194)}
+<script>window.addEventListener('load', function() { setTimeout(function() { window.print(); }, 400); });<\/script>
 </body>
 </html>`;
 
@@ -1122,7 +1114,11 @@ export function printTransportRecords(
   .print-btn:hover { background: #1a54c4; }
 
   @page { size: A4; margin: 10mm; }
-  @media print { .print-btn { display: none; } }
+  @media print {
+    .print-btn { display: none; }
+    body { width: 190mm; max-width: 190mm; margin: 0 auto; }
+    table.detail { table-layout: fixed; width: 100%; }
+  }
 </style>
 </head>
 <body>
@@ -1168,7 +1164,7 @@ export function printTransportRecords(
   ${totalRow ? `<tfoot>${totalRow}</tfoot>` : ''}
 </table>
 
-${fitScript(190, 277)}
+<script>window.addEventListener('load', function() { setTimeout(function() { window.print(); }, 400); });<\/script>
 </body>
 </html>`;
 
@@ -1305,7 +1301,10 @@ export function printSkillSheet(
     cursor: pointer; font-size: 12px; font-weight: 600; z-index: 999;
   }
   @page { size: A4 landscape; margin: 10mm; }
-  @media print { .print-btn { display: none; } }
+  @media print {
+    .print-btn { display: none; }
+    body { width: 277mm; max-width: 277mm; margin: 0 auto; }
+  }
 </style>
 </head>
 <body>
@@ -1369,7 +1368,7 @@ export function printSkillSheet(
   </tr>
 </table>
 
-${fitScript(277, 190)}
+<script>window.addEventListener('load', function() { setTimeout(function() { window.print(); }, 400); });<\/script>
 </body>
 </html>`;
 
@@ -1490,7 +1489,10 @@ export function printWorkHistory(
     cursor: pointer; font-size: 12px; font-weight: 600; z-index: 999;
   }
   @page { size: A4 landscape; margin: 8mm; }
-  @media print { .print-btn { display: none; } }
+  @media print {
+    .print-btn { display: none; }
+    body { width: 281mm; max-width: 281mm; margin: 0 auto; }
+  }
 </style>
 </head>
 <body>
@@ -1522,7 +1524,7 @@ export function printWorkHistory(
 
 <div class="page-footer">作業工程例：要件定義・調査・分析・基本設計・プログラミング・単体テスト・結合テスト・システムテスト・リリース・運用・研修</div>
 
-${fitScript(281, 194)}
+<script>window.addEventListener('load', function() { setTimeout(function() { window.print(); }, 400); });<\/script>
 </body>
 </html>`;
 
