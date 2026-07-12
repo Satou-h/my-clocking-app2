@@ -1227,7 +1227,7 @@ export function printSkillSheet(
 <meta name="viewport" content="width=1200">
 <title>${buildFilename('スキルシート', '', employeeId, lastName)}</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body {
     font-family: 'Hiragino Sans', 'Yu Gothic', 'Meiryo', 'Segoe UI', sans-serif;
     font-size: 11pt;
@@ -1304,6 +1304,7 @@ export function printSkillSheet(
   @media print {
     .print-btn { display: none; }
     body { width: 277mm; max-width: 277mm; margin: 0 auto; }
+    tr { page-break-inside: avoid; -webkit-column-break-inside: avoid; }
   }
 </style>
 </head>
@@ -1335,7 +1336,10 @@ export function printSkillSheet(
   </tr>
 </table>
 
-<table>
+<table style="table-layout:fixed;">
+  <colgroup>
+    <col style="width:7%"><col style="width:38%"><col style="width:8%"><col style="width:38%"><col style="width:9%">
+  </colgroup>
   <tr>
     <th class="col-section" rowspan="${certRowCount + 1}">保有資格</th>
     <th class="th-col">IT関係資格名称</th>
@@ -1346,7 +1350,10 @@ export function printSkillSheet(
   ${certRows}
 </table>
 
-<table>
+<table style="table-layout:fixed;">
+  <colgroup>
+    <col style="width:7%"><col style="width:13%"><col style="width:8%"><col style="width:13%"><col style="width:8%"><col style="width:13%"><col style="width:8%"><col style="width:14%"><col style="width:8%">
+  </colgroup>
   <tr>
     <th class="col-section" rowspan="${skillRowCount + 1}">開発経験</th>
     <th class="th-col">言　語</th>
@@ -1430,7 +1437,7 @@ export function printWorkHistory(
 <meta name="viewport" content="width=1200">
 <title>${buildFilename('スキル一覧', '', employeeId, lastName)}</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body {
     font-family: 'Hiragino Sans', 'Yu Gothic', 'Meiryo', 'Segoe UI', sans-serif;
     font-size: 10pt;
@@ -1492,6 +1499,7 @@ export function printWorkHistory(
   @media print {
     .print-btn { display: none; }
     body { width: 281mm; max-width: 281mm; margin: 0 auto; }
+    tr { page-break-inside: avoid; -webkit-column-break-inside: avoid; }
   }
 </style>
 </head>
@@ -1503,7 +1511,12 @@ export function printWorkHistory(
   <div class="page-header-name">氏名 ： ${name || ''}</div>
 </div>
 
-<table>
+<table style="table-layout:fixed;">
+  <colgroup>
+    <col style="width:10%"><col style="width:18%"><col style="width:4%"><col style="width:6%">
+    <col style="width:9%"><col style="width:9%"><col style="width:8%">
+    <col style="width:11%"><col style="width:4%"><col style="width:21%">
+  </colgroup>
   <thead>
     <tr>
       <th>作業期間</th>
