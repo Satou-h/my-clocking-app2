@@ -8,7 +8,7 @@ import {
   loadWorkHistory, saveWorkHistory,
   generateId, loadUserProfile,
 } from '../utils/storage';
-import { printSkillSheet, printWorkHistory } from '../utils/pdf';
+import { printSkillSheet, printWorkHistory } from '../utils/skillPdf';
 
 const EMPTY_FORM = { category: '', skillName: '', experienceYears: '' };
 const EMPTY_CERT_FORM = { name: '', acquiredDate: '' };
@@ -134,12 +134,14 @@ export default function SkillTab() {
 
   function handlePrintSkillSheet() {
     const { employeeId, lastName } = loadUserProfile();
-    printSkillSheet(profile, entries, certifications, employeeId, lastName);
+    printSkillSheet(profile, entries, certifications, employeeId, lastName)
+      .catch((err: Error) => alert('PDF生成エラー: ' + err.message));
   }
 
   function handlePrintWorkHistory() {
     const { employeeId, lastName } = loadUserProfile();
-    printWorkHistory(profile.name, workHistory, employeeId, lastName);
+    printWorkHistory(profile.name, workHistory, employeeId, lastName)
+      .catch((err: Error) => alert('PDF生成エラー: ' + err.message));
   }
 
   const grouped = entries.reduce<Record<string, SkillEntry[]>>((acc, e) => {
