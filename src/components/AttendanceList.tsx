@@ -5,7 +5,7 @@ import {
   calcWorkMinutes, calcOvertimeMinutes, calcLateNightMinutes,
   isLateArrival, isEarlyDeparture, formatMinutes, loadUserProfile,
 } from '../utils/storage';
-import { printMonthlyAttendance } from '../utils/pdf';
+import { printMonthlyAttendancePDF } from '../utils/attendancePdf';
 import { getHolidayName } from '../utils/holidays';
 
 interface Props {
@@ -154,7 +154,8 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
           onClick={() => {
             const p = loadUserProfile();
             if (!p.employeeId || !p.lastName) { alert('画面上部に社員番号と苗字を入力してください。'); return; }
-            printMonthlyAttendance(records, workSettings, filterYear, filterMonth, plRemaining, p.employeeId, p.lastName);
+            printMonthlyAttendancePDF(records, workSettings, filterYear, filterMonth, plRemaining, p.employeeId, p.lastName)
+              .catch((err: Error) => alert('PDF生成エラー: ' + err.message));
           }}
           title={`${filterYear}年${filterMonth}月をPDF出力`}
         >
