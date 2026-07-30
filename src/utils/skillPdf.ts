@@ -14,7 +14,7 @@ let cachedFontBytes: ArrayBuffer | null = null;
 
 async function loadFont(): Promise<ArrayBuffer> {
   if (cachedFontBytes) return cachedFontBytes;
-  const res = await fetch('/fonts/NotoSansJP-Regular.ttf');
+  const res = await fetch(import.meta.env.BASE_URL + 'fonts/NotoSansJP-Regular.ttf');
   if (!res.ok) throw new Error('フォントの読み込みに失敗しました');
   cachedFontBytes = await res.arrayBuffer();
   return cachedFontBytes;

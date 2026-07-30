@@ -1,4 +1,6 @@
-﻿import type { AttendanceRecord, WorkSettings } from '../types/attendance';
+﻿import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
+import type { AttendanceRecord, WorkSettings } from '../types/attendance';
 import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
 import type { TransportRecord } from '../types/transport';
 import { TRIP_TYPE_LABELS } from '../types/transport';
@@ -15,19 +17,79 @@ function buildFilename(prefix: string, dateStr: string, employeeId: string, last
   return `${prefix}${dateStr}${userPart}`;
 }
 
-function openPrintWindow(html: string, landscape = false): void {
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const feats = landscape
-    ? 'width=1300,height=950,scrollbars=yes,resizable=yes'
-    : 'width=900,height=1200,scrollbars=yes,resizable=yes';
-  const win = window.open(url, '_blank', feats);
-  if (!win) {
-    URL.revokeObjectURL(url);
-    alert('ポップアップがブロックされました。ブラウザの設定でポップアップを許可してください。');
-    return;
+async function htmlToPdf(html: string, landscape: boolean, filename: string): Promise<void> {
+  const viewportW = landscape ? 1300 : 900;
+  const parsed = new DOMParser().parseFromString(html, 'text/html');
+
+  // Extract CSS and patch body selector so it applies to our container div
+  let css = '';
+  parsed.querySelectorAll('style').forEach(s => { css += s.textContent ?? ''; });
+  const patchedCss = css.replace(/\bbody\s*\{/g, '.pdf-container {');
+
+  // Remove print-button and auto-print script from body content
+  parsed.querySelectorAll('script, .print-btn').forEach(el => el.remove());
+
+  // Build an off-screen wrapper (fixed, hidden to the left of the viewport)
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText =
+    `position:fixed;top:0;left:-${viewportW + 60}px;` +
+    `width:${viewportW}px;background:#fff;overflow:visible;`;
+
+  const styleTag = document.createElement('style');
+  styleTag.textContent = patchedCss;
+  wrapper.appendChild(styleTag);
+
+  const container = document.createElement('div');
+  container.className = 'pdf-container';
+  container.innerHTML = parsed.body.innerHTML;
+  wrapper.appendChild(container);
+
+  document.body.appendChild(wrapper);
+  // Let the browser lay out the DOM before capturing
+  await new Promise(r => setTimeout(r, 300));
+
+  try {
+    const canvas = await html2canvas(wrapper, {
+      scale: 2,
+      useCORS: false,
+      logging: false,
+      backgroundColor: '#ffffff',
+      width: viewportW,
+      height: wrapper.scrollHeight,
+    });
+
+    const pdf = new jsPDF({
+      orientation: landscape ? 'landscape' : 'portrait',
+      unit: 'mm',
+      format: 'a4',
+    });
+    const pW = pdf.internal.pageSize.getWidth();
+    const pH = pdf.internal.pageSize.getHeight();
+    const imgW = pW;
+    const imgH = (canvas.height / canvas.width) * pW;
+    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+
+    if (imgH <= pH) {
+      pdf.addImage(imgData, 'JPEG', 0, 0, imgW, imgH);
+    } else {
+      // Multi-page: slice the image across A4 pages
+      let y = 0;
+      while (y < imgH) {
+        if (y > 0) pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, -y, imgW, imgH);
+        y += pH;
+      }
+    }
+    pdf.save(filename);
+  } finally {
+    document.body.removeChild(wrapper);
   }
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+function openPrintWindow(html: string, landscape = false, filename = 'document.pdf'): void {
+  htmlToPdf(html, landscape, filename).catch(err =>
+    alert('PDF生成エラー: ' + (err instanceof Error ? err.message : String(err)))
+  );
 }
 
 
@@ -361,11 +423,10 @@ export function printMonthlyAttendance(
 </table>
 </div>
 
-<script>window.addEventListener('load', function() { setTimeout(function() { window.print(); }, 400); });<\/script>
 </body>
 </html>`;
 
-  openPrintWindow(html, false);
+  openPrintWindow(html, false, buildFilename('勤務表', `${year}${String(month).padStart(2, '0')}`, employeeId, lastName) + '.pdf');
 }
 
 function fmtJpDate(d: string): string {
@@ -492,11 +553,10 @@ export function printLeaveApplication(data: LeaveApplicationData, employeeId = '
   <tr><th>取得理由</th><td>${reason.replace(/\n/g, '<br>')}</td></tr>
 </table>
 
-<script>window.addEventListener('load', function() { setTimeout(function() { window.print(); }, 400); });<\/script>
 </body>
 </html>`;
 
-  openPrintWindow(html, false);
+  openPrintWindow(html, false, buildFilename('休暇申請書', yymmdd, employeeId, lastName) + '.pdf');
 }
 
 export interface LateEarlyApplicationData {
@@ -615,11 +675,10 @@ export function printLateEarlyApplication(data: LateEarlyApplicationData, employ
   <tr><th>理由</th><td>${reason.replace(/\n/g, '<br>')}</td></tr>
 </table>
 
-<script>window.addEventListener('load', function() { setTimeout(function() { window.print(); }, 400); });<\/script>
 </body>
 </html>`;
 
-  openPrintWindow(html, false);
+  openPrintWindow(html, false, buildFilename('遅早退申請書', yymmdd, employeeId, lastName) + '.pdf');
 }
 
 const WEEK_LABELS_PDF = ['第一週', '第二週', '第三週', '第四週', '第五週'];
@@ -952,11 +1011,10 @@ export function printWorkReport(
   </tfoot>
 </table>
 
-<script>window.addEventListener('load', function() { setTimeout(function() { window.print(); }, 400); });<\/script>
 </body>
 </html>`;
 
-  openPrintWindow(html, true);
+  openPrintWindow(html, true, buildFilename('作業状況報告書', `${year}${String(month).padStart(2, '0')}`, employeeId, lastName) + '.pdf');
 }
 
 export function printTransportRecords(
@@ -1163,9 +1221,8 @@ export function printTransportRecords(
   ${totalRow ? `<tfoot>${totalRow}</tfoot>` : ''}
 </table>
 
-<script>window.addEventListener('load', function() { setTimeout(function() { window.print(); }, 400); });<\/script>
 </body>
 </html>`;
 
-  openPrintWindow(html, false);
+  openPrintWindow(html, false, buildFilename('小口交通費', `${year}${String(month).padStart(2, '0')}`, employeeId, lastName) + '.pdf');
 }
