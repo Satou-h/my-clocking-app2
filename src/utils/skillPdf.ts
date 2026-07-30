@@ -93,10 +93,20 @@ function drawCell(
 
 // ── Download helper ───────────────────────────────────────────────────────────
 
-function openPdf(bytes: Uint8Array): void {
+function buildFilename(prefix: string, employeeId: string, lastName: string): string {
+  const user = (employeeId || lastName) ? `_${employeeId}${lastName}` : '';
+  return `${prefix}${user}.pdf`;
+}
+
+function openPdf(bytes: Uint8Array, filename: string): void {
   const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' });
   const url = URL.createObjectURL(blob);
-  window.open(url, '_blank');
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
@@ -108,8 +118,8 @@ export async function printSkillSheet(
   profile: SkillSheetProfile,
   entries: SkillEntry[],
   certifications: Certification[],
-  _employeeId = '',
-  _lastName = '',
+  employeeId = '',
+  lastName = '',
 ): Promise<void> {
   const fontBytes = await loadFont();
   const pdfDoc = await PDFDocument.create();
@@ -273,7 +283,7 @@ export async function printSkillSheet(
     size: 11, paddingH: 7, paddingTop: 6,
   });
 
-  openPdf(await pdfDoc.save());
+  openPdf(await pdfDoc.save(), buildFilename('スキルシート', employeeId, lastName));
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -283,8 +293,8 @@ export async function printSkillSheet(
 export async function printWorkHistory(
   name: string,
   entries: WorkHistoryEntry[],
-  _employeeId = '',
-  _lastName = '',
+  employeeId = '',
+  lastName = '',
 ): Promise<void> {
   const fontBytes = await loadFont();
   const pdfDoc = await PDFDocument.create();
@@ -384,5 +394,5 @@ export async function printWorkHistory(
   const footY   = Math.max(M + 2, Y - 10);
   page.drawText(footTxt, { x: cX + (cW - footW) / 2, y: footY, font, size: footSz, color: MID });
 
-  openPdf(await pdfDoc.save());
+  openPdf(await pdfDoc.save(), buildFilename('スキル一覧', employeeId, lastName));
 }
