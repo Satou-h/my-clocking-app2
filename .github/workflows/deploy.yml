@@ -22,8 +22,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
-      - run: npm ci
+      - run: npm ci || (cat ~/.npm/_logs/*.log 2>/dev/null | tail -100; exit 1)
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
