@@ -152,6 +152,16 @@ export function calcWorkMinutes(clockIn: string, clockOut: string, breakMinutes:
   return end - start - breakMinutes;
 }
 
+// 午前休は12:00-13:00が就業時間内に含まれる場合、休憩として自動計上する
+export function getEffectiveBreak(type: string, clockIn: string, clockOut: string, breakMinutes: number): number {
+  if (type !== 'am_leave') return breakMinutes;
+  const start = timeToMins(clockIn);
+  let end = timeToMins(clockOut);
+  if (end <= start) end += 1440;
+  const lunchOverlap = Math.max(0, Math.min(end, 780) - Math.max(start, 720)); // 12:00-13:00
+  return lunchOverlap > 0 ? Math.max(breakMinutes, 60) : breakMinutes;
+}
+
 export function calcOvertimeMinutes(workMinutes: number): number {
   return Math.max(0, workMinutes - 8 * 60);
 }

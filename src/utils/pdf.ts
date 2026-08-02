@@ -6,7 +6,7 @@ import type { TransportRecord } from '../types/transport';
 import { TRIP_TYPE_LABELS } from '../types/transport';
 import {
   calcWorkMinutes, calcOvertimeMinutes, calcLateNightMinutes,
-  isLateArrival, isEarlyDeparture, formatMinutes,
+  isLateArrival, isEarlyDeparture, formatMinutes, getEffectiveBreak,
 } from './storage';
 import { getHolidayName } from './holidays';
 
@@ -135,7 +135,8 @@ export function printMonthlyAttendance(
     if (r.type === 'work') workDays++;
     if (r.type === 'scheduled_holiday_work') scheduledHolidayDays++;
     if (r.type === 'legal_holiday_work') legalHolidayDays++;
-    const w = calcWorkMinutes(r.clockIn, r.clockOut, r.breakMinutes ?? 0);
+    const effBreak = getEffectiveBreak(r.type, r.clockIn, r.clockOut, r.breakMinutes ?? 0);
+    const w = calcWorkMinutes(r.clockIn, r.clockOut, effBreak);
     workMins += w;
     // 所定休日出勤は全時間を残業に加算、法定休日出勤は専用集計
     if (r.type === 'scheduled_holiday_work') otMins += w;
@@ -161,7 +162,8 @@ export function printMonthlyAttendance(
     // 登録済みレコード
     if (r) {
       const hasTime = isWorkType(r.type) && r.clockIn && r.clockOut;
-      const wMin = hasTime ? calcWorkMinutes(r.clockIn!, r.clockOut!, r.breakMinutes ?? 0) : null;
+      const rowEffBreak = hasTime ? getEffectiveBreak(r.type, r.clockIn!, r.clockOut!, r.breakMinutes ?? 0) : 0;
+      const wMin = hasTime ? calcWorkMinutes(r.clockIn!, r.clockOut!, rowEffBreak) : null;
       const ot   = wMin !== null
         ? r.type === 'scheduled_holiday_work' ? wMin
           : r.type === 'legal_holiday_work' ? null
@@ -187,7 +189,7 @@ export function printMonthlyAttendance(
           <td><span class="badge ${r.type}">${ATTENDANCE_TYPE_LABELS[r.type]}</span></td>
           <td>${r.clockIn ?? '-'}</td>
           <td>${r.clockOut ?? '-'}</td>
-          <td>${isWorkType(r.type) ? (r.breakMinutes ?? 0) : '-'}</td>
+          <td>${isWorkType(r.type) ? rowEffBreak : '-'}</td>
           <td>${wMin !== null ? formatMinutes(wMin) : '-'}</td>
           <td class="${ot && ot > 0 ? 'td-ot' : ''}">${ot !== null ? (ot > 0 ? formatMinutes(ot) : '-') : '-'}</td>
           <td class="${legalHolidayMin !== null && legalHolidayMin > 0 ? 'td-lh' : ''}">${legalHolidayMin !== null ? formatMinutes(legalHolidayMin) : '-'}</td>

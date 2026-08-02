@@ -3,7 +3,7 @@ import type { AttendanceRecord, WorkSettings, PaidLeaveSettings } from '../types
 import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
 import {
   calcWorkMinutes, calcOvertimeMinutes, calcLateNightMinutes,
-  isLateArrival, isEarlyDeparture, formatMinutes, loadUserProfile,
+  isLateArrival, isEarlyDeparture, formatMinutes, loadUserProfile, getEffectiveBreak,
 } from '../utils/storage';
 import { printMonthlyAttendancePDF } from '../utils/attendancePdf';
 import { getHolidayName } from '../utils/holidays';
@@ -43,7 +43,8 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
   const summary = filtered.reduce(
     (acc, r) => {
       if (!isWorkType(r.type) || !r.clockIn || !r.clockOut) return acc;
-      const work = calcWorkMinutes(r.clockIn, r.clockOut, r.breakMinutes ?? 0);
+      const effBreak = getEffectiveBreak(r.type, r.clockIn, r.clockOut, r.breakMinutes ?? 0);
+      const work = calcWorkMinutes(r.clockIn, r.clockOut, effBreak);
       const ln = calcLateNightMinutes(r.clockIn, r.clockOut);
       const refStart = r.customStartTime ?? workSettings.standardStartTime;
       const refEnd = r.customEndTime ?? workSettings.standardEndTime;
@@ -290,8 +291,9 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
 
               const r = row.record;
               const hasTime = isWorkType(r.type) && r.clockIn && r.clockOut;
+              const rowEffBreak = hasTime ? getEffectiveBreak(r.type, r.clockIn!, r.clockOut!, r.breakMinutes ?? 0) : 0;
               const workMin = hasTime
-                ? calcWorkMinutes(r.clockIn!, r.clockOut!, r.breakMinutes ?? 0)
+                ? calcWorkMinutes(r.clockIn!, r.clockOut!, rowEffBreak)
                 : null;
               const otMin = workMin !== null
                 ? r.type === 'scheduled_holiday_work' ? workMin
@@ -316,7 +318,7 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
                   </td>
                   <td>{r.clockIn ?? '-'}</td>
                   <td>{r.clockOut ?? '-'}</td>
-                  <td>{isWorkType(r.type) ? (r.breakMinutes ?? 0) : '-'}</td>
+                  <td>{isWorkType(r.type) ? rowEffBreak : '-'}</td>
                   <td>{workMin !== null ? formatMinutes(workMin) : '-'}</td>
                   <td className={otMin && otMin > 0 ? 'text-overtime' : ''}>
                     {otMin !== null ? (otMin > 0 ? formatMinutes(otMin) : '-') : '-'}

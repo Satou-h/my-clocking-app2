@@ -4,7 +4,7 @@ import type { AttendanceRecord, WorkSettings, AttendanceType } from '../types/at
 import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
 import {
   calcWorkMinutes, calcOvertimeMinutes, calcLateNightMinutes,
-  isLateArrival, isEarlyDeparture, formatMinutes,
+  isLateArrival, isEarlyDeparture, formatMinutes, getEffectiveBreak,
 } from './storage';
 import { getHolidayName } from './holidays';
 
@@ -110,7 +110,8 @@ export async function printMonthlyAttendancePDF(
     if (r.type === 'work') workDays++;
     if (r.type === 'scheduled_holiday_work') shdDays++;
     if (r.type === 'legal_holiday_work') lhdDays++;
-    const w = calcWorkMinutes(r.clockIn, r.clockOut, r.breakMinutes ?? 0);
+    const effBreak = getEffectiveBreak(r.type, r.clockIn, r.clockOut, r.breakMinutes ?? 0);
+    const w = calcWorkMinutes(r.clockIn, r.clockOut, effBreak);
     workMins += w;
     if (r.type === 'scheduled_holiday_work') otMins += w;
     else if (r.type === 'legal_holiday_work') lhMins += w;
@@ -288,7 +289,8 @@ export async function printMonthlyAttendancePDF(
       badge(colX[1], Y, detCols[1], DET_H, ATTENDANCE_TYPE_LABELS[typeKey], BADGE_BG[typeKey], BADGE_TXT[typeKey]);
 
       const hasTime = IS_WORK.has(r.type) && !!r.clockIn && !!r.clockOut;
-      const wMin = hasTime ? calcWorkMinutes(r.clockIn!, r.clockOut!, r.breakMinutes ?? 0) : null;
+      const rowEffBreak = hasTime ? getEffectiveBreak(r.type, r.clockIn!, r.clockOut!, r.breakMinutes ?? 0) : 0;
+      const wMin = hasTime ? calcWorkMinutes(r.clockIn!, r.clockOut!, rowEffBreak) : null;
       const ot = wMin !== null
         ? r.type === 'scheduled_holiday_work' ? wMin
           : r.type === 'legal_holiday_work'   ? null
@@ -302,7 +304,7 @@ export async function printMonthlyAttendancePDF(
 
       ct(2, hasTime ? r.clockIn!  : '-', hasTime ? DARK_TXT : LIGHT_TXT);
       ct(3, hasTime ? r.clockOut! : '-', hasTime ? DARK_TXT : LIGHT_TXT);
-      ct(4, IS_WORK.has(r.type) ? String(r.breakMinutes ?? 0) : '-',
+      ct(4, IS_WORK.has(r.type) ? String(rowEffBreak) : '-',
             IS_WORK.has(r.type) ? DARK_TXT : LIGHT_TXT);
       ct(5, wMin !== null ? formatMinutes(wMin) : '-');
       ct(6, ot  !== null ? (ot  > 0 ? formatMinutes(ot)  : '-') : '-', ot  && ot  > 0 ? ORANGE_TXT : DARK_TXT);

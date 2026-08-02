@@ -367,8 +367,8 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
               type="number"
               min={0}
               step={10}
-              value={form.amount}
-              onChange={(e) => set('amount', Math.max(0, Number(e.target.value)))}
+              value={form.amount || ''}
+              onChange={(e) => set('amount', e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)))}
             />
           </div>
           {errors.amount && <div className="form-error">{errors.amount}</div>}
@@ -479,8 +479,8 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
 
           <div className="form-row">
             <label>金額（円）<span className="required">*</span></label>
-            <input type="number" min={0} step={10} value={bulkForm.amount}
-              onChange={(e) => setBulk('amount', Math.max(0, Number(e.target.value)))} />
+            <input type="number" min={0} step={10} value={bulkForm.amount || ''}
+              onChange={(e) => setBulk('amount', e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)))} />
           </div>
           {bulkErrors.amount && <div className="form-error">{bulkErrors.amount}</div>}
 

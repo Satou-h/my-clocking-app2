@@ -3,7 +3,7 @@ import type { AttendanceRecord, AttendanceType, WorkSettings } from '../types/at
 import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
 import {
   generateId, calcWorkMinutes, calcOvertimeMinutes,
-  calcLateNightMinutes, isLateArrival, isEarlyDeparture, formatMinutes,
+  calcLateNightMinutes, isLateArrival, isEarlyDeparture, formatMinutes, getEffectiveBreak,
 } from '../utils/storage';
 import { getHolidayName } from '../utils/holidays';
 
@@ -65,7 +65,8 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
   // リアルタイム計算
   const calc = (() => {
     if (!needsTime || !clockIn || !clockOut) return null;
-    const work = calcWorkMinutes(clockIn, clockOut, parseInt(breakMinutes) || 0);
+    const rawBreak = parseInt(breakMinutes) || 0;
+    const work = calcWorkMinutes(clockIn, clockOut, getEffectiveBreak(type, clockIn, clockOut, rawBreak));
     if (work <= 0) return null;
     return {
       work,
