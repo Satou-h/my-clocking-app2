@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AttendanceRecord } from '../types/attendance';
-import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
+import { ATTENDANCE_TYPE_LABELS, DEFAULT_WORK_SETTINGS } from '../types/attendance';
 import type { TransportRecord, TripType } from '../types/transport';
 import { TRIP_TYPE_LABELS } from '../types/transport';
 import { generateId, loadUserProfile } from '../utils/storage';
 import { printTransportRecords } from '../utils/pdf';
 import { getHolidayName } from '../utils/holidays';
+import { checkMonthCompleteness, formatCompletenessIssue } from '../utils/completeness';
 
 interface Props {
   records: TransportRecord[];
@@ -230,6 +231,13 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
           onClick={() => {
             const p = loadUserProfile();
             if (!p.employeeId || !p.lastName) { alert('画面上部に社員番号と苗字を入力してください。'); return; }
+            const completeness = checkMonthCompleteness(
+              filterYear, filterMonth, attendanceRecords, records, [], [], DEFAULT_WORK_SETTINGS,
+            );
+            if (!completeness.transport.complete) {
+              alert(formatCompletenessIssue('交通費', completeness.transport));
+              return;
+            }
             printTransportRecords(records, filterYear, filterMonth, p.employeeId, p.lastName);
           }}
           title={`${filterYear}年${filterMonth}月をPDF出力`}

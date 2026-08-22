@@ -120,3 +120,22 @@ export function checkMonthCompleteness(
       attendance.complete && transport.complete && leaveApplication.complete && lateEarlyApplication.complete,
   };
 }
+
+const DOW_JA_SHORT = ['日', '月', '火', '水', '木', '金', '土'];
+
+export function fmtDateShort(d: string): string {
+  const dt = new Date(d + 'T00:00:00');
+  return `${dt.getMonth() + 1}/${dt.getDate()}(${DOW_JA_SHORT[dt.getDay()]})`;
+}
+
+// 個別のPDF出力ボタン等で、入力未完了時にそのまま alert() に渡せるメッセージを組み立てる
+export function formatCompletenessIssue(label: string, doc: DocCompleteness): string {
+  const parts: string[] = [];
+  if (doc.missingDates.length > 0) {
+    parts.push(`未入力: ${doc.missingDates.map(fmtDateShort).join('、')}`);
+  }
+  if (doc.extraDates.length > 0) {
+    parts.push(`不要なデータ: ${doc.extraDates.map(fmtDateShort).join('、')}（在宅勤務・有給などのため交通費は不要です。削除してください）`);
+  }
+  return `${label}の入力が完了していないため、PDFを出力できません。\n\n${parts.join('\n')}`;
+}

@@ -8,6 +8,7 @@ import {
 } from '../utils/storage';
 import { printMonthlyAttendancePDF } from '../utils/attendancePdf';
 import { getHolidayName } from '../utils/holidays';
+import { checkMonthCompleteness, formatCompletenessIssue } from '../utils/completeness';
 
 interface Props {
   records: AttendanceRecord[];
@@ -148,6 +149,11 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
           onClick={() => {
             const p = loadUserProfile();
             if (!p.employeeId || !p.lastName) { alert('画面上部に社員番号と苗字を入力してください。'); return; }
+            const completeness = checkMonthCompleteness(filterYear, filterMonth, records, [], [], [], workSettings);
+            if (!completeness.attendance.complete) {
+              alert(formatCompletenessIssue('勤務表', completeness.attendance));
+              return;
+            }
             printMonthlyAttendancePDF(records, workSettings, filterYear, filterMonth, plRemaining, p.employeeId, p.lastName)
               .catch((err: Error) => alert('PDF生成エラー: ' + err.message));
           }}

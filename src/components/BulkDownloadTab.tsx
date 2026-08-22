@@ -6,7 +6,7 @@ import {
   loadUserProfile, calcPaidLeaveRemaining,
   loadLeaveApplications, loadLateEarlyApplications,
 } from '../utils/storage';
-import { checkMonthCompleteness } from '../utils/completeness';
+import { checkMonthCompleteness, fmtDateShort } from '../utils/completeness';
 import { printMonthlyAttendancePDF } from '../utils/attendancePdf';
 import { printTransportRecords, printLeaveApplication, printLateEarlyApplication } from '../utils/pdf';
 
@@ -15,13 +15,6 @@ interface Props {
   transportRecords: TransportRecord[];
   workSettings: WorkSettings;
   paidLeaveSettings: PaidLeaveSettings[];
-}
-
-const DOW = ['日', '月', '火', '水', '木', '金', '土'];
-
-function fmtDateShort(d: string): string {
-  const dt = new Date(d + 'T00:00:00');
-  return `${dt.getMonth() + 1}/${dt.getDate()}(${DOW[dt.getDay()]})`;
 }
 
 function wait(ms: number): Promise<void> {

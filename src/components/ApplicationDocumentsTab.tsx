@@ -9,6 +9,7 @@ import type { LeaveType, LeaveApplicationRecord, LateEarlyApplicationRecord } fr
 import { LEAVE_LABELS } from '../types/application';
 import type { AttendanceRecord, WorkSettings } from '../types/attendance';
 import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
+import { checkMonthCompleteness, formatCompletenessIssue } from '../utils/completeness';
 
 interface Props {
   records: AttendanceRecord[];
@@ -48,6 +49,11 @@ function today() {
 
 function calcLeaveDays(entries: { leaveType: LeaveType }[]): number {
   return entries.reduce((sum, e) => sum + (e.leaveType === 'paid_leave' ? 1 : 0.5), 0);
+}
+
+function deriveYearMonth(dateStr: string): { year: number; month: number } | null {
+  const m = dateStr.match(/^(\d{4})-(\d{2})/);
+  return m ? { year: Number(m[1]), month: Number(m[2]) } : null;
 }
 
 function latestDate(entries: { date: string }[]): string {
@@ -162,6 +168,16 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
   function printLeaveRecord(record: LeaveApplicationRecord) {
     const { employeeId, lastName } = loadUserProfile();
     if (!employeeId || !lastName) { alert('画面上部に社員番号と苗字を入力してください。'); return; }
+    const ym = deriveYearMonth(record.dateEntries[0]?.date ?? record.applicationDate);
+    if (ym) {
+      const completeness = checkMonthCompleteness(
+        ym.year, ym.month, records, [], loadLeaveApplications(), loadLateEarlyApplications(), workSettings,
+      );
+      if (!completeness.leaveApplication.complete) {
+        alert(formatCompletenessIssue('休暇申請書', completeness.leaveApplication));
+        return;
+      }
+    }
     printLeaveApplication({
       applicationDate: record.applicationDate,
       name: record.name,
@@ -256,6 +272,16 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
   function printLateEarlyRecord(record: LateEarlyApplicationRecord) {
     const { employeeId, lastName } = loadUserProfile();
     if (!employeeId || !lastName) { alert('画面上部に社員番号と苗字を入力してください。'); return; }
+    const ym = deriveYearMonth(record.targetDate);
+    if (ym) {
+      const completeness = checkMonthCompleteness(
+        ym.year, ym.month, records, [], loadLeaveApplications(), loadLateEarlyApplications(), workSettings,
+      );
+      if (!completeness.lateEarlyApplication.complete) {
+        alert(formatCompletenessIssue('遅早退申請書', completeness.lateEarlyApplication));
+        return;
+      }
+    }
     printLateEarlyApplication({
       applicationDate: record.applicationDate,
       name: record.name,
