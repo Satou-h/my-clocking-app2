@@ -219,6 +219,8 @@ h3 {
 .btn-edit:hover { background: #2d6cdf; color: #fff; }
 .btn-delete { background: #ffeaa7; color: #e17055; }
 .btn-delete:hover { background: #e17055; color: #fff; }
+.btn-pdf-icon { background: #ffe0e0; color: #e53935; }
+.btn-pdf-icon:hover { background: #e53935; color: #fff; }
 
 /* Table */
 .data-table {

@@ -251,7 +251,7 @@ export default function App() {
           />
         )}
         {tab === 'documents' && (
-          <ApplicationDocumentsTab />
+          <ApplicationDocumentsTab records={records} workSettings={workSettings} />
         )}
         {tab === 'skill' && (
           <SkillTab />

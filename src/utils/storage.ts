@@ -152,13 +152,18 @@ export function saveLeaveApplications(records: LeaveApplicationRecord[]): void {
   localStorage.setItem(LEAVE_APPLICATIONS_KEY, JSON.stringify(records));
 }
 
-// 同じ日付を含む既存の申請は上書きし、新しいバッチで置き換える
+// 同じ日付を含む既存の申請（自分自身を除く）は上書きし、新しいバッチで置き換える
 export function upsertLeaveApplication(batch: LeaveApplicationRecord): void {
   const newDates = new Set(batch.dateEntries.map((e) => e.date));
   const pruned = loadLeaveApplications()
+    .filter((b) => b.id !== batch.id)
     .map((b) => ({ ...b, dateEntries: b.dateEntries.filter((e) => !newDates.has(e.date)) }))
     .filter((b) => b.dateEntries.length > 0);
   saveLeaveApplications([...pruned, batch]);
+}
+
+export function deleteLeaveApplication(id: string): void {
+  saveLeaveApplications(loadLeaveApplications().filter((b) => b.id !== id));
 }
 
 export function loadLateEarlyApplications(): LateEarlyApplicationRecord[] {
@@ -175,8 +180,12 @@ export function saveLateEarlyApplications(records: LateEarlyApplicationRecord[])
 }
 
 export function upsertLateEarlyApplication(record: LateEarlyApplicationRecord): void {
-  const next = loadLateEarlyApplications().filter((r) => r.targetDate !== record.targetDate);
+  const next = loadLateEarlyApplications().filter((r) => r.id !== record.id && r.targetDate !== record.targetDate);
   saveLateEarlyApplications([...next, record]);
+}
+
+export function deleteLateEarlyApplication(id: string): void {
+  saveLateEarlyApplications(loadLateEarlyApplications().filter((r) => r.id !== id));
 }
 
 export function calcPaidLeaveRemaining(
