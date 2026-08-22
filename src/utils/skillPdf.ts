@@ -1,6 +1,7 @@
 import { PDFDocument, rgb, type Color, type PDFPage, type PDFFont } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import type { SkillEntry, Certification, SkillSheetProfile, WorkHistoryEntry } from '../types/skill';
+import { fmtYearMonth } from './workHistory';
 
 // ── Colors ────────────────────────────────────────────────────────────────────
 const BLACK  = rgb(0.1,  0.1,  0.1);
@@ -351,16 +352,16 @@ export async function printWorkHistory(
     const langs    = e.languages ? e.languages.split('\n').filter(Boolean) : [];
     const toolLines = e.tools    ? e.tools.split('\n').filter(Boolean)     : [];
     const osLines  = e.os       ? e.os.split('\n').filter(Boolean)         : [];
+    const dbLines  = e.db       ? e.db.split('\n').filter(Boolean)         : [];
     const entryH   = ROW_H * 2;
-    const period   = e.endDate   ? `${e.startDate} ～ ${e.endDate}`
-                   : e.startDate ? `${e.startDate} ～` : '';
+    const period   = e.endDate   ? `${fmtYearMonth(e.startDate)} ～ ${fmtYearMonth(e.endDate)}`
+                   : e.startDate ? `${fmtYearMonth(e.startDate)} ～` : '';
     const r1Y = Y;
     const r2Y = Y - ROW_H;
 
     // ── Rowspan=2 cells ──
     drawCell(page, wcX[0], r1Y, wc[0], entryH, period,   font, { size: 8.5, align: 'center' });
     drawCell(page, wcX[2], r1Y, wc[2], entryH, e.machine || '', font, { size: 8.5, align: 'center' });
-    drawCell(page, wcX[6], r1Y, wc[6], entryH, e.db || '',      font, { size: 8.5, align: 'center' });
     drawCell(page, wcX[8], r1Y, wc[8], entryH, e.role || '',    font, { size: 8.5, align: 'center' });
 
     // workProcess (rowspan=2) with wrapping
@@ -374,6 +375,7 @@ export async function printWorkHistory(
     drawCell(page, wcX[3], r1Y, wc[3], ROW_H, osLines[0] ?? '',    font, { size: 8.5, align: 'center' });
     drawCell(page, wcX[4], r1Y, wc[4], ROW_H, langs[0] ?? '',      font, { size: 8.5 });
     drawCell(page, wcX[5], r1Y, wc[5], ROW_H, langs[1] ?? '',      font, { size: 8.5 });
+    drawCell(page, wcX[6], r1Y, wc[6], ROW_H, dbLines[0] ?? '',    font, { size: 8.5, align: 'center' });
     drawCell(page, wcX[7], r1Y, wc[7], ROW_H, toolLines[0] ?? '',  font, { size: 8.5 });
 
     // ── Row 2 cells ──
@@ -382,6 +384,7 @@ export async function printWorkHistory(
     drawCell(page, wcX[3], r2Y, wc[3], ROW_H, osLines[1] ?? '',    font, { size: 8.5, align: 'center' });
     drawCell(page, wcX[4], r2Y, wc[4], ROW_H, langs[2] ?? '',      font, { size: 8.5 });
     drawCell(page, wcX[5], r2Y, wc[5], ROW_H, langs[3] ?? '',      font, { size: 8.5 });
+    drawCell(page, wcX[6], r2Y, wc[6], ROW_H, dbLines[1] ?? '',    font, { size: 8.5, align: 'center' });
     drawCell(page, wcX[7], r2Y, wc[7], ROW_H, toolLines[1] ?? '',  font, { size: 8.5 });
 
     Y -= entryH;

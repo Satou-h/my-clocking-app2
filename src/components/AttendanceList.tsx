@@ -308,7 +308,7 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
                     <span className={`badge badge-${r.type}`}>
                       {ATTENDANCE_TYPE_LABELS[r.type]}
                     </span>
-                    {r.isRemote && <span className="badge badge-remote">在宅</span>}
+                    {r.noTransport && <span className="badge badge-no-transport" title="交通費なし（在宅勤務・徒歩圏内など）">交通費なし</span>}
                   </td>
                   <td>{r.clockIn ?? '-'}</td>
                   <td>{r.clockOut ?? '-'}</td>

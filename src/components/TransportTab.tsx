@@ -71,9 +71,9 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
   const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
 
-  // 当月の勤務日（在宅勤務・交通費未登録のものをデフォルト選択）
+  // 当月の勤務日（交通費なし・交通費未登録のものをデフォルト選択）
   const workDays = attendanceRecords
-    .filter((r) => r.date.startsWith(prefix) && WORK_TYPES.has(r.type) && !r.isRemote)
+    .filter((r) => r.date.startsWith(prefix) && WORK_TYPES.has(r.type) && !r.noTransport)
     .sort((a, b) => a.date.localeCompare(b.date));
   const existingDates = new Set(monthRecords.map((r) => r.date));
 

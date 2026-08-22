@@ -10,7 +10,8 @@ export interface AttendanceRecord {
   notes?: string;
   customStartTime?: string;
   customEndTime?: string;
-  isRemote?: boolean;
+  // 在宅勤務・徒歩圏内など、その日は交通費が発生しない場合に立てるフラグ
+  noTransport?: boolean;
 }
 
 export interface PaidLeaveSettings {

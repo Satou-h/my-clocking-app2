@@ -34,7 +34,7 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
   const [useRange, setUseRange] = useState(false);
   const [dateTo, setDateTo] = useState(existingRecord?.date ?? today());
   const [skipWeekends, setSkipWeekends] = useState(true);
-  const [isRemote, setIsRemote] = useState(existingRecord?.isRemote ?? false);
+  const [noTransport, setNoTransport] = useState(existingRecord?.noTransport ?? false);
 
   function buildDateRange(from: string, to: string): string[] {
     const dates: string[] = [];
@@ -59,7 +59,7 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
   const needsTime = type === 'work' || type === 'absence' || type === 'am_leave' || type === 'pm_leave'
     || type === 'scheduled_holiday_work' || type === 'legal_holiday_work';
   const isHalfLeave = type === 'am_leave' || type === 'pm_leave';
-  const canBeRemote = needsTime && type !== 'absence';
+  const canToggleNoTransport = needsTime && type !== 'absence';
 
   const effectiveStart = (useCustomTime && customStartTime) ? customStartTime : workSettings.standardStartTime;
   const effectiveEnd = (useCustomTime && customEndTime) ? customEndTime : workSettings.standardEndTime;
@@ -135,7 +135,7 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
       notes: notes || undefined,
       customStartTime: useCustomTime && customStartTime ? customStartTime : undefined,
       customEndTime: useCustomTime && customEndTime ? customEndTime : undefined,
-      isRemote: canBeRemote ? isRemote : undefined,
+      noTransport: canToggleNoTransport ? noTransport : undefined,
     };
 
     // 一括登録
@@ -244,16 +244,16 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
         </select>
       </div>
 
-      {canBeRemote && (
+      {canToggleNoTransport && (
         <div className="form-row">
           <label style={{ width: 140 }} />
           <label className="range-toggle">
             <input
               type="checkbox"
-              checked={isRemote}
-              onChange={(e) => setIsRemote(e.target.checked)}
+              checked={noTransport}
+              onChange={(e) => setNoTransport(e.target.checked)}
             />
-            在宅勤務（交通費申請は不要）
+            交通費なし（在宅勤務・徒歩圏内など）
           </label>
         </div>
       )}

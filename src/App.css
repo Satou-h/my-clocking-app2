@@ -277,7 +277,7 @@ h3 {
 .badge-pm_leave { background: #fce4ec; color: #ad1457; }
 .badge-scheduled_holiday_work { background: #fff3e0; color: #e65100; }
 .badge-legal_holiday_work { background: #fbe9e7; color: #bf360c; }
-.badge-remote { background: #e8f5e9; color: #2e7d32; margin-left: 4px; }
+.badge-no-transport { background: #e8f5e9; color: #2e7d32; margin-left: 4px; }
 
 /* List filter */
 .list-filter {

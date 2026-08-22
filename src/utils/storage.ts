@@ -38,7 +38,10 @@ export function saveUserProfile(profile: UserProfile): void {
 export function loadRecords(): AttendanceRecord[] {
   try {
     const raw = localStorage.getItem(RECORDS_KEY);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    // 旧フィールド名 isRemote（在宅勤務のみを表していた頃の名残）から移行
+    const parsed = JSON.parse(raw) as (AttendanceRecord & { isRemote?: boolean })[];
+    return parsed.map(({ isRemote, ...r }) => ({ ...r, noTransport: r.noTransport ?? isRemote }));
   } catch {
     return [];
   }

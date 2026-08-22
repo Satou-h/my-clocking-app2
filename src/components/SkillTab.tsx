@@ -9,6 +9,7 @@ import {
   generateId, loadUserProfile,
 } from '../utils/storage';
 import { printSkillSheet, printWorkHistory } from '../utils/skillPdf';
+import { normalizeYearMonth, fmtYearMonth, calcDurationLabel } from '../utils/workHistory';
 
 const EMPTY_FORM = { category: '', skillName: '', experienceYears: '' };
 const EMPTY_CERT_FORM = { name: '', acquiredDate: '' };
@@ -72,11 +73,12 @@ export default function SkillTab() {
 
   function handleWhSubmit() {
     if (!whForm.clientType.trim()) return;
+    const record = { ...whForm, duration: calcDurationLabel(whForm.startDate, whForm.endDate) };
     if (editingWhId) {
-      persistWH(workHistory.map((e) => e.id === editingWhId ? { ...whForm, id: editingWhId } : e));
+      persistWH(workHistory.map((e) => e.id === editingWhId ? { ...record, id: editingWhId } : e));
       setEditingWhId(null);
     } else {
-      persistWH([...workHistory, { ...whForm, id: generateId() }]);
+      persistWH([...workHistory, { ...record, id: generateId() }]);
     }
     setWhForm(EMPTY_WH_FORM);
   }
@@ -84,7 +86,7 @@ export default function SkillTab() {
   function handleWhEdit(entry: WorkHistoryEntry) {
     setEditingWhId(entry.id);
     setWhForm({
-      startDate: entry.startDate, endDate: entry.endDate, duration: entry.duration,
+      startDate: normalizeYearMonth(entry.startDate), endDate: normalizeYearMonth(entry.endDate), duration: entry.duration,
       clientType: entry.clientType, systemName: entry.systemName,
       machine: entry.machine, os: entry.os, languages: entry.languages,
       db: entry.db, tools: entry.tools, role: entry.role, workProcess: entry.workProcess,
@@ -140,9 +142,14 @@ export default function SkillTab() {
 
   function handlePrintWorkHistory() {
     const { employeeId, lastName } = loadUserProfile();
-    printWorkHistory(profile.name, workHistory, employeeId, lastName)
+    printWorkHistory(profile.name, sortedWorkHistory, employeeId, lastName)
       .catch((err: Error) => alert('PDF生成エラー: ' + err.message));
   }
+
+  // 作業期間の古い順に並べる（開始年月が未入力のものは末尾）
+  const sortedWorkHistory = [...workHistory].sort((a, b) =>
+    (normalizeYearMonth(a.startDate) || '9999-99').localeCompare(normalizeYearMonth(b.startDate) || '9999-99'),
+  );
 
   const grouped = entries.reduce<Record<string, SkillEntry[]>>((acc, e) => {
     (acc[e.category] ??= []).push(e);
@@ -263,15 +270,20 @@ export default function SkillTab() {
           <div className="wh-form-row-group">
             <div className="form-row">
               <label>開始年月</label>
-              <input type="text" value={whForm.startDate} onChange={(e) => setWhForm((p) => ({ ...p, startDate: e.target.value }))} placeholder="2021.04" />
+              <input type="month" value={whForm.startDate} onChange={(e) => setWhForm((p) => ({ ...p, startDate: e.target.value }))} />
             </div>
             <div className="form-row">
               <label>終了年月</label>
-              <input type="text" value={whForm.endDate} onChange={(e) => setWhForm((p) => ({ ...p, endDate: e.target.value }))} placeholder="2021.06" />
+              <input type="month" value={whForm.endDate} onChange={(e) => setWhForm((p) => ({ ...p, endDate: e.target.value }))} />
             </div>
             <div className="form-row">
               <label>期間</label>
-              <input type="text" value={whForm.duration} onChange={(e) => setWhForm((p) => ({ ...p, duration: e.target.value }))} placeholder="3ヶ月" />
+              <input
+                type="text"
+                value={calcDurationLabel(whForm.startDate, whForm.endDate)}
+                readOnly
+                placeholder="開始年月を入力すると自動計算されます"
+              />
             </div>
           </div>
           {/* 業務内容 */}
@@ -291,11 +303,21 @@ export default function SkillTab() {
             </div>
             <div className="form-row">
               <label>OS</label>
-              <input type="text" value={whForm.os} onChange={(e) => setWhForm((p) => ({ ...p, os: e.target.value }))} placeholder="Win11" />
+              <textarea
+                value={whForm.os}
+                onChange={(e) => setWhForm((p) => ({ ...p, os: e.target.value }))}
+                rows={2}
+                placeholder="1行1OSで入力&#10;例:&#10;Win11&#10;Win10"
+              />
             </div>
             <div className="form-row">
               <label>DB</label>
-              <input type="text" value={whForm.db} onChange={(e) => setWhForm((p) => ({ ...p, db: e.target.value }))} placeholder="Oracle 19c" />
+              <textarea
+                value={whForm.db}
+                onChange={(e) => setWhForm((p) => ({ ...p, db: e.target.value }))}
+                rows={2}
+                placeholder="1行1DBで入力&#10;例:&#10;Oracle 19c&#10;MySQL 8.0"
+              />
             </div>
           </div>
           {/* 言語・ツール */}
@@ -337,7 +359,7 @@ export default function SkillTab() {
             <button className="btn btn-secondary" onClick={handleWhCancel}>キャンセル</button>
           )}
         </div>
-        {workHistory.length > 0 && (
+        {sortedWorkHistory.length > 0 && (
           <table className="skill-table">
             <thead>
               <tr>
@@ -348,9 +370,9 @@ export default function SkillTab() {
               </tr>
             </thead>
             <tbody>
-              {workHistory.map((e) => (
+              {sortedWorkHistory.map((e) => (
                 <tr key={e.id}>
-                  <td className="td-exp">{e.startDate}{e.endDate ? ` ～ ${e.endDate}` : ' ～'}</td>
+                  <td className="td-exp">{fmtYearMonth(e.startDate)}{e.endDate ? ` ～ ${fmtYearMonth(e.endDate)}` : e.startDate ? ' ～' : ''}</td>
                   <td>{e.clientType}{e.systemName ? ` / ${e.systemName}` : ''}</td>
                   <td className="td-exp">{e.languages.split('\n').filter(Boolean).join('・')}</td>
                   <td className="td-actions">

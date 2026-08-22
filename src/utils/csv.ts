@@ -47,7 +47,7 @@ export function parseCSV(text: string): CsvParseResult {
   const outIdx   = header.findIndex((h) => h === '退勤' || h === '退勤時間' || h === 'clock_out');
   const breakIdx = header.findIndex((h) => h === '休憩' || h === '休憩時間' || h === '休憩(分)' || h === 'break_minutes');
   const notesIdx = header.findIndex((h) => h === '備考' || h === 'notes');
-  const remoteIdx = header.findIndex((h) => h === '在宅' || h === 'is_remote');
+  const noTransportIdx = header.findIndex((h) => h === '交通費なし' || h === 'no_transport' || h === '在宅' || h === 'is_remote');
 
   if (dateIdx === -1) return { records, errors: ['ヘッダーに「日付」列が見つかりません'] };
 
@@ -71,7 +71,7 @@ export function parseCSV(text: string): CsvParseResult {
       clockOut:     outIdx   !== -1 ? cols[outIdx]   || undefined : undefined,
       breakMinutes: breakIdx !== -1 ? (parseInt(cols[breakIdx]) || 0) : 0,
       notes:        notesIdx !== -1 ? cols[notesIdx] || undefined : undefined,
-      isRemote:     remoteIdx !== -1 ? ['在宅', 'true', 'TRUE', '1'].includes(cols[remoteIdx] ?? '') : undefined,
+      noTransport:  noTransportIdx !== -1 ? ['交通費なし', '在宅', 'true', 'TRUE', '1'].includes(cols[noTransportIdx] ?? '') : undefined,
     });
   }
 
@@ -79,7 +79,7 @@ export function parseCSV(text: string): CsvParseResult {
 }
 
 export function exportCSV(records: AttendanceRecord[]): string {
-  const header = '日付,種別,出勤時間,退勤時間,休憩(分),備考,在宅';
+  const header = '日付,種別,出勤時間,退勤時間,休憩(分),備考,交通費なし';
   const rows = records
     .sort((a, b) => a.date.localeCompare(b.date))
     .map((r) => [
@@ -89,7 +89,7 @@ export function exportCSV(records: AttendanceRecord[]): string {
       r.clockOut ?? '',
       r.breakMinutes ?? 0,
       r.notes ?? '',
-      r.isRemote ? '在宅' : '',
+      r.noTransport ? '交通費なし' : '',
     ].join(','));
   return [header, ...rows].join('\n');
 }
