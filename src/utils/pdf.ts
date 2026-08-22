@@ -129,7 +129,7 @@ export function printMonthlyAttendance(
   let workDays = 0, scheduledHolidayDays = 0, legalHolidayDays = 0, paidDays = 0;
   let workMins = 0, otMins = 0, legalHolidayMins = 0, lnMins = 0, lateCount = 0, earlyCount = 0;
   for (const r of filtered) {
-    if (r.type === 'paid_leave') { paidDays++; continue; }
+    if (r.type === 'paid_leave' || r.type === 'planned_paid_leave') { paidDays++; continue; }
     if (r.type === 'am_leave' || r.type === 'pm_leave') { paidDays += 0.5; }
     if (!isWorkType(r.type) || !r.clockIn || !r.clockOut) continue;
     if (r.type === 'work') workDays++;
@@ -176,7 +176,7 @@ export function printMonthlyAttendance(
       const rowIsHalf   = r.type === 'am_leave' || r.type === 'pm_leave';
       const late  = hasTime && !rowIsHalf ? isLateArrival(r.clockIn!, rowRefStart) : false;
       const early = hasTime && !rowIsHalf ? isEarlyDeparture(r.clockOut!, rowRefEnd, r.clockIn) : false;
-      const typeClass = r.type === 'paid_leave' ? 'tr-paid'
+      const typeClass = r.type === 'paid_leave' || r.type === 'planned_paid_leave' ? 'tr-paid'
         : r.type === 'am_leave' || r.type === 'pm_leave' ? 'tr-paid'
         : r.type === 'holiday' ? 'tr-holiday'
         : r.type === 'absence' ? 'tr-absence'
@@ -337,6 +337,7 @@ export function printMonthlyAttendance(
   }
   .badge.work       { background: #e8f0fe; color: #2d6cdf; }
   .badge.paid_leave { background: #fff9c4; color: #856404; }
+  .badge.planned_paid_leave { background: #fff9c4; color: #856404; }
   .badge.holiday    { background: #e8f5e9; color: #2e7d32; }
   .badge.absence    { background: #fce4ec; color: #c62828; }
   .badge.am_leave   { background: #e0f2fe; color: #0277bd; }

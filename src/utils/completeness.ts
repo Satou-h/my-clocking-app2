@@ -5,12 +5,17 @@ import { isLateArrival, isEarlyDeparture } from './storage';
 import { getHolidayName } from './holidays';
 
 const WORK_TYPES = new Set(['work', 'am_leave', 'pm_leave', 'scheduled_holiday_work', 'legal_holiday_work']);
+// 休暇申請書が必要な区分。計画有給は事前に会社側で計画されている休暇のため、
+// 都度の申請書は不要（LEAVE_TYPES に含めない）
 const LEAVE_TYPES = new Set(['paid_leave', 'am_leave', 'pm_leave']);
+// 在宅勤務に加え、終日通勤が発生しない区分（丸一日の休暇・休日・欠勤）
+const NO_COMMUTE_TYPES = new Set(['paid_leave', 'planned_paid_leave', 'holiday', 'absence']);
 
 export interface DocCompleteness {
   required: boolean;
   complete: boolean;
   missingDates: string[];
+  extraDates: string[];
 }
 
 export interface MonthCompleteness {
@@ -51,12 +56,18 @@ export function checkMonthCompleteness(
   // 勤務表: 平日（祝日除く）はすべて記録が必要
   const missingAttendance = monthWeekdays(year, month).filter((d) => !recordByDate.has(d));
 
-  // 交通費: 出勤扱いの日はすべて交通費登録が必要
-  const workDates = monthRecords.filter((r) => WORK_TYPES.has(r.type)).map((r) => r.date);
+  // 交通費: 出勤扱いの日（在宅勤務を除く）はすべて交通費登録が必要
+  const workDates = monthRecords.filter((r) => WORK_TYPES.has(r.type) && !r.isRemote).map((r) => r.date);
   const transportDates = new Set(
     transportRecords.filter((r) => r.date.startsWith(prefix)).map((r) => r.date),
   );
   const missingTransport = workDates.filter((d) => !transportDates.has(d));
+
+  // 交通費: 在宅勤務・有給・休日・欠勤など通勤が発生しない日に登録されている交通費は不要なデータ
+  const extraTransport = [...transportDates].filter((d) => {
+    const rec = recordByDate.get(d);
+    return !!rec && (rec.isRemote || NO_COMMUTE_TYPES.has(rec.type));
+  });
 
   // 休暇申請書: 有給・午前休・午後休の記録がある日はすべて申請書が必要
   const leaveDates = monthRecords.filter((r) => LEAVE_TYPES.has(r.type)).map((r) => r.date);
@@ -79,21 +90,25 @@ export function checkMonthCompleteness(
     required: true,
     complete: missingAttendance.length === 0,
     missingDates: missingAttendance,
+    extraDates: [],
   };
   const transport: DocCompleteness = {
     required: true,
-    complete: missingTransport.length === 0,
+    complete: missingTransport.length === 0 && extraTransport.length === 0,
     missingDates: missingTransport,
+    extraDates: extraTransport,
   };
   const leaveApplication: DocCompleteness = {
     required: leaveDates.length > 0,
     complete: missingLeaveApp.length === 0,
     missingDates: missingLeaveApp,
+    extraDates: [],
   };
   const lateEarlyApplication: DocCompleteness = {
     required: lateEarlyDates.length > 0,
     complete: missingLateEarly.length === 0,
     missingDates: missingLateEarly,
+    extraDates: [],
   };
 
   return {

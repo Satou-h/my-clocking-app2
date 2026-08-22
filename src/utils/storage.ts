@@ -198,7 +198,7 @@ export function calcPaidLeaveRemaining(
   const used = records
     .filter((r) => r.date.startsWith(String(year)))
     .reduce((acc, r) => {
-      if (r.type === 'paid_leave') return acc + 1;
+      if (r.type === 'paid_leave' || r.type === 'planned_paid_leave') return acc + 1;
       if (r.type === 'am_leave' || r.type === 'pm_leave') return acc + 0.5;
       return acc;
     }, 0);

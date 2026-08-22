@@ -72,7 +72,7 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
     { workDays: 0, scheduledHolidayDays: 0, legalHolidayDays: 0, workMins: 0, overtimeMins: 0, legalHolidayMins: 0, lateNightMins: 0, lateCount: 0, earlyCount: 0 }
   );
   const paidDays = filtered.reduce((acc, r) => {
-    if (r.type === 'paid_leave') return acc + 1;
+    if (r.type === 'paid_leave' || r.type === 'planned_paid_leave') return acc + 1;
     if (r.type === 'am_leave' || r.type === 'pm_leave') return acc + 0.5;
     return acc;
   }, 0);
@@ -308,6 +308,7 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
                     <span className={`badge badge-${r.type}`}>
                       {ATTENDANCE_TYPE_LABELS[r.type]}
                     </span>
+                    {r.isRemote && <span className="badge badge-remote">在宅</span>}
                   </td>
                   <td>{r.clockIn ?? '-'}</td>
                   <td>{r.clockOut ?? '-'}</td>

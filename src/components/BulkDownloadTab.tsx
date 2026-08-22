@@ -123,6 +123,13 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
       <div className="bulk-checklist">
         {items.map(({ label, doc }) => {
           const status = !doc.required ? 'skip' : doc.complete ? 'ok' : 'missing';
+          const hasMissing = doc.missingDates.length > 0;
+          const hasExtra = doc.extraDates.length > 0;
+          const statusLabel = status === 'ok' ? '入力完了'
+            : status === 'skip' ? '対象なし（不要）'
+            : hasMissing && hasExtra ? '入力未完了・不要なデータあり'
+            : hasExtra ? '不要なデータあり'
+            : '入力未完了';
           return (
             <div key={label} className={`bulk-check-item bulk-check-${status}`}>
               <div className="bulk-check-head">
@@ -130,13 +137,16 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
                   {status === 'ok' ? '✓' : status === 'skip' ? '－' : '×'}
                 </span>
                 <span className="bulk-check-label">{label}</span>
-                <span className="bulk-check-status">
-                  {status === 'ok' ? '入力完了' : status === 'skip' ? '対象なし（不要）' : '入力未完了'}
-                </span>
+                <span className="bulk-check-status">{statusLabel}</span>
               </div>
-              {status === 'missing' && (
+              {hasMissing && (
                 <div className="bulk-missing-dates">
                   未入力: {doc.missingDates.map(fmtDateShort).join('、')}
+                </div>
+              )}
+              {hasExtra && (
+                <div className="bulk-missing-dates bulk-extra-dates">
+                  不要: {doc.extraDates.map(fmtDateShort).join('、')}（在宅勤務・有給などのため交通費は不要です。削除してください）
                 </div>
               )}
             </div>
@@ -153,7 +163,7 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
           {downloading ? 'ダウンロード中…' : 'すべての書類を一括ダウンロード'}
         </button>
         {!completeness.allComplete && (
-          <span className="bulk-download-hint">未入力の項目があるためダウンロードできません</span>
+          <span className="bulk-download-hint">未入力または不要なデータがあるためダウンロードできません</span>
         )}
       </div>
     </div>

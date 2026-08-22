@@ -56,6 +56,7 @@ const LH_BG   = rgb(1.000, 0.957, 0.949); // #fff4f2
 const BADGE_BG: Record<AttendanceType, Color> = {
   work:                   rgb(0.910, 0.940, 0.996), // #e8f0fe
   paid_leave:             rgb(1.000, 0.976, 0.769), // #fff9c4
+  planned_paid_leave:     rgb(1.000, 0.976, 0.769), // #fff9c4
   holiday:                rgb(0.910, 0.957, 0.914), // #e8f5e9
   absence:                rgb(0.988, 0.894, 0.925), // #fce4ec
   am_leave:               rgb(0.878, 0.949, 0.996), // #e0f2fe
@@ -66,6 +67,7 @@ const BADGE_BG: Record<AttendanceType, Color> = {
 const BADGE_TXT: Record<AttendanceType, Color> = {
   work:                   TITLE_BLUE,
   paid_leave:             rgb(0.522, 0.392, 0.016), // #856404
+  planned_paid_leave:     rgb(0.522, 0.392, 0.016), // #856404
   holiday:                rgb(0.180, 0.490, 0.196), // #2e7d32
   absence:                RED_TXT,
   am_leave:               rgb(0.012, 0.467, 0.741), // #0277bd
@@ -104,7 +106,7 @@ export async function printMonthlyAttendancePDF(
   let workDays = 0, shdDays = 0, lhdDays = 0, paidDays = 0;
   let workMins = 0, otMins = 0, lhMins = 0, lnMins = 0, lateN = 0, earlyN = 0;
   for (const r of filtered) {
-    if (r.type === 'paid_leave') { paidDays++; continue; }
+    if (r.type === 'paid_leave' || r.type === 'planned_paid_leave') { paidDays++; continue; }
     if (r.type === 'am_leave' || r.type === 'pm_leave') paidDays += 0.5;
     if (!IS_WORK.has(r.type) || !r.clockIn || !r.clockOut) continue;
     if (r.type === 'work') workDays++;
@@ -251,7 +253,7 @@ export async function printMonthlyAttendancePDF(
     let rowBg: Color;
     if (r) {
       if      (r.type === 'holiday')                rowBg = HOL_BG;
-      else if (['paid_leave','am_leave','pm_leave'].includes(r.type)) rowBg = PAID_BG;
+      else if (['paid_leave','planned_paid_leave','am_leave','pm_leave'].includes(r.type)) rowBg = PAID_BG;
       else if (r.type === 'absence')                rowBg = ABS_BG;
       else if (r.type === 'scheduled_holiday_work') rowBg = SH_BG;
       else if (r.type === 'legal_holiday_work')     rowBg = LH_BG;

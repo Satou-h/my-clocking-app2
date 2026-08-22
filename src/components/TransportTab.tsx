@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AttendanceRecord } from '../types/attendance';
 import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
 import type { TransportRecord, TripType } from '../types/transport';
@@ -44,6 +44,16 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
   const [bulkErrors, setBulkErrors] = useState<Partial<Record<keyof TransportRecord, string>>>({});
 
+  const formCardRef = useRef<HTMLDivElement>(null);
+
+  // 一覧の下の方の行で編集/一括登録を開くと、フォームが画面外（スクロール位置より上）に
+  // 表示され押しても反応がないように見えるため、開いたら自動的にスクロールする
+  useEffect(() => {
+    if ((showForm || showBulkForm) && formCardRef.current) {
+      formCardRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [showForm, showBulkForm]);
+
   const prefix = `${filterYear}-${String(filterMonth).padStart(2, '0')}`;
 
   const monthRecords = records
@@ -61,9 +71,9 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
   const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
 
-  // 当月の勤務日（交通費未登録のものをデフォルト選択）
+  // 当月の勤務日（在宅勤務・交通費未登録のものをデフォルト選択）
   const workDays = attendanceRecords
-    .filter((r) => r.date.startsWith(prefix) && WORK_TYPES.has(r.type))
+    .filter((r) => r.date.startsWith(prefix) && WORK_TYPES.has(r.type) && !r.isRemote)
     .sort((a, b) => a.date.localeCompare(b.date));
   const existingDates = new Set(monthRecords.map((r) => r.date));
 
@@ -112,6 +122,7 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
     setEditId(r.id);
     setErrors({});
     setUseRange(false);
+    setShowBulkForm(false);
     setShowForm(true);
   }
 
@@ -229,7 +240,7 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
 
       {/* 入力フォーム */}
       {showForm && (
-        <div className="transport-form-card">
+        <div className="transport-form-card" ref={formCardRef}>
           <h3>{editId ? '交通費を編集' : '交通費を追加'}</h3>
 
           {/* 日付（単一 or 範囲） */}
@@ -396,7 +407,7 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
 
       {/* 勤務日一括登録フォーム */}
       {showBulkForm && (
-        <div className="transport-form-card">
+        <div className="transport-form-card" ref={formCardRef}>
           <h3>勤務日一括登録</h3>
           <p className="hint">当月の勤務日に同じ交通費をまとめて登録します。</p>
 

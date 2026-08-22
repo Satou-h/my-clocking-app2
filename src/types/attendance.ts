@@ -1,4 +1,4 @@
-export type AttendanceType = 'work' | 'paid_leave' | 'holiday' | 'absence' | 'am_leave' | 'pm_leave' | 'scheduled_holiday_work' | 'legal_holiday_work';
+export type AttendanceType = 'work' | 'paid_leave' | 'planned_paid_leave' | 'holiday' | 'absence' | 'am_leave' | 'pm_leave' | 'scheduled_holiday_work' | 'legal_holiday_work';
 
 export interface AttendanceRecord {
   id: string;
@@ -10,6 +10,7 @@ export interface AttendanceRecord {
   notes?: string;
   customStartTime?: string;
   customEndTime?: string;
+  isRemote?: boolean;
 }
 
 export interface PaidLeaveSettings {
@@ -30,6 +31,7 @@ export const DEFAULT_WORK_SETTINGS: WorkSettings = {
 export const ATTENDANCE_TYPE_LABELS: Record<AttendanceType, string> = {
   work: '出勤',
   paid_leave: '有給休暇',
+  planned_paid_leave: '計画有給',
   holiday: '休日',
   absence: '欠勤',
   am_leave: '午前休',
