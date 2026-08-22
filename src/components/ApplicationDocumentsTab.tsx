@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { printLeaveApplication, printLateEarlyApplication } from '../utils/pdf';
 import type { LeaveApplicationEntry } from '../utils/pdf';
-import { loadUserProfile } from '../utils/storage';
+import { loadUserProfile, generateId, upsertLeaveApplication, upsertLateEarlyApplication } from '../utils/storage';
+import type { LeaveType } from '../types/application';
+import { LEAVE_LABELS } from '../types/application';
 
 const LEAVE_APP_SETTINGS_KEY = 'clocking_leave_app_settings';
 
@@ -21,14 +23,6 @@ function loadLeaveAppSettings(): LeaveAppSettings {
 function saveLeaveAppSettings(s: LeaveAppSettings) {
   localStorage.setItem(LEAVE_APP_SETTINGS_KEY, JSON.stringify(s));
 }
-
-type LeaveType = 'paid_leave' | 'am_leave' | 'pm_leave';
-
-const LEAVE_LABELS: Record<LeaveType, string> = {
-  paid_leave: '一日有給',
-  am_leave: '午前休',
-  pm_leave: '午後休',
-};
 
 const DOW_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
 
@@ -111,6 +105,13 @@ export default function ApplicationDocumentsTab() {
       leaveDays,
       reason,
     }, employeeId, lastName);
+    upsertLeaveApplication({
+      id: generateId(),
+      applicationDate,
+      name: settings.name,
+      dateEntries: dateEntries.map((e) => ({ date: e.date, leaveType: e.leaveType })),
+      reason,
+    });
   }
 
   function handlePrintLateEarly() {
@@ -125,6 +126,16 @@ export default function ApplicationDocumentsTab() {
       actualTime,
       reason: leReason,
     }, employeeId, lastName);
+    upsertLateEarlyApplication({
+      id: generateId(),
+      applicationDate: leAppDate,
+      name: settings.name,
+      type: lateEarlyType,
+      targetDate,
+      scheduledTime,
+      actualTime,
+      reason: leReason,
+    });
   }
 
   return (

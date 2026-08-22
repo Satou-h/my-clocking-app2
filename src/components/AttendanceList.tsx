@@ -4,6 +4,7 @@ import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
 import {
   calcWorkMinutes, calcOvertimeMinutes, calcLateNightMinutes,
   isLateArrival, isEarlyDeparture, formatMinutes, loadUserProfile, getEffectiveBreak,
+  calcPaidLeaveRemaining,
 } from '../utils/storage';
 import { printMonthlyAttendancePDF } from '../utils/attendancePdf';
 import { getHolidayName } from '../utils/holidays';
@@ -77,16 +78,8 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
   }, 0);
 
   // 有給残日数（年度累計ベース）
-  const plSetting = paidLeaveSettings.find((s) => s.year === filterYear);
-  const plInitial = plSetting?.totalDays ?? null;
-  const plYearUsed = records
-    .filter((r) => r.date.startsWith(String(filterYear)))
-    .reduce((acc, r) => {
-      if (r.type === 'paid_leave') return acc + 1;
-      if (r.type === 'am_leave' || r.type === 'pm_leave') return acc + 0.5;
-      return acc;
-    }, 0);
-  const plRemaining = plInitial !== null ? plInitial - plYearUsed : null;
+  const plInitial = paidLeaveSettings.find((s) => s.year === filterYear)?.totalDays ?? null;
+  const plRemaining = calcPaidLeaveRemaining(records, paidLeaveSettings, filterYear);
 
   function handleSavePaidLeave() {
     const val = parseFloat(plInput);

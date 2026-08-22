@@ -16,9 +16,10 @@ import TransportTab from './components/TransportTab';
 import ApplicationDocumentsTab from './components/ApplicationDocumentsTab';
 import WorkReportTab from './components/WorkReportTab';
 import SkillTab from './components/SkillTab';
+import BulkDownloadTab from './components/BulkDownloadTab';
 import './App.css';
 
-type Tab = 'input' | 'list' | 'csv' | 'transport' | 'settings' | 'documents' | 'report' | 'skill';
+type Tab = 'input' | 'list' | 'csv' | 'transport' | 'settings' | 'documents' | 'report' | 'skill' | 'bulk';
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('input');
@@ -168,6 +169,7 @@ export default function App() {
     { key: 'documents', label: '申請書類' },
     { key: 'report', label: '作業報告' },
     { key: 'skill', label: 'スキル表' },
+    { key: 'bulk', label: '一括ダウンロード' },
     { key: 'csv', label: 'CSV' },
     { key: 'settings', label: '設定' },
   ];
@@ -256,6 +258,14 @@ export default function App() {
         )}
         {tab === 'report' && (
           <WorkReportTab />
+        )}
+        {tab === 'bulk' && (
+          <BulkDownloadTab
+            records={records}
+            transportRecords={transportRecords}
+            workSettings={workSettings}
+            paidLeaveSettings={paidLeave}
+          />
         )}
         {tab === 'csv' && (
           <CSVImport

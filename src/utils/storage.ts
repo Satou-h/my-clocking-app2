@@ -3,6 +3,7 @@ import { DEFAULT_WORK_SETTINGS } from '../types/attendance';
 import type { TransportRecord } from '../types/transport';
 import type { SkillEntry, Certification, SkillSheetProfile, WorkHistoryEntry } from '../types/skill';
 import { DEFAULT_SKILL_SHEET_PROFILE } from '../types/skill';
+import type { LeaveApplicationRecord, LateEarlyApplicationRecord } from '../types/application';
 
 const RECORDS_KEY = 'clocking_records';
 const PAID_LEAVE_KEY = 'clocking_paid_leave';
@@ -13,6 +14,8 @@ const SKILL_KEY = 'clocking_skill_entries';
 const SKILL_PROFILE_KEY = 'clocking_skill_profile';
 const CERTIFICATIONS_KEY = 'clocking_certifications';
 const WORK_HISTORY_KEY = 'clocking_work_history';
+const LEAVE_APPLICATIONS_KEY = 'clocking_leave_applications';
+const LATE_EARLY_APPLICATIONS_KEY = 'clocking_late_early_applications';
 
 export interface UserProfile {
   employeeId: string;
@@ -134,6 +137,63 @@ export function loadWorkHistory(): WorkHistoryEntry[] {
 
 export function saveWorkHistory(entries: WorkHistoryEntry[]): void {
   localStorage.setItem(WORK_HISTORY_KEY, JSON.stringify(entries));
+}
+
+export function loadLeaveApplications(): LeaveApplicationRecord[] {
+  try {
+    const raw = localStorage.getItem(LEAVE_APPLICATIONS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveLeaveApplications(records: LeaveApplicationRecord[]): void {
+  localStorage.setItem(LEAVE_APPLICATIONS_KEY, JSON.stringify(records));
+}
+
+// 同じ日付を含む既存の申請は上書きし、新しいバッチで置き換える
+export function upsertLeaveApplication(batch: LeaveApplicationRecord): void {
+  const newDates = new Set(batch.dateEntries.map((e) => e.date));
+  const pruned = loadLeaveApplications()
+    .map((b) => ({ ...b, dateEntries: b.dateEntries.filter((e) => !newDates.has(e.date)) }))
+    .filter((b) => b.dateEntries.length > 0);
+  saveLeaveApplications([...pruned, batch]);
+}
+
+export function loadLateEarlyApplications(): LateEarlyApplicationRecord[] {
+  try {
+    const raw = localStorage.getItem(LATE_EARLY_APPLICATIONS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveLateEarlyApplications(records: LateEarlyApplicationRecord[]): void {
+  localStorage.setItem(LATE_EARLY_APPLICATIONS_KEY, JSON.stringify(records));
+}
+
+export function upsertLateEarlyApplication(record: LateEarlyApplicationRecord): void {
+  const next = loadLateEarlyApplications().filter((r) => r.targetDate !== record.targetDate);
+  saveLateEarlyApplications([...next, record]);
+}
+
+export function calcPaidLeaveRemaining(
+  records: AttendanceRecord[],
+  paidLeaveSettings: PaidLeaveSettings[],
+  year: number,
+): number | null {
+  const setting = paidLeaveSettings.find((s) => s.year === year);
+  if (!setting) return null;
+  const used = records
+    .filter((r) => r.date.startsWith(String(year)))
+    .reduce((acc, r) => {
+      if (r.type === 'paid_leave') return acc + 1;
+      if (r.type === 'am_leave' || r.type === 'pm_leave') return acc + 0.5;
+      return acc;
+    }, 0);
+  return setting.totalDays - used;
 }
 
 export function timeToMins(t: string): number {
