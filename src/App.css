@@ -717,6 +717,57 @@ h3 {
 .csv-preview { margin-top: 16px; }
 .preview-table { max-height: 260px; display: block; overflow-y: auto; }
 
+/* QR コード */
+.qr-display { margin-top: 12px; }
+.qr-image   { display: block; width: 220px; height: 220px; border: 1px solid #ddd; border-radius: 8px; }
+.qr-scanner { margin-top: 12px; text-align: center; }
+.qr-video   { width: 100%; max-width: 320px; border-radius: 8px; display: block; margin: 0 auto; }
+
+/* じゅもん */
+.jumon-display { margin-top: 12px; }
+.jumon-text {
+  font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+  font-size: 18px;
+  line-height: 2;
+  letter-spacing: 0.05em;
+  background: var(--card-bg, #f8f9fb);
+  border: 2px solid #6c5ce7;
+  border-radius: 8px;
+  padding: 16px 20px;
+  color: #2d3436;
+  white-space: pre;
+  user-select: all;
+}
+.jumon-input {
+  width: 100%;
+  max-width: 600px;
+  font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+  font-size: 16px;
+  padding: 10px 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  resize: vertical;
+}
+
+/* バックアップコード表示 */
+.backup-code {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  letter-spacing: 0;
+  width: 100%;
+  max-width: 640px;
+  word-break: break-all;
+  white-space: pre-wrap;
+  resize: vertical;
+  cursor: text;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .jumon-text { background: #2d2d3a; color: #f0f0f0; border-color: #a29bfe; }
+  :root:not([data-theme="light"]) .backup-code { background: #2d2d3a; color: #f0f0f0; border-color: #a29bfe; }
+}
+
 hr {
   border: none;
   border-top: 1px solid #eee;
