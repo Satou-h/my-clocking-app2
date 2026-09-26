@@ -217,7 +217,7 @@ export default function TransferTab({ records, transportRecords, onImport, onImp
             <div className="form-row">
               <label>取り込み方式</label>
               <select value={qrImportMode} onChange={e => setQrImportMode(e.target.value as 'merge' | 'replace')}>
-                <option value="merge">マージ（既存データに追加・上書き）</option>
+                <option value="merge">マージ（取り込む日付のデータは上書き、他の日は残す）</option>
                 <option value="replace">置換（既存データをすべて削除）</option>
               </select>
             </div>
@@ -290,7 +290,7 @@ export default function TransferTab({ records, transportRecords, onImport, onImp
             <div className="form-row" style={{marginTop:8}}>
               <label>取り込み方式</label>
               <select value={jumonImportMode} onChange={e => setJumonImportMode(e.target.value as 'merge' | 'replace')}>
-                <option value="merge">マージ（既存データに追加・上書き）</option>
+                <option value="merge">マージ（取り込む日付のデータは上書き、他の日は残す）</option>
                 <option value="replace">置換（既存データをすべて削除）</option>
               </select>
             </div>

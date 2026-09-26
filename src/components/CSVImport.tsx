@@ -317,7 +317,7 @@ export default function CSVImport({ records, transportRecords, onImport, onImpor
         <div className="form-row">
           <label>取り込み方式</label>
           <select value={trpMode} onChange={(e) => setTrpMode(e.target.value as 'merge' | 'replace')}>
-            <option value="merge">マージ（既存データに追加）</option>
+            <option value="merge">マージ（取り込む日付の交通費は置き換え、他の日は残す）</option>
             <option value="replace">置換（既存データをすべて削除して置き換え）</option>
           </select>
         </div>

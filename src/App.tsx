@@ -171,7 +171,11 @@ export default function App() {
       setTransportRecords(imported);
       saveTransportRecords(imported);
     } else {
-      const next = [...transportRecords, ...imported];
+      // 1日に複数件の交通費があり得るため、取り込んだ日付の既存データはその日ごと置き換える
+      // （同じデータを繰り返し取り込んでも重複しない）
+      const importedDates = new Set(imported.map((r) => r.date));
+      const next = [...transportRecords.filter((r) => !importedDates.has(r.date)), ...imported]
+        .sort((a, b) => a.date.localeCompare(b.date));
       setTransportRecords(next);
       saveTransportRecords(next);
     }
