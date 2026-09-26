@@ -119,6 +119,10 @@ export function checkMonthCompleteness(
     .flatMap((e) => {
       const rec = recordByDate.get(e.date);
       if (!rec || rec.type === e.leaveType) return [];
+      // 計画有給は休暇申請書が不要な区分のため、申請書に含まれている場合は不要なデータとして扱う
+      if (rec.type === 'planned_paid_leave') {
+        return [`${fmtDateShort(e.date)}は計画有給のため休暇申請は不要です。休暇申請書から削除してください`];
+      }
       return [`${fmtDateShort(e.date)}の区分が一致しません（勤務表: ${ATTENDANCE_TYPE_LABELS[rec.type]}、休暇申請: ${LEAVE_LABELS[e.leaveType]}）`];
     });
 

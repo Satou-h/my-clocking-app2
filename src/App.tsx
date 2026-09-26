@@ -13,6 +13,7 @@ import AttendanceForm from './components/AttendanceForm';
 import AttendanceList from './components/AttendanceList';
 import CSVImport from './components/CSVImport';
 import TransferTab from './components/TransferTab';
+import TimeSelect from './components/TimeSelect';
 import type { TransferMeta } from './utils/transfer';
 import WorkSettingsForm from './components/WorkSettingsForm';
 import TransportTab from './components/TransportTab';
@@ -90,6 +91,12 @@ export default function App() {
   function handleSavePaidLeave(settings: PaidLeaveSettings[]) {
     setPaidLeave(settings);
     savePaidLeaveSettings(settings);
+  }
+
+  // ヘッダーの基準時間は選択したその場で保存する
+  function handleWorkTimeChange(key: 'standardStartTime' | 'standardEndTime', value: string) {
+    if (!value) return;
+    handleSaveWorkSettings({ ...workSettings, [key]: value });
   }
 
   function handleSaveWorkSettings(settings: WorkSettings) {
@@ -205,9 +212,22 @@ export default function App() {
     <div className="app">
       <header className="app-header">
         <h1>勤怠管理</h1>
-        <span className="header-sub">
-          基準時間: {workSettings.standardStartTime} 〜 {workSettings.standardEndTime}
-        </span>
+        <div className="header-worktime">
+          <span className="header-profile-label">基準時間</span>
+          <TimeSelect
+            className="header-profile-input header-time-select"
+            value={workSettings.standardStartTime}
+            onChange={(v) => handleWorkTimeChange('standardStartTime', v)}
+            ariaLabel="基準出勤時間"
+          />
+          <span className="header-time-sep">〜</span>
+          <TimeSelect
+            className="header-profile-input header-time-select"
+            value={workSettings.standardEndTime}
+            onChange={(v) => handleWorkTimeChange('standardEndTime', v)}
+            ariaLabel="基準退勤時間"
+          />
+        </div>
         <div className="header-profile">
           <label className="header-profile-label">社員番号</label>
           <input
@@ -317,7 +337,6 @@ export default function App() {
         {tab === 'settings' && (
           <WorkSettingsForm
             settings={workSettings}
-            onSave={handleSaveWorkSettings}
             onClearAttendance={handleClearAttendance}
             onClearTransport={handleClearTransport}
             onClearAll={handleClearAll}

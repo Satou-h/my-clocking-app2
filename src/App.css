@@ -31,12 +31,36 @@ body {
   font-size: 20px;
   font-weight: 700;
 }
-.header-sub {
+.header-worktime {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.time-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.time-select-colon {
   font-size: 13px;
   opacity: 0.85;
-  background: rgba(255,255,255,0.15);
-  padding: 3px 10px;
-  border-radius: 20px;
+}
+/* .header-worktime を付けて、モバイル用の .header-profile-input の幅指定より優先させる */
+.header-worktime .header-time-select {
+  width: auto;
+  min-width: 0;
+  flex: none;
+  padding: 3px 4px;
+  cursor: pointer;
+}
+/* 青いヘッダー上の白文字のままだと、開いた選択肢（白背景）が読めないため */
+.header-time-select option {
+  color: #2d3436;
+  background: #fff;
+}
+.header-time-sep {
+  font-size: 12px;
+  opacity: 0.85;
 }
 .header-profile {
   display: flex;
@@ -1312,9 +1336,6 @@ hr {
     align-items: flex-start;
     gap: 8px;
     padding: 10px 14px;
-  }
-  .header-sub {
-    font-size: 12px;
   }
   .header-profile {
     margin-left: 0;

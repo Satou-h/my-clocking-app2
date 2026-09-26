@@ -1,85 +1,52 @@
-import { useState } from 'react';
 import type { WorkSettings } from '../types/attendance';
 
 interface Props {
   settings: WorkSettings;
-  onSave: (settings: WorkSettings) => void;
   onClearAttendance: () => void;
   onClearTransport: () => void;
   onClearAll: () => void;
 }
 
-export default function WorkSettingsForm({ settings, onSave, onClearAttendance, onClearTransport, onClearAll }: Props) {
-  const [startTime, setStartTime] = useState(settings.standardStartTime);
-  const [endTime, setEndTime] = useState(settings.standardEndTime);
-  const [saved, setSaved] = useState(false);
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    onSave({ standardStartTime: startTime, standardEndTime: endTime });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  }
+export default function WorkSettingsForm({ settings, onClearAttendance, onClearTransport, onClearAll }: Props) {
+  const { standardStartTime: startTime, standardEndTime: endTime } = settings;
 
   return (
     <div className="work-settings-form">
       <h2>勤務時間設定</h2>
       <p className="hint">
-        基準出退勤時間を設定します。この時間を基準に遅刻・早退・残業・深夜時間を計算します。
+        基準出退勤時間は画面上部のヘッダーで変更できます。この時間を基準に遅刻・早退・残業・深夜時間を計算します。
       </p>
 
-      <form onSubmit={handleSubmit}>
-        <div className="form-row">
-          <label>標準出勤時間</label>
-          <input
-            type="time"
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
-            required
-          />
-        </div>
-        <div className="form-row">
-          <label>標準退勤時間</label>
-          <input
-            type="time"
-            value={endTime}
-            onChange={(e) => setEndTime(e.target.value)}
-            required
-          />
-        </div>
-
-        <div className="settings-info">
-          <div className="info-grid">
-            <div className="info-item">
-              <span className="info-label">所定労働時間</span>
-              <span className="info-value">
-                {calcStandardHours(startTime, endTime)}
-              </span>
-            </div>
-            <div className="info-item">
-              <span className="info-label">残業判定</span>
-              <span className="info-value">8時間超過分</span>
-            </div>
-            <div className="info-item">
-              <span className="info-label">深夜時間帯</span>
-              <span className="info-value">22:00 〜 翌5:00</span>
-            </div>
-            <div className="info-item">
-              <span className="info-label">遅刻判定</span>
-              <span className="info-value">標準出勤時間を過ぎた出勤</span>
-            </div>
-            <div className="info-item">
-              <span className="info-label">早退判定</span>
-              <span className="info-value">標準退勤時間より早い退勤</span>
-            </div>
+      <div className="settings-info">
+        <div className="info-grid">
+          <div className="info-item">
+            <span className="info-label">基準時間</span>
+            <span className="info-value">{startTime} 〜 {endTime}</span>
+          </div>
+          <div className="info-item">
+            <span className="info-label">所定労働時間</span>
+            <span className="info-value">
+              {calcStandardHours(startTime, endTime)}
+            </span>
+          </div>
+          <div className="info-item">
+            <span className="info-label">残業判定</span>
+            <span className="info-value">8時間超過分</span>
+          </div>
+          <div className="info-item">
+            <span className="info-label">深夜時間帯</span>
+            <span className="info-value">22:00 〜 翌5:00</span>
+          </div>
+          <div className="info-item">
+            <span className="info-label">遅刻判定</span>
+            <span className="info-value">標準出勤時間を過ぎた出勤</span>
+          </div>
+          <div className="info-item">
+            <span className="info-label">早退判定</span>
+            <span className="info-value">標準退勤時間より早い退勤</span>
           </div>
         </div>
-
-        <div className="form-actions">
-          <button type="submit" className="btn btn-primary">設定を保存</button>
-          {saved && <span className="save-notice">保存しました</span>}
-        </div>
-      </form>
+      </div>
 
       <hr />
 
