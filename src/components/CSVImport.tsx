@@ -219,7 +219,10 @@ export default function CSVImport({ records, transportRecords, onImport, onImpor
       const url  = await QRCode.toDataURL(text, { errorCorrectionLevel: 'L', margin: 2, width: 300 });
       setQrDataUrl(url);
     } catch (e) {
-      setQrError('QRコードの生成に失敗しました: ' + String(e));
+      const tooBig = /too big|amount of data/i.test(String(e));
+      setQrError(tooBig
+        ? 'データ量が多すぎてQRコードに収まりません。備考を短くするか、カナコードまたは「全データバックアップ」をご利用ください。'
+        : 'QRコードの生成に失敗しました: ' + String(e));
     } finally {
       setQrGenerating(false);
     }
@@ -591,7 +594,7 @@ export default function CSVImport({ records, transportRecords, onImport, onImpor
 
       <div className="csv-section">
         <h4>エクスポート（QRコード生成）</h4>
-        <p className="hint">勤怠と交通費（日付・金額・往復）をQRコード画像に変換します。スマホでスキャンするか、スクリーンショットを保存してください。<br/>※ 交通費の行先・出発地・到着地・備考はQRに含まれません。全フィールドを転送する場合は「全データバックアップ」をご利用ください。</p>
+        <p className="hint">勤怠と交通費（日付・金額・往復）をQRコード画像に変換します。スマホでスキャンするか、スクリーンショットを保存してください。<br/>※ 勤怠・交通費の備考も含まれます。交通費の行先・出発地・到着地はQRに含まれません。備考が多いとQRコードに収まらない場合があります。全フィールドを転送する場合は「全データバックアップ」をご利用ください。</p>
         <button className="btn btn-secondary" onClick={handleQrGenerate} disabled={qrGenerating}>
           {qrGenerating ? '生成中…' : 'QRコードを生成'}
         </button>
@@ -645,7 +648,7 @@ export default function CSVImport({ records, transportRecords, onImport, onImpor
 
       {/* ── カナコード転送 ── */}
       <h3>カナコード転送</h3>
-      <p className="hint">月次勤怠データをカタカナ文字列に変換します。コードをコピー&amp;ペーストまたは手入力することで、別デバイスへ勤怠データと基準時間・社員番号・苗字を転送できます（交通費・備考は除く）。</p>
+      <p className="hint">月次勤怠データをカタカナ文字列に変換します。コードをコピー&amp;ペーストまたは手入力することで、別デバイスへ勤怠データと基準時間・社員番号・苗字を転送できます（備考を含む・交通費は除く）。</p>
 
       <div className="csv-section">
         <h4>コードを生成（エクスポート）</h4>
@@ -681,7 +684,7 @@ export default function CSVImport({ records, transportRecords, onImport, onImpor
           <div className="csv-preview">
             <strong>{jumonImportInfo.year}年{jumonImportInfo.month}月の勤怠データを読み込みました（{jumonImportAtt.length}件）</strong>
             <table className="data-table preview-table" style={{marginTop:8}}>
-              <thead><tr><th>日付</th><th>種別</th><th>出勤</th><th>退勤</th><th>休憩</th></tr></thead>
+              <thead><tr><th>日付</th><th>種別</th><th>出勤</th><th>退勤</th><th>休憩</th><th>備考</th></tr></thead>
               <tbody>
                 {jumonImportAtt.slice(0, 8).map(r => (
                   <tr key={r.id}>
@@ -690,10 +693,11 @@ export default function CSVImport({ records, transportRecords, onImport, onImpor
                     <td>{r.clockIn ?? '-'}</td>
                     <td>{r.clockOut ?? '-'}</td>
                     <td>{r.breakMinutes ?? 0}</td>
+                    <td>{r.notes ?? ''}</td>
                   </tr>
                 ))}
                 {jumonImportAtt.length > 8 && (
-                  <tr><td colSpan={5} style={{textAlign:'center',color:'#888'}}>…他 {jumonImportAtt.length - 8} 件</td></tr>
+                  <tr><td colSpan={6} style={{textAlign:'center',color:'#888'}}>…他 {jumonImportAtt.length - 8} 件</td></tr>
                 )}
               </tbody>
             </table>
