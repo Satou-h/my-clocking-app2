@@ -111,32 +111,53 @@ export function checkMonthCompleteness(
   const coveredLeaveDates = new Set(leaveApplications.flatMap((b) => b.dateEntries.map((e) => e.date)));
   const missingLeaveApp = leaveDates.filter((d) => !coveredLeaveDates.has(d));
 
-  // 休暇申請書: 申請書の区分が勤務表の区分と一致しているか（例: 勤務表は午前休なのに申請は午後休）
+  // 休暇申請書: 申請書の各日付を勤務表と照合する
+  // ・勤務表が休暇以外（出勤・休日・計画有給など）または未登録 → 不要な申請
+  // ・どちらも休暇だが区分が違う（例: 勤務表は午前休なのに申請は午後休）→ 区分の不一致
   const leaveTypeIssues = leaveApplications
     .flatMap((b) => b.dateEntries)
     .filter((e) => e.date.startsWith(prefix))
     .sort((a, b) => a.date.localeCompare(b.date))
     .flatMap((e) => {
       const rec = recordByDate.get(e.date);
-      if (!rec || rec.type === e.leaveType) return [];
-      // 計画有給は休暇申請書が不要な区分のため、申請書に含まれている場合は不要なデータとして扱う
-      if (rec.type === 'planned_paid_leave') {
-        return [`${fmtDateShort(e.date)}は計画有給のため休暇申請は不要です。休暇申請書から削除してください`];
+      const day = fmtDateShort(e.date);
+      if (!rec) {
+        return [`${day}は勤務表に休暇の記録がありません。不要な申請の場合は休暇申請書から削除してください`];
       }
-      return [`${fmtDateShort(e.date)}の区分が一致しません（勤務表: ${ATTENDANCE_TYPE_LABELS[rec.type]}、休暇申請: ${LEAVE_LABELS[e.leaveType]}）`];
+      if (rec.type === e.leaveType) return [];
+      if (rec.type === 'planned_paid_leave') {
+        return [`${day}は計画有給のため休暇申請は不要です。休暇申請書から削除してください`];
+      }
+      if (!LEAVE_TYPES.has(rec.type)) {
+        return [`${day}は勤務表が「${ATTENDANCE_TYPE_LABELS[rec.type]}」のため休暇申請は不要です。休暇申請書から削除してください`];
+      }
+      return [`${day}の区分が一致しません（勤務表: ${ATTENDANCE_TYPE_LABELS[rec.type]}、休暇申請: ${LEAVE_LABELS[e.leaveType]}）`];
     });
 
   // 遅早退申請書: 遅刻・早退が発生した出勤日はすべて申請書が必要
-  const lateEarlyDates = monthRecords
-    .filter((r) => {
-      if (r.type !== 'work' || !r.clockIn || !r.clockOut) return false;
-      const refStart = r.customStartTime ?? workSettings.standardStartTime;
-      const refEnd = r.customEndTime ?? workSettings.standardEndTime;
-      return isLateArrival(r.clockIn, refStart) || isEarlyDeparture(r.clockOut, refEnd, r.clockIn);
-    })
-    .map((r) => r.date);
-  const coveredLateEarlyDates = new Set(lateEarlyApplications.map((r) => r.targetDate));
+  const lateEarlyByDate = new Map<string, { late: boolean; early: boolean }>();
+  for (const r of monthRecords) {
+    if (r.type !== 'work' || !r.clockIn || !r.clockOut) continue;
+    const refStart = r.customStartTime ?? workSettings.standardStartTime;
+    const refEnd = r.customEndTime ?? workSettings.standardEndTime;
+    const late = isLateArrival(r.clockIn, refStart);
+    const early = isEarlyDeparture(r.clockOut, refEnd, r.clockIn);
+    if (late || early) lateEarlyByDate.set(r.date, { late, early });
+  }
+  const lateEarlyDates = [...lateEarlyByDate.keys()];
+  const monthLateEarlyApps = lateEarlyApplications
+    .filter((a) => a.targetDate.startsWith(prefix))
+    .sort((a, b) => a.targetDate.localeCompare(b.targetDate));
+  const coveredLateEarlyDates = new Set(monthLateEarlyApps.map((r) => r.targetDate));
   const missingLateEarly = lateEarlyDates.filter((d) => !coveredLateEarlyDates.has(d));
+
+  // 遅早退申請書: 実際には遅刻（早退）していない日の遅刻（早退）申請は不要
+  const lateEarlyIssues = monthLateEarlyApps.flatMap((a) => {
+    const actual = lateEarlyByDate.get(a.targetDate);
+    const happened = a.type === '遅刻' ? actual?.late : actual?.early;
+    if (happened) return [];
+    return [`${fmtDateShort(a.targetDate)}は勤務表上${a.type}していないため${a.type}申請は不要です。遅早退申請書から削除してください`];
+  });
 
   const attendance: DocCompleteness = {
     required: true,
@@ -160,11 +181,11 @@ export function checkMonthCompleteness(
     issues: leaveTypeIssues,
   };
   const lateEarlyApplication: DocCompleteness = {
-    required: lateEarlyDates.length > 0,
-    complete: missingLateEarly.length === 0,
+    required: lateEarlyDates.length > 0 || lateEarlyIssues.length > 0,
+    complete: missingLateEarly.length === 0 && lateEarlyIssues.length === 0,
     missingDates: missingLateEarly,
     extraDates: [],
-    issues: [],
+    issues: lateEarlyIssues,
   };
 
   return {
