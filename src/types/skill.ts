@@ -65,6 +65,13 @@ export const LANGUAGE_OPTIONS = [
   'JavaScript', 'TypeScript', 'HTML/CSS', 'Shell', 'PowerShell',
 ] as const;
 
+export const TOOL_OPTIONS = [
+  'VSCode', 'Visual Studio', 'Eclipse', 'IntelliJ IDEA', 'Android Studio', 'Xcode',
+  'A5:SQL Mk-2', 'SQL Developer', 'SQL Server Management Studio', 'SI Object Browser', 'DBeaver',
+  'Git', 'GitHub', 'GitLab', 'SVN', 'TortoiseSVN', 'Backlog', 'Redmine', 'Jira', 'Confluence',
+  'Docker', 'Jenkins', 'AWS', 'Azure', 'Postman', 'Tera Term', 'WinSCP', 'Excel', 'Access',
+] as const;
+
 export const DEFAULT_CATEGORIES = [
   'プログラミング言語',
   'フレームワーク/ライブラリ',

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { SkillEntry, Certification, SkillSheetProfile, WorkHistoryEntry } from '../types/skill';
-import { DEFAULT_CATEGORIES, OS_OPTIONS, DB_OPTIONS, LANGUAGE_OPTIONS } from '../types/skill';
+import { DEFAULT_CATEGORIES, OS_OPTIONS, DB_OPTIONS, LANGUAGE_OPTIONS, TOOL_OPTIONS } from '../types/skill';
 import {
   loadSkillEntries, saveSkillEntries,
   loadSkillProfile, saveSkillProfile,
@@ -341,7 +341,8 @@ export default function SkillTab() {
             <MultiLineInput
               value={whForm.tools}
               onChange={(v) => setWhForm((p) => ({ ...p, tools: v }))}
-              placeholder="例: VSCODE"
+              placeholder="選択または入力"
+              options={TOOL_OPTIONS}
             />
           </div>
           {/* 役割・工程 */}
