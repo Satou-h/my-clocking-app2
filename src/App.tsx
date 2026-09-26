@@ -11,6 +11,7 @@ import {
 import AttendanceForm from './components/AttendanceForm';
 import AttendanceList from './components/AttendanceList';
 import CSVImport from './components/CSVImport';
+import type { TransferMeta } from './utils/transfer';
 import WorkSettingsForm from './components/WorkSettingsForm';
 import TransportTab from './components/TransportTab';
 import ApplicationDocumentsTab from './components/ApplicationDocumentsTab';
@@ -150,6 +151,20 @@ export default function App() {
     setTab('list');
   }
 
+  // QR / カナコードで受け取った基準時間・社員番号・苗字を反映（含まれている項目のみ上書き）
+  function handleImportMeta(meta: TransferMeta) {
+    if (meta.workSettings) handleSaveWorkSettings({ ...workSettings, ...meta.workSettings });
+    if (meta.employeeId || meta.lastName) {
+      const next = {
+        ...userProfile,
+        ...(meta.employeeId ? { employeeId: meta.employeeId } : {}),
+        ...(meta.lastName ? { lastName: meta.lastName } : {}),
+      };
+      setUserProfile(next);
+      saveUserProfile(next);
+    }
+  }
+
   function handleImportTransport(imported: TransportRecord[], mode: 'merge' | 'replace') {
     if (mode === 'replace') {
       setTransportRecords(imported);
@@ -273,6 +288,9 @@ export default function App() {
             transportRecords={transportRecords}
             onImport={handleImport}
             onImportTransport={handleImportTransport}
+            workSettings={workSettings}
+            userProfile={userProfile}
+            onImportMeta={handleImportMeta}
           />
         )}
         {tab === 'settings' && (

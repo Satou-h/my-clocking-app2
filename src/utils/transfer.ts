@@ -1,11 +1,12 @@
 /**
  * transfer.ts — QRコード / カナコード転送用データ変換ユーティリティ
  *
- * QR      : バイナリ形式 v2（勤怠 + 交通費）
- * カナコード: コンパクトバイナリ（勤怠のみ）→ カタカナ文字列
+ * QR      : バイナリ形式 v3（勤怠 + 交通費 + 付加情報）
+ * カナコード: コンパクトバイナリ v2（勤怠 + 付加情報）→ カタカナ文字列
+ * 付加情報 : 基準時間（勤務設定・日ごとの変更）、社員番号、苗字
  */
 
-import type { AttendanceRecord, AttendanceType } from '../types/attendance';
+import type { AttendanceRecord, AttendanceType, WorkSettings } from '../types/attendance';
 import type { TransportRecord } from '../types/transport';
 import { generateId } from './storage';
 
@@ -96,29 +97,120 @@ function unpackRecord(buf: Uint8Array, off: number, year: number, month: number)
   };
 }
 
+// ── 付加情報（基準時間・社員番号・苗字）─────────────────────────────────────────
+// レコード列の後ろに付加する可変長ブロック:
+// [std_start:12][std_end:12] = 3 bytes（勤務設定の基準時間、0xFFF = なし）
+// [id_len:1][社員番号 UTF-8] [name_len:1][苗字 UTF-8]
+// [custom_count:1] + custom_count × [record_index:1][start:12][end:12]（日ごとの基準時間）
+export interface TransferMeta {
+  workSettings?: WorkSettings;
+  employeeId?: string;
+  lastName?: string;
+}
+
+const NO_TIME = 0xFFF;
+const encodeTime = (t?: string) => (t && /^\d{1,2}:\d{2}$/.test(t) ? toMins(t) : NO_TIME);
+const decodeTime = (v: number) => (v === NO_TIME || v >= 24 * 60 ? undefined : fromMins(v));
+
+function pushTimePair(out: number[], a?: string, b?: string) {
+  const x = encodeTime(a), y = encodeTime(b);
+  out.push(x >> 4, ((x & 0xF) << 4) | (y >> 8), y & 0xFF);
+}
+function readTimePair(buf: Uint8Array, off: number): [string | undefined, string | undefined] {
+  const x = (buf[off] << 4) | (buf[off + 1] >> 4);
+  const y = ((buf[off + 1] & 0xF) << 8) | buf[off + 2];
+  return [decodeTime(x), decodeTime(y)];
+}
+
+function pushText(out: number[], text?: string) {
+  const enc = new TextEncoder();
+  let s = text ?? '';
+  // 長さは1バイトで持つため、255バイトを超える場合は文字単位で切り詰める
+  while (enc.encode(s).length > 255) s = s.slice(0, -1);
+  const bytes = enc.encode(s);
+  out.push(bytes.length, ...bytes);
+}
+
+function encodeMeta(recs: AttendanceRecord[], meta: TransferMeta): number[] {
+  const out: number[] = [];
+  pushTimePair(out, meta.workSettings?.standardStartTime, meta.workSettings?.standardEndTime);
+  pushText(out, meta.employeeId);
+  pushText(out, meta.lastName);
+  const customs = recs
+    .map((r, i) => ({ r, i }))
+    .filter(({ r }) => r.customStartTime || r.customEndTime);
+  out.push(customs.length);
+  for (const { r, i } of customs) {
+    out.push(i);
+    pushTimePair(out, r.customStartTime, r.customEndTime);
+  }
+  return out;
+}
+
+// 付加情報を読み取り、日ごとの基準時間は recs に反映する
+function decodeMeta(buf: Uint8Array, start: number, recs: AttendanceRecord[]): TransferMeta | null {
+  let off = start;
+  const need = (n: number) => { if (off + n > buf.length) throw new Error('データが途中で切れています'); };
+  const readText = () => {
+    need(1);
+    const len = buf[off++];
+    need(len);
+    const s = new TextDecoder().decode(buf.slice(off, off + len));
+    off += len;
+    return s;
+  };
+  try {
+    need(3);
+    const [stdStart, stdEnd] = readTimePair(buf, off);
+    off += 3;
+    const employeeId = readText();
+    const lastName = readText();
+    need(1);
+    const customCount = buf[off++];
+    for (let i = 0; i < customCount; i++) {
+      need(4);
+      const rec = recs[buf[off]];
+      const [cs, ce] = readTimePair(buf, off + 1);
+      off += 4;
+      if (rec) { rec.customStartTime = cs; rec.customEndTime = ce; }
+    }
+    return {
+      workSettings: stdStart && stdEnd ? { standardStartTime: stdStart, standardEndTime: stdEnd } : undefined,
+      employeeId: employeeId || undefined,
+      lastName: lastName || undefined,
+    };
+  } catch { return null; }
+}
+
 // ── 月ごとバイナリ encode / decode ─────────────────────────────────────────────
 // ヘッダー: [ver:1][year_hi:1][year_lo:1][month:1][count:1] = 5 bytes
-export function encodeMonth(records: AttendanceRecord[], year: number, month: number): Uint8Array {
+// ver 1: レコードのみ / ver 2: レコード + 付加情報
+export function encodeMonth(records: AttendanceRecord[], year: number, month: number, meta: TransferMeta = {}): Uint8Array {
   const prefix = `${year}-${String(month).padStart(2,'0')}`;
   const recs = records
     .filter(r => r.date.startsWith(prefix))
     .sort((a, b) => a.date.localeCompare(b.date));
-  const buf = new Uint8Array(5 + recs.length * 6);
-  buf[0] = 1; buf[1] = year >> 8; buf[2] = year & 0xFF; buf[3] = month; buf[4] = recs.length;
+  const metaBytes = encodeMeta(recs, meta);
+  const buf = new Uint8Array(5 + recs.length * 6 + metaBytes.length);
+  buf[0] = 2; buf[1] = year >> 8; buf[2] = year & 0xFF; buf[3] = month; buf[4] = recs.length;
   recs.forEach((r, i) => buf.set(packRecord(r), 5 + i * 6));
+  buf.set(metaBytes, 5 + recs.length * 6);
   return buf;
 }
 
-export function decodeMonth(buf: Uint8Array): { records: AttendanceRecord[]; year: number; month: number } | null {
+export function decodeMonth(buf: Uint8Array): { records: AttendanceRecord[]; year: number; month: number; meta?: TransferMeta } | null {
   try {
-    if (buf.length < 5 || buf[0] !== 1) return null;
+    if (buf.length < 5 || (buf[0] !== 1 && buf[0] !== 2)) return null;
     const year  = (buf[1] << 8) | buf[2];
     const month = buf[3];
     const count = buf[4];
     if (buf.length < 5 + count * 6) return null;
     const records: AttendanceRecord[] = [];
     for (let i = 0; i < count; i++) records.push(unpackRecord(buf, 5 + i * 6, year, month));
-    return { records, year, month };
+    if (buf[0] === 1) return { records, year, month };
+    const meta = decodeMeta(buf, 5 + count * 6, records);
+    if (!meta) return null;
+    return { records, year, month, meta };
   } catch { return null; }
 }
 
@@ -160,22 +252,25 @@ function unpackTransport(buf: Uint8Array, off: number, year: number, month: numb
   };
 }
 
-// ── QR バイナリ形式 v2 ────────────────────────────────────────────────────────
+// ── QR バイナリ形式 v2 / v3 ───────────────────────────────────────────────────
 // QRテキスト = "QR2:" + base64(バイナリ)
-// ヘッダー (7 bytes): [ver=2][year_hi][year_lo][month][att_count][trp_count][flags]
+// ヘッダー (7 bytes): [ver][year_hi][year_lo][month][att_count][trp_count][flags]
 // 勤怠: att_count × 6 bytes（既存フォーマット）
 // 交通費: trp_count × 4 bytes（テキストフィールドは省略）
+// 付加情報: ver 3 のみ（基準時間・社員番号・苗字）
 //
 // 旧 JSON 形式 (v1) との後方互換: decodeQR が両方を自動判別
 const QR2_PREFIX = 'QR2:';
 
-export function encodeQR(att: AttendanceRecord[], trp: TransportRecord[], year: number, month: number): string {
+export function encodeQR(att: AttendanceRecord[], trp: TransportRecord[], year: number, month: number, meta: TransferMeta = {}): string {
   const prefix = `${year}-${String(month).padStart(2, '0')}`;
   const attRecs = att.filter(r => r.date.startsWith(prefix)).sort((a, b) => a.date.localeCompare(b.date));
   const trpRecs = trp.filter(r => r.date.startsWith(prefix)).sort((a, b) => a.date.localeCompare(b.date));
 
-  const buf = new Uint8Array(7 + attRecs.length * 6 + trpRecs.length * 4);
-  buf[0] = 2;                              // version
+  const metaBytes = encodeMeta(attRecs, meta);
+  const dataLen = 7 + attRecs.length * 6 + trpRecs.length * 4;
+  const buf = new Uint8Array(dataLen + metaBytes.length);
+  buf[0] = 3;                              // version
   buf[1] = year >> 8; buf[2] = year & 0xFF;
   buf[3] = month;
   buf[4] = attRecs.length;
@@ -183,20 +278,21 @@ export function encodeQR(att: AttendanceRecord[], trp: TransportRecord[], year: 
   buf[6] = 0;                              // flags (reserved)
   attRecs.forEach((r, i) => buf.set(packRecord(r),    7 + i * 6));
   trpRecs.forEach((r, i) => buf.set(packTransport(r), 7 + attRecs.length * 6 + i * 4));
+  buf.set(metaBytes, dataLen);
 
   let binary = '';
   buf.forEach(b => (binary += String.fromCharCode(b)));
   return QR2_PREFIX + btoa(binary);
 }
 
-export function decodeQR(text: string): { att: AttendanceRecord[]; trp: TransportRecord[]; year: number; month: number } | null {
+export function decodeQR(text: string): { att: AttendanceRecord[]; trp: TransportRecord[]; year: number; month: number; meta?: TransferMeta } | null {
   // ── v2 バイナリ形式 ──
   if (text.startsWith(QR2_PREFIX)) {
     try {
       const binary = atob(text.slice(QR2_PREFIX.length));
       const buf = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) buf[i] = binary.charCodeAt(i);
-      if (buf.length < 7 || buf[0] !== 2) return null;
+      if (buf.length < 7 || (buf[0] !== 2 && buf[0] !== 3)) return null;
       const year   = (buf[1] << 8) | buf[2];
       const month  = buf[3];
       const attCnt = buf[4];
@@ -206,7 +302,10 @@ export function decodeQR(text: string): { att: AttendanceRecord[]; trp: Transpor
       for (let i = 0; i < attCnt; i++) att.push(unpackRecord(buf, 7 + i * 6, year, month));
       const trp: TransportRecord[] = [];
       for (let i = 0; i < trpCnt; i++) trp.push(unpackTransport(buf, 7 + attCnt * 6 + i * 4, year, month));
-      return { att, trp, year, month };
+      if (buf[0] === 2) return { att, trp, year, month };
+      const meta = decodeMeta(buf, 7 + attCnt * 6 + trpCnt * 4, att);
+      if (!meta) return null;
+      return { att, trp, year, month, meta };
     } catch { return null; }
   }
 

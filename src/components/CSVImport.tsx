@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AttendanceRecord } from '../types/attendance';
+import type { AttendanceRecord, WorkSettings } from '../types/attendance';
 import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
 import type { TransportRecord } from '../types/transport';
 import type { WeekReportData } from '../utils/pdf';
@@ -7,7 +7,8 @@ import { parseCSV, exportCSV, parseTransportCSV, exportTransportCSV, exportWorkR
 import { loadAllWeeks, saveAllWeeks } from './WorkReportTab';
 import QRCode from 'qrcode';
 import jsQR from 'jsqr';
-import { encodeMonth, decodeMonth, encodeQR, decodeQR, bytesToJumon, jumonToBytes, formatJumon } from '../utils/transfer';
+import { encodeMonth, decodeMonth, encodeQR, decodeQR, bytesToJumon, jumonToBytes, formatJumon, type TransferMeta } from '../utils/transfer';
+import type { UserProfile } from '../utils/storage';
 import { exportFullBackup, importFullBackup, parseBackupSummary, type BackupSummary } from '../utils/backup';
 
 interface Props {
@@ -15,9 +16,35 @@ interface Props {
   transportRecords: TransportRecord[];
   onImport: (records: AttendanceRecord[], mode: 'merge' | 'replace') => void;
   onImportTransport: (records: TransportRecord[], mode: 'merge' | 'replace') => void;
+  workSettings: WorkSettings;
+  userProfile: UserProfile;
+  onImportMeta: (meta: TransferMeta) => void;
 }
 
-export default function CSVImport({ records, transportRecords, onImport, onImportTransport }: Props) {
+// QR / カナコードで読み込んだ付加情報（基準時間・社員番号・苗字）の確認表示と取り込み選択
+function TransferMetaPreview({ meta, apply, onApplyChange }: { meta?: TransferMeta; apply: boolean; onApplyChange: (v: boolean) => void }) {
+  if (!meta || (!meta.workSettings && !meta.employeeId && !meta.lastName)) return null;
+  return (
+    <div style={{ margin: '8px 0' }}>
+      <ul style={{ margin: '0 0 6px', paddingLeft: 20 }}>
+        {meta.workSettings && <li>基準時間: {meta.workSettings.standardStartTime} ～ {meta.workSettings.standardEndTime}</li>}
+        {meta.employeeId && <li>社員番号: {meta.employeeId}</li>}
+        {meta.lastName && <li>苗字: {meta.lastName}</li>}
+      </ul>
+      <label className="range-toggle">
+        <input type="checkbox" checked={apply} onChange={(e) => onApplyChange(e.target.checked)} />
+        基準時間・社員番号・苗字も取り込む（現在の設定を上書きします）
+      </label>
+    </div>
+  );
+}
+
+export default function CSVImport({ records, transportRecords, onImport, onImportTransport, workSettings, userProfile, onImportMeta }: Props) {
+  const transferMeta: TransferMeta = {
+    workSettings,
+    employeeId: userProfile.employeeId,
+    lastName: userProfile.lastName,
+  };
   // 勤怠
   const attFileRef = useRef<HTMLInputElement>(null);
   const [attPreview, setAttPreview] = useState<AttendanceRecord[] | null>(null);
@@ -59,6 +86,8 @@ export default function CSVImport({ records, transportRecords, onImport, onImpor
   const [qrImportTrp, setQrImportTrp]   = useState<TransportRecord[] | null>(null);
   const [qrImportInfo, setQrImportInfo] = useState<{ year: number; month: number } | null>(null);
   const [qrImportMode, setQrImportMode] = useState<'merge' | 'replace'>('merge');
+  const [qrImportMeta, setQrImportMeta] = useState<TransferMeta | undefined>();
+  const [qrApplyMeta, setQrApplyMeta]   = useState(true);
   const [qrError, setQrError]           = useState('');
   // カナコード export
   const [jumonStr, setJumonStr]         = useState('');
@@ -67,6 +96,8 @@ export default function CSVImport({ records, transportRecords, onImport, onImpor
   const [jumonImportAtt, setJumonImportAtt] = useState<AttendanceRecord[] | null>(null);
   const [jumonImportInfo, setJumonImportInfo] = useState<{ year: number; month: number } | null>(null);
   const [jumonImportMode, setJumonImportMode] = useState<'merge' | 'replace'>('merge');
+  const [jumonImportMeta, setJumonImportMeta] = useState<TransferMeta | undefined>();
+  const [jumonApplyMeta, setJumonApplyMeta]   = useState(true);
   const [jumonError, setJumonError]     = useState('');
 
   // ── 勤怠 ──
@@ -184,7 +215,7 @@ export default function CSVImport({ records, transportRecords, onImport, onImpor
   async function handleQrGenerate() {
     setQrGenerating(true); setQrError('');
     try {
-      const text = encodeQR(records, transportRecords, xferYear, xferMonth);
+      const text = encodeQR(records, transportRecords, xferYear, xferMonth, transferMeta);
       const url  = await QRCode.toDataURL(text, { errorCorrectionLevel: 'L', margin: 2, width: 300 });
       setQrDataUrl(url);
     } catch (e) {
@@ -201,6 +232,8 @@ export default function CSVImport({ records, transportRecords, onImport, onImpor
     setQrImportAtt(result.att);
     setQrImportTrp(result.trp);
     setQrImportInfo({ year: result.year, month: result.month });
+    setQrImportMeta(result.meta);
+    setQrApplyMeta(true);
     setQrError('');
   }, []);
 
@@ -229,12 +262,13 @@ export default function CSVImport({ records, transportRecords, onImport, onImpor
     if (!qrImportAtt) return;
     if (qrImportAtt.length > 0)           onImport(qrImportAtt, qrImportMode);
     if (qrImportTrp && qrImportTrp.length > 0) onImportTransport(qrImportTrp, qrImportMode);
+    if (qrImportMeta && qrApplyMeta)       onImportMeta(qrImportMeta);
     setQrImportAtt(null); setQrImportTrp(null); setQrImportInfo(null);
   }
 
   // ── カナコード ────────────────────────────────────────────────────────────
   function handleJumonGenerate() {
-    const bytes = encodeMonth(records, xferYear, xferMonth);
+    const bytes = encodeMonth(records, xferYear, xferMonth, transferMeta);
     setJumonStr(formatJumon(bytesToJumon(bytes)));
     setJumonError('');
   }
@@ -246,12 +280,15 @@ export default function CSVImport({ records, transportRecords, onImport, onImpor
     if (!result) { setJumonError('カナコードのバージョンが不正です。'); return; }
     setJumonImportAtt(result.records);
     setJumonImportInfo({ year: result.year, month: result.month });
+    setJumonImportMeta(result.meta);
+    setJumonApplyMeta(true);
     setJumonError('');
   }
 
   function handleJumonImport() {
     if (!jumonImportAtt) return;
     onImport(jumonImportAtt, jumonImportMode);
+    if (jumonImportMeta && jumonApplyMeta) onImportMeta(jumonImportMeta);
     setJumonImportAtt(null); setJumonImportInfo(null); setJumonInput('');
   }
 
@@ -539,7 +576,7 @@ export default function CSVImport({ records, transportRecords, onImport, onImpor
 
       {/* ── QRコード転送 ── */}
       <h3>QRコード転送</h3>
-      <p className="hint">1ヶ月分の勤怠＋交通費をQRコードで別デバイスに転送します。</p>
+      <p className="hint">1ヶ月分の勤怠＋交通費と、基準時間・社員番号・苗字をQRコードで別デバイスに転送します。</p>
 
       <div className="form-row">
         <label>対象年月</label>
@@ -588,6 +625,7 @@ export default function CSVImport({ records, transportRecords, onImport, onImpor
               <li>勤怠レコード: {qrImportAtt.length}件</li>
               <li>交通費レコード: {qrImportTrp?.length ?? 0}件</li>
             </ul>
+            <TransferMetaPreview meta={qrImportMeta} apply={qrApplyMeta} onApplyChange={setQrApplyMeta} />
             <div className="form-row">
               <label>取り込み方式</label>
               <select value={qrImportMode} onChange={e => setQrImportMode(e.target.value as 'merge' | 'replace')}>
@@ -607,7 +645,7 @@ export default function CSVImport({ records, transportRecords, onImport, onImpor
 
       {/* ── カナコード転送 ── */}
       <h3>カナコード転送</h3>
-      <p className="hint">月次勤怠データをカタカナ文字列に変換します。コードをコピー&amp;ペーストまたは手入力することで、別デバイスへ勤怠データを転送できます（勤怠のみ・備考除く）。</p>
+      <p className="hint">月次勤怠データをカタカナ文字列に変換します。コードをコピー&amp;ペーストまたは手入力することで、別デバイスへ勤怠データと基準時間・社員番号・苗字を転送できます（交通費・備考は除く）。</p>
 
       <div className="csv-section">
         <h4>コードを生成（エクスポート）</h4>
@@ -659,6 +697,7 @@ export default function CSVImport({ records, transportRecords, onImport, onImpor
                 )}
               </tbody>
             </table>
+            <TransferMetaPreview meta={jumonImportMeta} apply={jumonApplyMeta} onApplyChange={setJumonApplyMeta} />
             <div className="form-row" style={{marginTop:8}}>
               <label>取り込み方式</label>
               <select value={jumonImportMode} onChange={e => setJumonImportMode(e.target.value as 'merge' | 'replace')}>
