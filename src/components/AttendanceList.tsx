@@ -39,7 +39,7 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
 
   const isWorkType = (type: string) =>
     type === 'work' || type === 'am_leave' || type === 'pm_leave'
-    || type === 'scheduled_holiday_work' || type === 'legal_holiday_work';
+    || type === 'scheduled_holiday_work' || type === 'legal_holiday_work' || type === 'transfer_holiday_work';
 
   // 月次集計（実際の登録レコードのみ）
   const summary = filtered.reduce(
@@ -59,7 +59,7 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
         : calcOvertimeMinutes(work);
       const legalHoliday = r.type === 'legal_holiday_work' ? work : 0;
       return {
-        workDays: acc.workDays + (r.type === 'work' ? 1 : 0),
+        workDays: acc.workDays + (r.type === 'work' || r.type === 'transfer_holiday_work' ? 1 : 0),
         scheduledHolidayDays: acc.scheduledHolidayDays + (r.type === 'scheduled_holiday_work' ? 1 : 0),
         legalHolidayDays: acc.legalHolidayDays + (r.type === 'legal_holiday_work' ? 1 : 0),
         workMins: acc.workMins + work,
@@ -314,6 +314,9 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
                     <span className={`badge badge-${r.type}`}>
                       {ATTENDANCE_TYPE_LABELS[r.type]}
                     </span>
+                    {r.type === 'transfer_holiday_work' && (
+                      <span className="transfer-date-note">振替: {r.transferDate ? formatDay(r.transferDate) : '未設定'}</span>
+                    )}
                     {r.noTransport && <span className="badge badge-no-transport" title="交通費なし（在宅勤務・徒歩圏内など）">交通費なし</span>}
                   </td>
                   <td>{r.clockIn ?? '-'}</td>

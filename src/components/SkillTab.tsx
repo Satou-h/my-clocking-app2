@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { SkillEntry, Certification, SkillSheetProfile, WorkHistoryEntry } from '../types/skill';
-import { DEFAULT_CATEGORIES } from '../types/skill';
+import { DEFAULT_CATEGORIES, OS_OPTIONS, DB_OPTIONS, LANGUAGE_OPTIONS } from '../types/skill';
 import {
   loadSkillEntries, saveSkillEntries,
   loadSkillProfile, saveSkillProfile,
@@ -8,6 +8,7 @@ import {
   loadWorkHistory, saveWorkHistory,
   generateId, loadUserProfile,
 } from '../utils/storage';
+import MultiLineInput from './MultiLineInput';
 import { printSkillSheet, printWorkHistory } from '../utils/skillPdf';
 import { normalizeYearMonth, fmtYearMonth, calcDurationLabel } from '../utils/workHistory';
 
@@ -73,7 +74,15 @@ export default function SkillTab() {
 
   function handleWhSubmit() {
     if (!whForm.clientType.trim()) return;
-    const record = { ...whForm, duration: calcDurationLabel(whForm.startDate, whForm.endDate) };
+    const cleanLines = (v: string) => v.split('\n').map((l) => l.trim()).filter(Boolean).join('\n');
+    const record = {
+      ...whForm,
+      os: cleanLines(whForm.os),
+      db: cleanLines(whForm.db),
+      languages: cleanLines(whForm.languages),
+      tools: cleanLines(whForm.tools),
+      duration: calcDurationLabel(whForm.startDate, whForm.endDate),
+    };
     if (editingWhId) {
       persistWH(workHistory.map((e) => e.id === editingWhId ? { ...record, id: editingWhId } : e));
       setEditingWhId(null);
@@ -303,40 +312,39 @@ export default function SkillTab() {
             </div>
             <div className="form-row">
               <label>OS</label>
-              <textarea
+              <MultiLineInput
                 value={whForm.os}
-                onChange={(e) => setWhForm((p) => ({ ...p, os: e.target.value }))}
-                rows={2}
-                placeholder="1行1OSで入力&#10;例:&#10;Win11&#10;Win10"
+                onChange={(v) => setWhForm((p) => ({ ...p, os: v }))}
+                placeholder="選択または入力"
+                options={OS_OPTIONS}
               />
             </div>
             <div className="form-row">
               <label>DB</label>
-              <textarea
+              <MultiLineInput
                 value={whForm.db}
-                onChange={(e) => setWhForm((p) => ({ ...p, db: e.target.value }))}
-                rows={2}
-                placeholder="1行1DBで入力&#10;例:&#10;Oracle 19c&#10;MySQL 8.0"
+                onChange={(v) => setWhForm((p) => ({ ...p, db: v }))}
+                placeholder="選択または入力"
+                options={DB_OPTIONS}
               />
             </div>
           </div>
           {/* 言語・ツール */}
           <div className="form-row">
             <label>言語</label>
-            <textarea
+            <MultiLineInput
               value={whForm.languages}
-              onChange={(e) => setWhForm((p) => ({ ...p, languages: e.target.value }))}
-              rows={3}
-              placeholder="1行1言語で入力&#10;例:&#10;PL/SQL&#10;Excel VBA"
+              onChange={(v) => setWhForm((p) => ({ ...p, languages: v }))}
+              placeholder="選択または入力"
+              options={LANGUAGE_OPTIONS}
             />
           </div>
           <div className="form-row">
             <label>主要ツール</label>
-            <textarea
+            <MultiLineInput
               value={whForm.tools}
-              onChange={(e) => setWhForm((p) => ({ ...p, tools: e.target.value }))}
-              rows={2}
-              placeholder="1行1ツール&#10;例: VSCODE"
+              onChange={(v) => setWhForm((p) => ({ ...p, tools: v }))}
+              placeholder="例: VSCODE"
             />
           </div>
           {/* 役割・工程 */}

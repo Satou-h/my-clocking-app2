@@ -47,6 +47,24 @@ export interface WorkHistoryEntry {
   workProcess: string;
 }
 
+// 職歴フォームのドロップダウン候補（候補外の手入力も可能）
+export const OS_OPTIONS = [
+  'Win11', 'Win10', 'Windows Server 2022', 'Windows Server 2019', 'Windows Server 2016',
+  'Linux', 'RHEL', 'CentOS', 'Ubuntu', 'AlmaLinux', 'Amazon Linux',
+  'macOS', 'UNIX', 'AIX', 'Solaris', 'iOS', 'Android',
+] as const;
+
+export const DB_OPTIONS = [
+  'Oracle', 'SQL Server', 'MySQL', 'PostgreSQL', 'MariaDB', 'SQLite', 'Db2',
+  'Access', 'MongoDB', 'Redis', 'DynamoDB', 'Firebase',
+] as const;
+
+export const LANGUAGE_OPTIONS = [
+  'Java', 'C', 'C++', 'C#', 'VB.NET', 'VB6', 'Excel VBA', 'Access VBA',
+  'COBOL', 'PL/SQL', 'SQL', 'Python', 'PHP', 'Ruby', 'Go', 'Kotlin', 'Swift',
+  'JavaScript', 'TypeScript', 'HTML/CSS', 'Shell', 'PowerShell',
+] as const;
+
 export const DEFAULT_CATEGORIES = [
   'プログラミング言語',
   'フレームワーク/ライブラリ',

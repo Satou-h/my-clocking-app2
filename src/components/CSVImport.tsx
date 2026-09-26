@@ -351,7 +351,7 @@ export default function CSVImport({ records, transportRecords, onImport, onImpor
         <p className="hint">
           対応フォーマット（1行目はヘッダー行）:<br />
           <code>日付,種別,出勤時間,退勤時間,休憩(分),備考</code><br />
-          種別: 出勤・有給休暇・休日・欠勤・午前休・午後休・所定休日出勤・法定休日出勤
+          種別: 出勤・有給休暇・休日・欠勤・午前休・午後休・所定休日出勤・法定休日出勤・振替休日出勤・振替休日
         </p>
         <div className="form-row">
           <label>取り込み方式</label>

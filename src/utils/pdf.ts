@@ -123,7 +123,7 @@ export function printMonthlyAttendance(
 
   const isWorkType = (t: string) =>
     t === 'work' || t === 'am_leave' || t === 'pm_leave'
-    || t === 'scheduled_holiday_work' || t === 'legal_holiday_work';
+    || t === 'scheduled_holiday_work' || t === 'legal_holiday_work' || t === 'transfer_holiday_work';
 
   // 月次集計
   let workDays = 0, scheduledHolidayDays = 0, legalHolidayDays = 0, paidDays = 0;
@@ -132,7 +132,7 @@ export function printMonthlyAttendance(
     if (r.type === 'paid_leave' || r.type === 'planned_paid_leave') { paidDays++; continue; }
     if (r.type === 'am_leave' || r.type === 'pm_leave') { paidDays += 0.5; }
     if (!isWorkType(r.type) || !r.clockIn || !r.clockOut) continue;
-    if (r.type === 'work') workDays++;
+    if (r.type === 'work' || r.type === 'transfer_holiday_work') workDays++;
     if (r.type === 'scheduled_holiday_work') scheduledHolidayDays++;
     if (r.type === 'legal_holiday_work') legalHolidayDays++;
     const effBreak = getEffectiveBreak(r.type, r.clockIn, r.clockOut, r.breakMinutes ?? 0);
@@ -182,6 +182,8 @@ export function printMonthlyAttendance(
         : r.type === 'absence' ? 'tr-absence'
         : r.type === 'scheduled_holiday_work' ? 'tr-scheduled-holiday'
         : r.type === 'legal_holiday_work' ? 'tr-legal-holiday'
+        : r.type === 'transfer_holiday_work' ? 'tr-transfer-work'
+        : r.type === 'transfer_holiday' ? 'tr-holiday'
         : '';
       return `
         <tr class="${typeClass}">
@@ -344,10 +346,13 @@ export function printMonthlyAttendance(
   .badge.pm_leave   { background: #fce4ec; color: #ad1457; }
   .badge.scheduled_holiday_work { background: #fff3e0; color: #e65100; }
   .badge.legal_holiday_work     { background: #fbe9e7; color: #bf360c; }
+  .badge.transfer_holiday_work  { background: #ede7f6; color: #5e35b1; }
+  .badge.transfer_holiday       { background: #e0f2f1; color: #00695c; }
   .badge.late       { background: #fce4ec; color: #c62828; }
   .badge.early      { background: #fff8e1; color: #f57f17; }
   .tr-scheduled-holiday td { background: #fff8f0 !important; }
   .tr-legal-holiday     td { background: #fff4f2 !important; }
+  .tr-transfer-work     td { background: #f7f4fc !important; }
 
   .print-btn {
     position: fixed; top: 12px; right: 16px;

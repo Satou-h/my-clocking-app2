@@ -63,6 +63,8 @@ const BADGE_BG: Record<AttendanceType, Color> = {
   pm_leave:               rgb(0.988, 0.894, 0.965), // #fce4ec
   scheduled_holiday_work: rgb(1.000, 0.953, 0.878), // #fff3e0
   legal_holiday_work:     rgb(0.984, 0.914, 0.902), // #fbe9e7
+  transfer_holiday_work:  rgb(0.929, 0.906, 0.965), // #ede7f6
+  transfer_holiday:       rgb(0.878, 0.949, 0.945), // #e0f2f1
 };
 const BADGE_TXT: Record<AttendanceType, Color> = {
   work:                   TITLE_BLUE,
@@ -74,11 +76,13 @@ const BADGE_TXT: Record<AttendanceType, Color> = {
   pm_leave:               rgb(0.678, 0.078, 0.341), // #ad1457
   scheduled_holiday_work: ORANGE_TXT,
   legal_holiday_work:     rgb(0.749, 0.212, 0.047), // #bf360c
+  transfer_holiday_work:  rgb(0.369, 0.208, 0.694), // #5e35b1
+  transfer_holiday:       rgb(0.000, 0.412, 0.361), // #00695c
 };
 
 const DOW_JA = ['日', '月', '火', '水', '木', '金', '土'];
 
-const IS_WORK = new Set(['work', 'am_leave', 'pm_leave', 'scheduled_holiday_work', 'legal_holiday_work']);
+const IS_WORK = new Set(['work', 'am_leave', 'pm_leave', 'scheduled_holiday_work', 'legal_holiday_work', 'transfer_holiday_work']);
 
 // ══════════════════════════════════════════════════════════════════════════════
 // printMonthlyAttendancePDF  ── A4 portrait, 8mm margin
@@ -109,7 +113,7 @@ export async function printMonthlyAttendancePDF(
     if (r.type === 'paid_leave' || r.type === 'planned_paid_leave') { paidDays++; continue; }
     if (r.type === 'am_leave' || r.type === 'pm_leave') paidDays += 0.5;
     if (!IS_WORK.has(r.type) || !r.clockIn || !r.clockOut) continue;
-    if (r.type === 'work') workDays++;
+    if (r.type === 'work' || r.type === 'transfer_holiday_work') workDays++;
     if (r.type === 'scheduled_holiday_work') shdDays++;
     if (r.type === 'legal_holiday_work') lhdDays++;
     const effBreak = getEffectiveBreak(r.type, r.clockIn, r.clockOut, r.breakMinutes ?? 0);
@@ -252,7 +256,7 @@ export async function printMonthlyAttendancePDF(
     // Row background
     let rowBg: Color;
     if (r) {
-      if      (r.type === 'holiday')                rowBg = HOL_BG;
+      if      (r.type === 'holiday' || r.type === 'transfer_holiday') rowBg = HOL_BG;
       else if (['paid_leave','planned_paid_leave','am_leave','pm_leave'].includes(r.type)) rowBg = PAID_BG;
       else if (r.type === 'absence')                rowBg = ABS_BG;
       else if (r.type === 'scheduled_holiday_work') rowBg = SH_BG;

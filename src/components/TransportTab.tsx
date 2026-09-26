@@ -22,7 +22,7 @@ function blankForm(date = ''): Omit<TransportRecord, 'id'> {
   return { date, destination: '', from: '', to: '', tripType: 'roundtrip', amount: 0, notes: '' };
 }
 
-const WORK_TYPES = new Set(['work', 'am_leave', 'pm_leave', 'scheduled_holiday_work', 'legal_holiday_work']);
+const WORK_TYPES = new Set(['work', 'am_leave', 'pm_leave', 'scheduled_holiday_work', 'legal_holiday_work', 'transfer_holiday_work']);
 
 export default function TransportTab({ records, attendanceRecords, onSave, onSaveMultiple, onDelete }: Props) {
   const now = new Date();

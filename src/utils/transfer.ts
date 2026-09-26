@@ -14,10 +14,12 @@ const TYPE_ENCODE: Partial<Record<AttendanceType, number>> = {
   work: 0, paid_leave: 1, planned_paid_leave: 2, holiday: 3,
   absence: 4, am_leave: 5, pm_leave: 6,
   scheduled_holiday_work: 7, legal_holiday_work: 8,
+  transfer_holiday_work: 9, transfer_holiday: 10,
 };
 const TYPE_DECODE: AttendanceType[] = [
   'work', 'paid_leave', 'planned_paid_leave', 'holiday',
   'absence', 'am_leave', 'pm_leave', 'scheduled_holiday_work', 'legal_holiday_work',
+  'transfer_holiday_work', 'transfer_holiday',
 ];
 
 // ── 時刻ヘルパー ──────────────────────────────────────────────────────────────
@@ -29,11 +31,27 @@ function fromMins(m: number): string {
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 }
 
+// ── 振替休日の日数差 ──────────────────────────────────────────────────────────
+function dayNumber(d: string): number {
+  const [y, m, day] = d.split('-').map(Number);
+  return Math.round(Date.UTC(y, m - 1, day) / 86400000);
+}
+function encodeTransferOffset(date: string, transferDate?: string): number {
+  if (!transferDate) return 0;
+  const diff = dayNumber(transferDate) - dayNumber(date);
+  return diff >= -63 && diff <= 63 && diff !== 0 ? diff + 64 : 0;
+}
+function decodeTransferOffset(date: string, stored: number): string | undefined {
+  if (stored === 0) return undefined;
+  return new Date((dayNumber(date) + stored - 64) * 86400000).toISOString().slice(0, 10);
+}
+
 // ── 1レコード = 6バイトのパック ────────────────────────────────────────────────
 // bit layout (48bit):
 // [47:43] day(5)  [42:39] type(4)  [38] has_time(1)
 // [37:27] clockIn(11)  [26:16] clockOut(11)
-// [15:8]  break(8)  [7] noTransport(1)  [6:0] reserved(7)
+// [15:8]  break(8)  [7] noTransport(1)  [6:0] transferOffset(7)
+// transferOffset: 振替休日の出勤日からの日数差 + 64（0 = なし、±63日まで）
 function packRecord(r: AttendanceRecord): Uint8Array {
   const day = parseInt(r.date.slice(8, 10));
   const tc  = TYPE_ENCODE[r.type] ?? 0;
@@ -42,6 +60,7 @@ function packRecord(r: AttendanceRecord): Uint8Array {
   const co  = ht ? Math.min(toMins(r.clockOut!), 0x7FE) : 0;
   const brk = Math.min(r.breakMinutes ?? 0, 255);
   const nt  = r.noTransport ? 1 : 0;
+  const tro = encodeTransferOffset(r.date, r.transferDate);
 
   const buf = new Uint8Array(6);
   buf[0] = (day << 3) | (tc >> 1);
@@ -49,7 +68,7 @@ function packRecord(r: AttendanceRecord): Uint8Array {
   buf[2] = ((ci & 0x1F) << 3) | (co >> 8);
   buf[3] = co & 0xFF;
   buf[4] = brk;
-  buf[5] = nt << 7;
+  buf[5] = (nt << 7) | tro;
   return buf;
 }
 
@@ -62,6 +81,7 @@ function unpackRecord(buf: Uint8Array, off: number, year: number, month: number)
   const co  = ((b(2) & 7) << 8) | b(3);
   const brk = b(4);
   const nt  = b(5) >> 7;
+  const tro = b(5) & 0x7F;
 
   const date = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
   return {
@@ -72,6 +92,7 @@ function unpackRecord(buf: Uint8Array, off: number, year: number, month: number)
     clockOut:     ht ? fromMins(co) : undefined,
     breakMinutes: brk || undefined,
     noTransport:  nt ? true : undefined,
+    transferDate: decodeTransferOffset(date, tro),
   };
 }
 

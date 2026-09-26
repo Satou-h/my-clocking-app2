@@ -6,7 +6,7 @@ import {
   loadLateEarlyApplications, upsertLateEarlyApplication, deleteLateEarlyApplication,
 } from '../utils/storage';
 import type { LeaveType, LeaveApplicationRecord, LateEarlyApplicationRecord } from '../types/application';
-import { LEAVE_LABELS } from '../types/application';
+import { LEAVE_LABELS, calcLeaveDays } from '../types/application';
 import type { AttendanceRecord, WorkSettings } from '../types/attendance';
 import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
 import { checkMonthCompleteness, formatCompletenessIssue } from '../utils/completeness';
@@ -47,10 +47,6 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function calcLeaveDays(entries: { leaveType: LeaveType }[]): number {
-  return entries.reduce((sum, e) => sum + (e.leaveType === 'paid_leave' ? 1 : 0.5), 0);
-}
-
 function deriveYearMonth(dateStr: string): { year: number; month: number } | null {
   const m = dateStr.match(/^(\d{4})-(\d{2})/);
   return m ? { year: Number(m[1]), month: Number(m[2]) } : null;
@@ -60,7 +56,7 @@ function latestDate(entries: { date: string }[]): string {
   return entries.reduce((max, e) => (e.date > max ? e.date : max), '');
 }
 
-const LEAVE_ATTENDANCE_TYPES = new Set(['paid_leave', 'am_leave', 'pm_leave']);
+const LEAVE_ATTENDANCE_TYPES = new Set(['paid_leave', 'am_leave', 'pm_leave', 'transfer_holiday']);
 
 interface LateEarlyCandidate {
   date: string;
@@ -104,7 +100,7 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
 
   const leaveDays = calcLeaveDays(dateEntries);
 
-  // 勤務表に有給・午前休・午後休として記録済みで、まだ取得日一覧に追加していない日
+  // 勤務表に有給・午前休・午後休・振替休日として記録済みで、まだ取得日一覧に追加していない日
   const leaveCandidates = records
     .filter((r) => LEAVE_ATTENDANCE_TYPES.has(r.type) && !dateEntries.some((e) => e.date === r.date))
     .sort((a, b) => a.date.localeCompare(b.date));

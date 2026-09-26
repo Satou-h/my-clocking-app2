@@ -26,6 +26,10 @@ const TYPE_MAP: Record<string, AttendanceType> = {
   'scheduled_holiday_work': 'scheduled_holiday_work',
   '法定休日出勤': 'legal_holiday_work',
   'legal_holiday_work': 'legal_holiday_work',
+  '振替休日出勤': 'transfer_holiday_work',
+  'transfer_holiday_work': 'transfer_holiday_work',
+  '振替休日': 'transfer_holiday',
+  'transfer_holiday': 'transfer_holiday',
 };
 
 export interface CsvParseResult {
@@ -48,6 +52,7 @@ export function parseCSV(text: string): CsvParseResult {
   const breakIdx = header.findIndex((h) => h === '休憩' || h === '休憩時間' || h === '休憩(分)' || h === 'break_minutes');
   const notesIdx = header.findIndex((h) => h === '備考' || h === 'notes');
   const noTransportIdx = header.findIndex((h) => h === '交通費なし' || h === 'no_transport' || h === '在宅' || h === 'is_remote');
+  const transferIdx = header.findIndex((h) => h === '振替休日' || h === '振替日' || h === 'transfer_date');
 
   if (dateIdx === -1) return { records, errors: ['ヘッダーに「日付」列が見つかりません'] };
 
@@ -72,6 +77,8 @@ export function parseCSV(text: string): CsvParseResult {
       breakMinutes: breakIdx !== -1 ? (parseInt(cols[breakIdx]) || 0) : 0,
       notes:        notesIdx !== -1 ? cols[notesIdx] || undefined : undefined,
       noTransport:  noTransportIdx !== -1 ? ['交通費なし', '在宅', 'true', 'TRUE', '1'].includes(cols[noTransportIdx] ?? '') : undefined,
+      transferDate: type === 'transfer_holiday_work' && transferIdx !== -1 && /^d{4}-d{2}-d{2}$/.test(cols[transferIdx] ?? '')
+        ? cols[transferIdx] : undefined,
     });
   }
 
@@ -79,7 +86,7 @@ export function parseCSV(text: string): CsvParseResult {
 }
 
 export function exportCSV(records: AttendanceRecord[]): string {
-  const header = '日付,種別,出勤時間,退勤時間,休憩(分),備考,交通費なし';
+  const header = '日付,種別,出勤時間,退勤時間,休憩(分),備考,交通費なし,振替休日';
   const rows = records
     .sort((a, b) => a.date.localeCompare(b.date))
     .map((r) => [
@@ -90,6 +97,7 @@ export function exportCSV(records: AttendanceRecord[]): string {
       r.breakMinutes ?? 0,
       r.notes ?? '',
       r.noTransport ? '交通費なし' : '',
+      r.transferDate ?? '',
     ].join(','));
   return [header, ...rows].join('\n');
 }

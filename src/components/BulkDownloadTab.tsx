@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { AttendanceRecord, PaidLeaveSettings, WorkSettings } from '../types/attendance';
 import type { TransportRecord } from '../types/transport';
-import { LEAVE_LABELS } from '../types/application';
+import { LEAVE_LABELS, calcLeaveDays } from '../types/application';
 import {
   loadUserProfile, calcPaidLeaveRemaining,
   loadLeaveApplications, loadLateEarlyApplications,
@@ -59,14 +59,11 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
         for (const batch of batches) {
           await wait(600);
           const entriesInMonth = batch.dateEntries.filter((e) => e.date.startsWith(prefix));
-          const leaveDays = entriesInMonth.reduce(
-            (sum, e) => sum + (e.leaveType === 'paid_leave' ? 1 : 0.5), 0,
-          );
           printLeaveApplication({
             applicationDate: batch.applicationDate,
             name: batch.name,
             dateEntries: entriesInMonth.map((e) => ({ date: e.date, leaveLabel: LEAVE_LABELS[e.leaveType] })),
-            leaveDays,
+            leaveDays: calcLeaveDays(entriesInMonth),
             reason: batch.reason,
           }, p.employeeId, p.lastName);
         }
@@ -122,6 +119,7 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
             : status === 'skip' ? '対象なし（不要）'
             : hasMissing && hasExtra ? '入力未完了・不要なデータあり'
             : hasExtra ? '不要なデータあり'
+            : !hasMissing && doc.issues.length > 0 ? '不備あり'
             : '入力未完了';
           return (
             <div key={label} className={`bulk-check-item bulk-check-${status}`}>
@@ -142,6 +140,9 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
                   不要: {doc.extraDates.map(fmtDateShort).join('、')}（在宅勤務・有給などのため交通費は不要です。削除してください）
                 </div>
               )}
+              {doc.issues.map((issue) => (
+                <div key={issue} className="bulk-missing-dates">{issue}</div>
+              ))}
             </div>
           );
         })}

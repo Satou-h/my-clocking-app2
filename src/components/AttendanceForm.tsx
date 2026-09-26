@@ -35,6 +35,7 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
   const [dateTo, setDateTo] = useState(existingRecord?.date ?? today());
   const [skipWeekends, setSkipWeekends] = useState(true);
   const [noTransport, setNoTransport] = useState(existingRecord?.noTransport ?? false);
+  const [transferDate, setTransferDate] = useState(existingRecord?.transferDate ?? '');
 
   function buildDateRange(from: string, to: string): string[] {
     const dates: string[] = [];
@@ -57,7 +58,8 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
   const rangeCount = useRange && dateTo >= date ? buildDateRange(date, dateTo).length : 0;
 
   const needsTime = type === 'work' || type === 'absence' || type === 'am_leave' || type === 'pm_leave'
-    || type === 'scheduled_holiday_work' || type === 'legal_holiday_work';
+    || type === 'scheduled_holiday_work' || type === 'legal_holiday_work' || type === 'transfer_holiday_work';
+  const isTransferWork = type === 'transfer_holiday_work';
   const isHalfLeave = type === 'am_leave' || type === 'pm_leave';
   const canToggleNoTransport = needsTime && type !== 'absence';
 
@@ -136,7 +138,26 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
       customStartTime: useCustomTime && customStartTime ? customStartTime : undefined,
       customEndTime: useCustomTime && customEndTime ? customEndTime : undefined,
       noTransport: canToggleNoTransport ? noTransport : undefined,
+      transferDate: isTransferWork ? transferDate : undefined,
     };
+
+    // 振替休日出勤：代わりに取得する振替休日の日付が必須
+    if (isTransferWork) {
+      if (useRange) { setError('振替休日出勤は1日ずつ登録してください（振替休日の日付を指定するため）'); return; }
+      if (!transferDate) { setError('振替休日の日付を入力してください'); return; }
+      if (transferDate === date) { setError('振替休日には出勤日と異なる日付を指定してください'); return; }
+      const duplicate = records.find((r) =>
+        r.type === 'transfer_holiday_work' && r.transferDate === transferDate && r.id !== existingRecord?.id);
+      if (duplicate) {
+        setError(`${transferDate} は ${duplicate.date} の振替休日出勤の振替休日として指定済みです`);
+        return;
+      }
+      const target = records.find((r) => r.date === transferDate);
+      if (target && target.type !== 'transfer_holiday') {
+        setError(`${transferDate} には「${ATTENDANCE_TYPE_LABELS[target.type]}」が登録されています。振替休日に変更してから指定してください`);
+        return;
+      }
+    }
 
     // 一括登録
     if (useRange && dateTo >= date) {
@@ -148,7 +169,7 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
 
     // 法定休日出勤：新規登録時のみ同週 月〜土 の出勤記録を確認
     if (type === 'legal_holiday_work' && !existingRecord) {
-      const WORK_TYPES = new Set(['work', 'am_leave', 'pm_leave', 'scheduled_holiday_work']);
+      const WORK_TYPES = new Set(['work', 'am_leave', 'pm_leave', 'scheduled_holiday_work', 'transfer_holiday_work']);
       const recordMap = new Map(records.map((r) => [r.date, r]));
       const [y, m, d] = date.split('-').map(Number);
       const target = new Date(y, m - 1, d);
@@ -243,6 +264,18 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
           ))}
         </select>
       </div>
+
+      {isTransferWork && (
+        <div className="form-row">
+          <label>振替休日</label>
+          <input type="date" value={transferDate} onChange={(e) => setTransferDate(e.target.value)} />
+        </div>
+      )}
+      {isTransferWork && (
+        <p className="form-hint">
+          振替休日出勤を登録した場合、指定した日を「振替休日」として登録し、休暇申請書を作成する必要があります。
+        </p>
+      )}
 
       {canToggleNoTransport && (
         <div className="form-row">
