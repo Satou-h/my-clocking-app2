@@ -1323,20 +1323,30 @@ hr {
     flex: 1;
   }
 
-  /* タブナビ: 横スクロール */
+  /* タブナビ: 横スクロールのみ（縦方向には動かさない） */
   .tab-nav {
     overflow-x: auto;
+    overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+    touch-action: pan-x;
+    scrollbar-width: thin;
+    scrollbar-color: #c5cbe0 transparent;
     padding: 0 8px;
     flex-wrap: nowrap;
+    /* 下線ははみ出すと縦スクロールの原因になるため、枠内に描画する */
+    border-bottom: none;
+    box-shadow: inset 0 -2px 0 #e0e4ef;
   }
-  .tab-nav::-webkit-scrollbar { display: none; }
+  .tab-nav::-webkit-scrollbar { height: 3px; }
+  .tab-nav::-webkit-scrollbar-track { background: transparent; }
+  .tab-nav::-webkit-scrollbar-thumb { background: #c5cbe0; border-radius: 2px; }
   .tab-btn {
     padding: 10px 14px;
     font-size: 13px;
     white-space: nowrap;
     flex-shrink: 0;
+    margin-bottom: 0;
   }
 
   /* メインコンテンツ */
