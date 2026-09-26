@@ -71,7 +71,7 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
 
     setDownloading(true);
     try {
-      const plRemaining = calcPaidLeaveRemaining(records, paidLeaveSettings, filterYear);
+      const plRemaining = calcPaidLeaveRemaining(records, paidLeaveSettings, filterYear, filterMonth);
       await printMonthlyAttendancePDF(records, workSettings, filterYear, filterMonth, plRemaining, p.employeeId, p.lastName);
 
       await wait(600);

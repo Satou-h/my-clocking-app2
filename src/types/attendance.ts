@@ -17,8 +17,11 @@ export interface AttendanceRecord {
   transferDate?: string;
 }
 
+// 月度ごとの有給設定。totalDays はその月の月初時点の有給残日数。
+// month が無いデータ（旧形式の年度設定）はその年の1月の設定として扱う。
 export interface PaidLeaveSettings {
   year: number;
+  month?: number;
   totalDays: number;
 }
 

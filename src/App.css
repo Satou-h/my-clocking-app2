@@ -1294,6 +1294,10 @@ hr {
   outline: none;
   border-color: #2d6cdf;
 }
+.paid-leave-inline-note {
+  font-size: 12px;
+  color: #636e72;
+}
 .paid-leave-inline-unit {
   font-size: 13px;
   color: #636e72;

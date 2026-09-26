@@ -4,7 +4,7 @@ import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
 import {
   calcWorkMinutes, calcOvertimeMinutes, calcLateNightMinutes,
   isLateArrival, isEarlyDeparture, formatMinutes, loadUserProfile, getEffectiveBreak,
-  calcPaidLeaveRemaining,
+  calcPaidLeaveMonthStatus, findPaidLeaveSetting,
 } from '../utils/storage';
 import { printMonthlyAttendancePDF } from '../utils/attendancePdf';
 import { getHolidayName } from '../utils/holidays';
@@ -78,15 +78,23 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
     return acc;
   }, 0);
 
-  // 有給残日数（年度累計ベース）
-  const plInitial = paidLeaveSettings.find((s) => s.year === filterYear)?.totalDays ?? null;
-  const plRemaining = calcPaidLeaveRemaining(records, paidLeaveSettings, filterYear);
+  // 有給残日数（月度ごと。翌月へは繰り越さない）
+  const plStatus = calcPaidLeaveMonthStatus(records, paidLeaveSettings, filterYear, filterMonth);
+  const plRemaining = plStatus?.remaining ?? null;
+  const plMonthSetting = findPaidLeaveSetting(paidLeaveSettings, filterYear, filterMonth);
+
+  // 当月の設定を除いた一覧（旧形式の年度設定は1月分として扱う）
+  const otherPaidLeaveSettings = paidLeaveSettings.filter((s) => s !== plMonthSetting);
 
   function handleSavePaidLeave() {
     const val = parseFloat(plInput);
     if (isNaN(val) || val < 0) return;
-    const updated = paidLeaveSettings.filter((s) => s.year !== filterYear);
-    onSavePaidLeave([...updated, { year: filterYear, totalDays: val }]);
+    onSavePaidLeave([...otherPaidLeaveSettings, { year: filterYear, month: filterMonth, totalDays: val }]);
+    setPlInput('');
+  }
+
+  function handleClearPaidLeave() {
+    onSavePaidLeave(otherPaidLeaveSettings);
     setPlInput('');
   }
 
@@ -214,7 +222,7 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
       </div>
 
       <div className="paid-leave-inline-set">
-        <span className="paid-leave-inline-label">{filterYear}年 有給残日数</span>
+        <span className="paid-leave-inline-label">{filterYear}年{filterMonth}月 月初の有給残日数</span>
         <input
           type="number"
           min={0}
@@ -223,11 +231,21 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
           className="paid-leave-inline-input"
           value={plInput}
           onChange={(e) => setPlInput(e.target.value)}
-          placeholder={plInitial !== null ? String(plInitial) : '未設定'}
+          placeholder={plStatus ? String(plStatus.start) : '未設定'}
           onKeyDown={(e) => e.key === 'Enter' && handleSavePaidLeave()}
         />
         <span className="paid-leave-inline-unit">日</span>
         <button className="btn btn-primary" style={{ padding: '5px 14px', fontSize: '13px' }} onClick={handleSavePaidLeave}>設定</button>
+        {plMonthSetting && (
+          <button className="btn btn-secondary" style={{ padding: '5px 14px', fontSize: '13px' }} onClick={handleClearPaidLeave}
+            title="当月の設定を削除します">
+            解除
+          </button>
+        )}
+        <span className="paid-leave-inline-note">
+          {!plStatus ? '月初の残日数を設定してください（月ごとに設定が必要です）'
+            : `設定値: ${plStatus.start}日 − 当月使用 ${plStatus.used}日 = ${plStatus.remaining}日`}
+        </span>
       </div>
 
       <div className="table-wrap">

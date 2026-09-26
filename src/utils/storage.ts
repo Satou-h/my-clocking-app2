@@ -191,21 +191,55 @@ export function deleteLateEarlyApplication(id: string): void {
   saveLateEarlyApplications(loadLateEarlyApplications().filter((r) => r.id !== id));
 }
 
-export function calcPaidLeaveRemaining(
-  records: AttendanceRecord[],
-  paidLeaveSettings: PaidLeaveSettings[],
-  year: number,
-): number | null {
-  const setting = paidLeaveSettings.find((s) => s.year === year);
-  if (!setting) return null;
-  const used = records
-    .filter((r) => r.date.startsWith(String(year)))
+// ── 有給残日数（月度ごと）──────────────────────────────────────────────────────
+
+const monthIndex = (year: number, month: number) => year * 12 + (month - 1);
+const settingIndex = (s: PaidLeaveSettings) => monthIndex(s.year, s.month ?? 1);
+
+// 指定月に使用した有給日数（有給・計画有給は1日、午前休・午後休は0.5日）
+export function calcPaidLeaveUsed(records: AttendanceRecord[], year: number, month: number): number {
+  const prefix = `${year}-${String(month).padStart(2, '0')}`;
+  return records
+    .filter((r) => r.date.startsWith(prefix))
     .reduce((acc, r) => {
       if (r.type === 'paid_leave' || r.type === 'planned_paid_leave') return acc + 1;
       if (r.type === 'am_leave' || r.type === 'pm_leave') return acc + 0.5;
       return acc;
     }, 0);
-  return setting.totalDays - used;
+}
+
+export function findPaidLeaveSetting(
+  settings: PaidLeaveSettings[], year: number, month: number,
+): PaidLeaveSettings | undefined {
+  return settings.find((s) => settingIndex(s) === monthIndex(year, month));
+}
+
+export interface PaidLeaveMonthStatus {
+  start: number;       // 月初の残日数（当月の設定値）
+  used: number;        // 当月の使用日数
+  remaining: number;   // 月末の残日数
+}
+
+// 月度ごとの有給残日数。月ごとに独立して計算し、翌月へは繰り越さない（当月の設定が無ければ未設定）
+export function calcPaidLeaveMonthStatus(
+  records: AttendanceRecord[],
+  settings: PaidLeaveSettings[],
+  year: number,
+  month: number,
+): PaidLeaveMonthStatus | null {
+  const setting = findPaidLeaveSetting(settings, year, month);
+  if (!setting) return null;
+  const used = calcPaidLeaveUsed(records, year, month);
+  return { start: setting.totalDays, used, remaining: setting.totalDays - used };
+}
+
+export function calcPaidLeaveRemaining(
+  records: AttendanceRecord[],
+  paidLeaveSettings: PaidLeaveSettings[],
+  year: number,
+  month: number,
+): number | null {
+  return calcPaidLeaveMonthStatus(records, paidLeaveSettings, year, month)?.remaining ?? null;
 }
 
 export function timeToMins(t: string): number {
