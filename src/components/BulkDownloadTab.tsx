@@ -43,6 +43,17 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
     leaveApplications, lateEarlyApplications, workSettings,
   );
 
+  // 勤務表: 対象月の有給残日数（月初の残日数）が設定されていること
+  const plRemaining = calcPaidLeaveRemaining(records, paidLeaveSettings, filterYear, filterMonth);
+  const attendanceIssues = plRemaining === null
+    ? [...completeness.attendance.issues, `${filterMonth}月の有給残日数が設定されていません（勤怠一覧で月初の有給残日数を設定してください）`]
+    : completeness.attendance.issues;
+  const attendance: DocCompleteness = {
+    ...completeness.attendance,
+    complete: completeness.attendance.complete && plRemaining !== null,
+    issues: attendanceIssues,
+  };
+
   // 作業報告書: 対象月のいずれかの週が入力済みで、氏名が入力されていること
   const reportWeeks = loadAllWeeks(filterYear, filterMonth);
   const reportName = loadName();
@@ -62,7 +73,7 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
     required: true, complete: skillIssues.length === 0, missingDates: [], extraDates: [], issues: skillIssues,
   };
 
-  const allComplete = completeness.allComplete && workReport.complete && skillSheet.complete;
+  const allComplete = completeness.allComplete && attendance.complete && workReport.complete && skillSheet.complete;
 
   async function handleBulkDownload() {
     const p = loadUserProfile();
@@ -71,7 +82,6 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
 
     setDownloading(true);
     try {
-      const plRemaining = calcPaidLeaveRemaining(records, paidLeaveSettings, filterYear, filterMonth);
       await printMonthlyAttendancePDF(records, workSettings, filterYear, filterMonth, plRemaining, p.employeeId, p.lastName);
 
       await wait(600);
@@ -126,7 +136,7 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
   }
 
   const items: { label: string; doc: DocCompleteness }[] = [
-    { label: '勤務表', doc: completeness.attendance },
+    { label: '勤務表', doc: attendance },
     { label: '交通費', doc: completeness.transport },
     { label: '休暇申請書', doc: completeness.leaveApplication },
     { label: '遅早退申請書', doc: completeness.lateEarlyApplication },
