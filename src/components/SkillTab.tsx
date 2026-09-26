@@ -10,7 +10,7 @@ import {
 } from '../utils/storage';
 import MultiLineInput from './MultiLineInput';
 import { printSkillSheet, printWorkHistory } from '../utils/skillPdf';
-import { normalizeYearMonth, fmtYearMonth, calcDurationLabel } from '../utils/workHistory';
+import { normalizeYearMonth, fmtYearMonth, calcDurationLabel, sortWorkHistory } from '../utils/workHistory';
 
 const EMPTY_FORM = { category: '', skillName: '', experienceYears: '' };
 const EMPTY_CERT_FORM = { name: '', acquiredDate: '' };
@@ -155,10 +155,7 @@ export default function SkillTab() {
       .catch((err: Error) => alert('PDF生成エラー: ' + err.message));
   }
 
-  // 作業期間の古い順に並べる（開始年月が未入力のものは末尾）
-  const sortedWorkHistory = [...workHistory].sort((a, b) =>
-    (normalizeYearMonth(a.startDate) || '9999-99').localeCompare(normalizeYearMonth(b.startDate) || '9999-99'),
-  );
+  const sortedWorkHistory = sortWorkHistory(workHistory);
 
   const grouped = entries.reduce<Record<string, SkillEntry[]>>((acc, e) => {
     (acc[e.category] ??= []).push(e);

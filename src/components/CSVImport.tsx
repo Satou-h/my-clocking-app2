@@ -4,7 +4,7 @@ import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
 import type { TransportRecord } from '../types/transport';
 import type { WeekReportData } from '../utils/pdf';
 import { parseCSV, exportCSV, parseTransportCSV, exportTransportCSV, exportWorkReportCSV, parseWorkReportCSV } from '../utils/csv';
-import { loadAllWeeks, saveAllWeeks } from './WorkReportTab';
+import { loadAllWeeks, saveAllWeeks } from '../utils/workReport';
 import QRCode from 'qrcode';
 import jsQR from 'jsqr';
 import { encodeMonth, decodeMonth, encodeQR, decodeQR, bytesToJumon, jumonToBytes, formatJumon, type TransferMeta } from '../utils/transfer';

@@ -5,10 +5,14 @@ import { LEAVE_LABELS, calcLeaveDays } from '../types/application';
 import {
   loadUserProfile, calcPaidLeaveRemaining,
   loadLeaveApplications, loadLateEarlyApplications,
+  loadSkillProfile, loadSkillEntries, loadCertifications, loadWorkHistory,
 } from '../utils/storage';
-import { checkMonthCompleteness, fmtDateShort } from '../utils/completeness';
+import { checkMonthCompleteness, fmtDateShort, type DocCompleteness } from '../utils/completeness';
 import { printMonthlyAttendancePDF } from '../utils/attendancePdf';
-import { printTransportRecords, printLeaveApplication, printLateEarlyApplication } from '../utils/pdf';
+import { printTransportRecords, printLeaveApplication, printLateEarlyApplication, printWorkReport } from '../utils/pdf';
+import { printSkillSheet, printWorkHistory } from '../utils/skillPdf';
+import { sortWorkHistory } from '../utils/workHistory';
+import { loadAllWeeks, loadSummary, loadName, hasContent } from '../utils/workReport';
 
 interface Props {
   records: AttendanceRecord[];
@@ -39,10 +43,31 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
     leaveApplications, lateEarlyApplications, workSettings,
   );
 
+  // 作業報告書: 対象月のいずれかの週が入力済みで、氏名が入力されていること
+  const reportWeeks = loadAllWeeks(filterYear, filterMonth);
+  const reportName = loadName();
+  const workReportIssues = [
+    ...(reportWeeks.some(hasContent) ? [] : ['作業報告書が入力されていません']),
+    ...(reportName.trim() ? [] : ['作業報告書の氏名が入力されていません']),
+  ];
+  const workReport: DocCompleteness = {
+    required: true, complete: workReportIssues.length === 0, missingDates: [], extraDates: [], issues: workReportIssues,
+  };
+
+  // スキル表: 月に依存しない書類。氏名が入力されていること
+  const skillProfile = loadSkillProfile();
+  const skillName = skillProfile.name || loadUserProfile().lastName;
+  const skillIssues = skillName.trim() ? [] : ['スキル表の氏名が入力されていません'];
+  const skillSheet: DocCompleteness = {
+    required: true, complete: skillIssues.length === 0, missingDates: [], extraDates: [], issues: skillIssues,
+  };
+
+  const allComplete = completeness.allComplete && workReport.complete && skillSheet.complete;
+
   async function handleBulkDownload() {
     const p = loadUserProfile();
     if (!p.employeeId || !p.lastName) { alert('画面上部に社員番号と苗字を入力してください。'); return; }
-    if (!completeness.allComplete) return;
+    if (!allComplete) return;
 
     setDownloading(true);
     try {
@@ -84,16 +109,29 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
           }, p.employeeId, p.lastName);
         }
       }
+
+      await wait(600);
+      printWorkReport(filterYear, filterMonth, reportName, reportWeeks, p.employeeId, p.lastName, loadSummary(filterYear, filterMonth));
+
+      await wait(600);
+      await printSkillSheet({ ...skillProfile, name: skillName }, loadSkillEntries(), loadCertifications(), p.employeeId, p.lastName);
+
+      await wait(600);
+      await printWorkHistory(skillName, sortWorkHistory(loadWorkHistory()), p.employeeId, p.lastName);
+    } catch (err) {
+      alert('PDF生成エラー: ' + (err as Error).message);
     } finally {
       setDownloading(false);
     }
   }
 
-  const items: { label: string; doc: typeof completeness.attendance }[] = [
+  const items: { label: string; doc: DocCompleteness }[] = [
     { label: '勤務表', doc: completeness.attendance },
     { label: '交通費', doc: completeness.transport },
     { label: '休暇申請書', doc: completeness.leaveApplication },
     { label: '遅早退申請書', doc: completeness.lateEarlyApplication },
+    { label: '作業報告書', doc: workReport },
+    { label: 'スキル表（スキルシート・スキル一覧）', doc: skillSheet },
   ];
 
   return (
@@ -151,12 +189,12 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
       <div className="bulk-download-actions">
         <button
           className="btn btn-primary"
-          disabled={!completeness.allComplete || downloading}
+          disabled={!allComplete || downloading}
           onClick={handleBulkDownload}
         >
           {downloading ? 'ダウンロード中…' : 'すべての書類を一括ダウンロード'}
         </button>
-        {!completeness.allComplete && (
+        {!allComplete && (
           <span className="bulk-download-hint">未入力または不要なデータがあるためダウンロードできません</span>
         )}
       </div>

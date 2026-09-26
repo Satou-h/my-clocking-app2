@@ -1,5 +1,12 @@
 // 職歴の年月は <input type="month"> の値（YYYY-MM）を正として扱う。
 // 旧データ（"2021.04" 等）や表示用の "YYYY/MM" もあわせて受け付けて正規化する。
+// 作業期間の古い順に並べる（開始年月が未入力のものは末尾）
+export function sortWorkHistory<T extends { startDate: string }>(entries: T[]): T[] {
+  return [...entries].sort((a, b) =>
+    (normalizeYearMonth(a.startDate) || '9999-99').localeCompare(normalizeYearMonth(b.startDate) || '9999-99'),
+  );
+}
+
 export function normalizeYearMonth(s: string): string {
   const m = s.match(/^(\d{4})[.\-/](\d{1,2})$/);
   if (!m) return '';
