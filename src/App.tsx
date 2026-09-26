@@ -11,6 +11,7 @@ import {
 import AttendanceForm from './components/AttendanceForm';
 import AttendanceList from './components/AttendanceList';
 import CSVImport from './components/CSVImport';
+import TransferTab from './components/TransferTab';
 import type { TransferMeta } from './utils/transfer';
 import WorkSettingsForm from './components/WorkSettingsForm';
 import TransportTab from './components/TransportTab';
@@ -20,7 +21,7 @@ import SkillTab from './components/SkillTab';
 import BulkDownloadTab from './components/BulkDownloadTab';
 import './App.css';
 
-type Tab = 'input' | 'list' | 'csv' | 'transport' | 'settings' | 'documents' | 'report' | 'skill' | 'bulk';
+type Tab = 'input' | 'list' | 'csv' | 'transfer' | 'transport' | 'settings' | 'documents' | 'report' | 'skill' | 'bulk';
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('input');
@@ -185,8 +186,9 @@ export default function App() {
     { key: 'report', label: '作業報告' },
     { key: 'skill', label: 'スキル表' },
     { key: 'bulk', label: '一括ダウンロード' },
-    { key: 'csv', label: 'CSV' },
+    { key: 'transfer', label: 'QR/カナコード' },
     { key: 'settings', label: '設定' },
+    { key: 'csv', label: 'CSV' },
   ];
 
   return (
@@ -284,6 +286,14 @@ export default function App() {
         )}
         {tab === 'csv' && (
           <CSVImport
+            records={records}
+            transportRecords={transportRecords}
+            onImport={handleImport}
+            onImportTransport={handleImportTransport}
+          />
+        )}
+        {tab === 'transfer' && (
+          <TransferTab
             records={records}
             transportRecords={transportRecords}
             onImport={handleImport}
