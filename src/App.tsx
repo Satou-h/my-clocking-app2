@@ -7,6 +7,7 @@ import {
   loadWorkSettings, saveWorkSettings,
   loadTransportRecords, saveTransportRecords,
   loadUserProfile, saveUserProfile,
+  findPaidLeaveSetting,
 } from './utils/storage';
 import AttendanceForm from './components/AttendanceForm';
 import AttendanceList from './components/AttendanceList';
@@ -153,7 +154,12 @@ export default function App() {
   }
 
   // QR / カナコードで受け取った基準時間・社員番号・苗字を反映（含まれている項目のみ上書き）
-  function handleImportMeta(meta: TransferMeta) {
+  function handleImportMeta(meta: TransferMeta, year: number, month: number) {
+    // 有給残日数は転送元の対象月の設定として保存する
+    if (meta.paidLeaveDays !== undefined) {
+      const existing = findPaidLeaveSetting(paidLeave, year, month);
+      handleSavePaidLeave([...paidLeave.filter((s) => s !== existing), { year, month, totalDays: meta.paidLeaveDays }]);
+    }
     if (meta.workSettings) handleSaveWorkSettings({ ...workSettings, ...meta.workSettings });
     if (meta.employeeId || meta.lastName) {
       const next = {
@@ -304,6 +310,7 @@ export default function App() {
             onImportTransport={handleImportTransport}
             workSettings={workSettings}
             userProfile={userProfile}
+            paidLeaveSettings={paidLeave}
             onImportMeta={handleImportMeta}
           />
         )}

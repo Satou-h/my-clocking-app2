@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AttendanceRecord, WorkSettings } from '../types/attendance';
+import type { AttendanceRecord, PaidLeaveSettings, WorkSettings } from '../types/attendance';
 import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
 import type { TransportRecord } from '../types/transport';
 import QRCode from 'qrcode';
 import jsQR from 'jsqr';
 import { encodeMonth, decodeMonth, encodeQR, decodeQR, bytesToJumon, jumonToBytes, formatJumon, type TransferMeta } from '../utils/transfer';
-import type { UserProfile } from '../utils/storage';
+import { findPaidLeaveSetting, type UserProfile } from '../utils/storage';
 
 interface Props {
   records: AttendanceRecord[];
@@ -14,34 +14,42 @@ interface Props {
   onImportTransport: (records: TransportRecord[], mode: 'merge' | 'replace') => void;
   workSettings: WorkSettings;
   userProfile: UserProfile;
-  onImportMeta: (meta: TransferMeta) => void;
+  paidLeaveSettings: PaidLeaveSettings[];
+  onImportMeta: (meta: TransferMeta, year: number, month: number) => void;
 }
 
-// QR / カナコードで読み込んだ付加情報（基準時間・社員番号・苗字）の確認表示と取り込み選択
-function TransferMetaPreview({ meta, apply, onApplyChange }: { meta?: TransferMeta; apply: boolean; onApplyChange: (v: boolean) => void }) {
-  if (!meta || (!meta.workSettings && !meta.employeeId && !meta.lastName)) return null;
+// QR / カナコードで読み込んだ付加情報（基準時間・社員番号・苗字・有給残日数）の確認表示と取り込み選択
+function TransferMetaPreview({ meta, month, apply, onApplyChange }: {
+  meta?: TransferMeta; month: number; apply: boolean; onApplyChange: (v: boolean) => void;
+}) {
+  if (!meta || (!meta.workSettings && !meta.employeeId && !meta.lastName && meta.paidLeaveDays === undefined)) return null;
   return (
     <div style={{ margin: '8px 0' }}>
       <ul style={{ margin: '0 0 6px', paddingLeft: 20 }}>
         {meta.workSettings && <li>基準時間: {meta.workSettings.standardStartTime} ～ {meta.workSettings.standardEndTime}</li>}
         {meta.employeeId && <li>社員番号: {meta.employeeId}</li>}
         {meta.lastName && <li>苗字: {meta.lastName}</li>}
+        {meta.paidLeaveDays !== undefined && <li>{month}月 月初の有給残日数: {meta.paidLeaveDays}日</li>}
       </ul>
       <label className="range-toggle">
         <input type="checkbox" checked={apply} onChange={(e) => onApplyChange(e.target.checked)} />
-        基準時間・社員番号・苗字も取り込む（現在の設定を上書きします）
+        基準時間・社員番号・苗字・有給残日数も取り込む（現在の設定を上書きします）
       </label>
     </div>
   );
 }
 
 // QRコード / カナコードで別デバイスとデータをやり取りするタブ
-export default function TransferTab({ records, transportRecords, onImport, onImportTransport, workSettings, userProfile, onImportMeta }: Props) {
-  const transferMeta: TransferMeta = {
+export default function TransferTab({
+  records, transportRecords, onImport, onImportTransport, workSettings, userProfile, paidLeaveSettings, onImportMeta,
+}: Props) {
+  // 転送する付加情報（有給残日数は対象月の月初の設定値）
+  const metaForMonth = (year: number, month: number): TransferMeta => ({
     workSettings,
     employeeId: userProfile.employeeId,
     lastName: userProfile.lastName,
-  };
+    paidLeaveDays: findPaidLeaveSetting(paidLeaveSettings, year, month)?.totalDays,
+  });
 
   // ── QR / カナコード ──
   const nowX = new Date();
@@ -76,7 +84,7 @@ export default function TransferTab({ records, transportRecords, onImport, onImp
   async function handleQrGenerate() {
     setQrGenerating(true); setQrError('');
     try {
-      const text = encodeQR(records, transportRecords, xferYear, xferMonth, transferMeta);
+      const text = encodeQR(records, transportRecords, xferYear, xferMonth, metaForMonth(xferYear, xferMonth));
       const url  = await QRCode.toDataURL(text, { errorCorrectionLevel: 'L', margin: 2, width: 300 });
       setQrDataUrl(url);
     } catch (e) {
@@ -126,13 +134,13 @@ export default function TransferTab({ records, transportRecords, onImport, onImp
     if (!qrImportAtt) return;
     if (qrImportAtt.length > 0)           onImport(qrImportAtt, qrImportMode);
     if (qrImportTrp && qrImportTrp.length > 0) onImportTransport(qrImportTrp, qrImportMode);
-    if (qrImportMeta && qrApplyMeta)       onImportMeta(qrImportMeta);
+    if (qrImportMeta && qrApplyMeta && qrImportInfo) onImportMeta(qrImportMeta, qrImportInfo.year, qrImportInfo.month);
     setQrImportAtt(null); setQrImportTrp(null); setQrImportInfo(null);
   }
 
   // ── カナコード ────────────────────────────────────────────────────────────
   function handleJumonGenerate() {
-    const bytes = encodeMonth(records, transportRecords, xferYear, xferMonth, transferMeta);
+    const bytes = encodeMonth(records, transportRecords, xferYear, xferMonth, metaForMonth(xferYear, xferMonth));
     setJumonStr(formatJumon(bytesToJumon(bytes)));
     setJumonError('');
   }
@@ -154,7 +162,7 @@ export default function TransferTab({ records, transportRecords, onImport, onImp
     if (!jumonImportAtt) return;
     if (jumonImportAtt.length > 0) onImport(jumonImportAtt, jumonImportMode);
     if (jumonImportTrp.length > 0)  onImportTransport(jumonImportTrp, jumonImportMode);
-    if (jumonImportMeta && jumonApplyMeta) onImportMeta(jumonImportMeta);
+    if (jumonImportMeta && jumonApplyMeta && jumonImportInfo) onImportMeta(jumonImportMeta, jumonImportInfo.year, jumonImportInfo.month);
     setJumonImportAtt(null); setJumonImportInfo(null); setJumonInput('');
   }
 
@@ -164,7 +172,7 @@ export default function TransferTab({ records, transportRecords, onImport, onImp
 
       {/* ── QRコード転送 ── */}
       <h3>QRコード転送</h3>
-      <p className="hint">1ヶ月分の勤怠＋交通費と、基準時間・社員番号・苗字をQRコードで別デバイスに転送します。</p>
+      <p className="hint">1ヶ月分の勤怠＋交通費と、基準時間・社員番号・苗字・有給残日数をQRコードで別デバイスに転送します。</p>
 
       <div className="form-row">
         <label>対象年月</label>
@@ -213,7 +221,7 @@ export default function TransferTab({ records, transportRecords, onImport, onImp
               <li>勤怠レコード: {qrImportAtt.length}件</li>
               <li>交通費レコード: {qrImportTrp?.length ?? 0}件</li>
             </ul>
-            <TransferMetaPreview meta={qrImportMeta} apply={qrApplyMeta} onApplyChange={setQrApplyMeta} />
+            <TransferMetaPreview meta={qrImportMeta} month={qrImportInfo.month} apply={qrApplyMeta} onApplyChange={setQrApplyMeta} />
             <div className="form-row">
               <label>取り込み方式</label>
               <select value={qrImportMode} onChange={e => setQrImportMode(e.target.value as 'merge' | 'replace')}>
@@ -233,7 +241,7 @@ export default function TransferTab({ records, transportRecords, onImport, onImp
 
       {/* ── カナコード転送 ── */}
       <h3>カナコード転送</h3>
-      <p className="hint">1ヶ月分のデータをカタカナ文字列に変換します。コードをコピー&amp;ペーストまたは手入力することで、別デバイスへ勤怠・交通費（行先・出発地・到着地・備考を含む）と基準時間・社員番号・苗字を転送できます。</p>
+      <p className="hint">1ヶ月分のデータをカタカナ文字列に変換します。コードをコピー&amp;ペーストまたは手入力することで、別デバイスへ勤怠・交通費（行先・出発地・到着地・備考を含む）と基準時間・社員番号・苗字・有給残日数を転送できます。</p>
 
       <div className="csv-section">
         <h4>コードを生成（エクスポート）</h4>
@@ -286,7 +294,7 @@ export default function TransferTab({ records, transportRecords, onImport, onImp
                 )}
               </tbody>
             </table>
-            <TransferMetaPreview meta={jumonImportMeta} apply={jumonApplyMeta} onApplyChange={setJumonApplyMeta} />
+            <TransferMetaPreview meta={jumonImportMeta} month={jumonImportInfo.month} apply={jumonApplyMeta} onApplyChange={setJumonApplyMeta} />
             <div className="form-row" style={{marginTop:8}}>
               <label>取り込み方式</label>
               <select value={jumonImportMode} onChange={e => setJumonImportMode(e.target.value as 'merge' | 'replace')}>

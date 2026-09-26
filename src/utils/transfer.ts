@@ -1,9 +1,9 @@
 /**
  * transfer.ts — QRコード / カナコード転送用データ変換ユーティリティ
  *
- * QR      : バイナリ形式 v5（勤怠 + 交通費 + 付加情報 + 備考 + 交通費の行先・出発地・到着地）
- * カナコード: コンパクトバイナリ v4（勤怠 + 交通費 + 付加情報 + 備考 + 交通費の行先・出発地・到着地）→ カタカナ文字列
- * 付加情報 : 基準時間（勤務設定・日ごとの変更）、社員番号、苗字
+ * QR      : バイナリ形式 v6（勤怠 + 交通費 + 付加情報 + 備考 + 交通費の行先・出発地・到着地 + 有給残日数）
+ * カナコード: コンパクトバイナリ v5（勤怠 + 交通費 + 付加情報 + 備考 + 交通費の行先・出発地・到着地 + 有給残日数）→ カタカナ文字列
+ * 付加情報 : 基準時間（勤務設定・日ごとの変更）、社員番号、苗字、対象月の有給残日数（月初）
  */
 
 import type { AttendanceRecord, AttendanceType, WorkSettings } from '../types/attendance';
@@ -106,6 +106,8 @@ export interface TransferMeta {
   workSettings?: WorkSettings;
   employeeId?: string;
   lastName?: string;
+  // 対象月の月初の有給残日数（未設定なら undefined）
+  paidLeaveDays?: number;
 }
 
 const NO_TIME = 0xFFF;
@@ -254,10 +256,25 @@ function decodeRouteTexts(r: ByteReader, trp: TransportRecord[]) {
   }
 }
 
+// ── 有給残日数ブロック ───────────────────────────────────────────────────────
+// [has:1] + has=1 のとき [half_days:16]（0.5日単位の日数）
+function encodePaidLeave(meta: TransferMeta): number[] {
+  if (meta.paidLeaveDays === undefined || !Number.isFinite(meta.paidLeaveDays)) return [0];
+  const halfDays = Math.min(Math.max(Math.round(meta.paidLeaveDays * 2), 0), 0xFFFF);
+  return [1, halfDays >> 8, halfDays & 0xFF];
+}
+
+function decodePaidLeave(r: ByteReader, meta: TransferMeta) {
+  if (r.u8() !== 1) return;
+  const halfDays = (r.u8() << 8) | r.u8();
+  meta.paidLeaveDays = halfDays / 2;
+}
+
 // ── 月ごとバイナリ encode / decode ─────────────────────────────────────────────
 // ヘッダー: [ver:1][year_hi:1][year_lo:1][month:1][count:1] = 5 bytes
 // ver 1: レコードのみ / ver 2: レコード + 付加情報 / ver 3: レコード + 付加情報 + 備考
 // ver 4: ver 3 + 交通費ブロック [trp_count:1] + trp_count × 4 bytes + 交通費の備考 + 行先・出発地・到着地
+// ver 5: ver 4 + 有給残日数ブロック
 export function encodeMonth(
   records: AttendanceRecord[], transportRecords: TransportRecord[], year: number, month: number, meta: TransferMeta = {},
 ): Uint8Array {
@@ -274,9 +291,10 @@ export function encodeMonth(
   const metaBytes = [
     ...encodeMeta(recs, meta), ...encodeNotes(recs),
     ...trpBytes, ...encodeNotes(trpRecs), ...encodeRouteTexts(trpRecs),
+    ...encodePaidLeave(meta),
   ];
   const buf = new Uint8Array(5 + recs.length * 6 + metaBytes.length);
-  buf[0] = 4; buf[1] = year >> 8; buf[2] = year & 0xFF; buf[3] = month; buf[4] = recs.length;
+  buf[0] = 5; buf[1] = year >> 8; buf[2] = year & 0xFF; buf[3] = month; buf[4] = recs.length;
   recs.forEach((r, i) => buf.set(packRecord(r), 5 + i * 6));
   buf.set(metaBytes, 5 + recs.length * 6);
   return buf;
@@ -287,7 +305,7 @@ export function decodeMonth(buf: Uint8Array): {
 } | null {
   try {
     const ver = buf[0];
-    if (buf.length < 5 || ver < 1 || ver > 4) return null;
+    if (buf.length < 5 || ver < 1 || ver > 5) return null;
     const year  = (buf[1] << 8) | buf[2];
     const month = buf[3];
     const count = buf[4];
@@ -308,6 +326,7 @@ export function decodeMonth(buf: Uint8Array): {
       decodeNotes(reader, transportRecords);
       decodeRouteTexts(reader, transportRecords);
     }
+    if (ver >= 5) decodePaidLeave(reader, meta);
     return { records, transportRecords, year, month, meta };
   } catch { return null; }
 }
@@ -358,6 +377,7 @@ function unpackTransport(buf: Uint8Array, off: number, year: number, month: numb
 // 付加情報: ver 3 以降（基準時間・社員番号・苗字）
 // 備考: ver 4 以降（勤怠の備考 → 交通費の備考の順に備考ブロックを2つ）
 // 交通費の行先・出発地・到着地: ver 5 以降
+// 有給残日数: ver 6 以降
 //
 // 旧 JSON 形式 (v1) との後方互換: decodeQR が両方を自動判別
 const QR2_PREFIX = 'QR2:';
@@ -369,10 +389,11 @@ export function encodeQR(att: AttendanceRecord[], trp: TransportRecord[], year: 
 
   const metaBytes = [
     ...encodeMeta(attRecs, meta), ...encodeNotes(attRecs), ...encodeNotes(trpRecs), ...encodeRouteTexts(trpRecs),
+    ...encodePaidLeave(meta),
   ];
   const dataLen = 7 + attRecs.length * 6 + trpRecs.length * 4;
   const buf = new Uint8Array(dataLen + metaBytes.length);
-  buf[0] = 5;                              // version
+  buf[0] = 6;                              // version
   buf[1] = year >> 8; buf[2] = year & 0xFF;
   buf[3] = month;
   buf[4] = attRecs.length;
@@ -395,7 +416,7 @@ export function decodeQR(text: string): { att: AttendanceRecord[]; trp: Transpor
       const buf = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) buf[i] = binary.charCodeAt(i);
       const ver = buf[0];
-      if (buf.length < 7 || ver < 2 || ver > 5) return null;
+      if (buf.length < 7 || ver < 2 || ver > 6) return null;
       const year   = (buf[1] << 8) | buf[2];
       const month  = buf[3];
       const attCnt = buf[4];
@@ -413,6 +434,7 @@ export function decodeQR(text: string): { att: AttendanceRecord[]; trp: Transpor
         decodeNotes(reader, trp);
       }
       if (ver >= 5) decodeRouteTexts(reader, trp);
+      if (ver >= 6) decodePaidLeave(reader, meta);
       return { att, trp, year, month, meta };
     } catch { return null; }
   }
