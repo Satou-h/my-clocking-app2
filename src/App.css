@@ -1117,12 +1117,13 @@ hr {
   border: 1px solid #dde1ee;
   border-radius: 8px;
 }
+/* 候補のドロップダウンが枠外にはみ出せるよう overflow は指定せず、角丸はタイトル側で付ける */
 .skill-form-section {
   border: 1px solid #dde1ee;
   border-radius: 8px;
-  overflow: hidden;
 }
 .skill-form-title {
+  border-radius: 7px 7px 0 0;
   font-size: 14px;
   font-weight: 700;
   color: #fff;
@@ -1628,4 +1629,21 @@ hr {
 }
 .form-row:has(> .multi-line-input) > label {
   padding-top: 8px;
+}
+
+/* 候補のドロップダウン + 手入力欄（SelectOrInput） */
+.select-or-input {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.select-or-input select {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+.select-or-input input {
+  flex: 2 1 160px;
+  min-width: 0;
 }

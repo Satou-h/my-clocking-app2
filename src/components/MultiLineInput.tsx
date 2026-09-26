@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useRef } from 'react';
+import SelectOrInput from './SelectOrInput';
 
 interface Props {
   /** 改行区切りの文字列（1行 = 1項目） */
@@ -15,8 +16,7 @@ interface Props {
  */
 export default function MultiLineInput({ value, onChange, placeholder, options }: Props) {
   const lines = value.split('\n');
-  const listId = useId();
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const inputRefs = useRef<(HTMLElement | null)[]>([]);
   const focusIndex = useRef<number | null>(null);
 
   useEffect(() => {
@@ -64,15 +64,24 @@ export default function MultiLineInput({ value, onChange, placeholder, options }
     <div className="multi-line-input">
       {lines.map((line, i) => (
         <div key={i} className="multi-line-input-row">
-          <input
-            ref={(el) => { inputRefs.current[i] = el; }}
-            type="text"
-            list={options ? listId : undefined}
-            value={line}
-            onChange={(e) => handleChange(i, e.target.value)}
-            onKeyDown={(e) => handleKeyDown(e, i)}
-            placeholder={i === 0 ? placeholder : ''}
-          />
+          {options ? (
+            <SelectOrInput
+              focusRef={(el) => { inputRefs.current[i] = el; }}
+              value={line}
+              options={options}
+              onChange={(v) => handleChange(i, v)}
+              onKeyDown={(e) => handleKeyDown(e, i)}
+            />
+          ) : (
+            <input
+              ref={(el) => { inputRefs.current[i] = el; }}
+              type="text"
+              value={line}
+              onChange={(e) => handleChange(i, e.target.value)}
+              onKeyDown={(e) => handleKeyDown(e, i)}
+              placeholder={i === 0 ? placeholder : ''}
+            />
+          )}
           <button
             type="button"
             className="btn-row-delete"
@@ -87,11 +96,6 @@ export default function MultiLineInput({ value, onChange, placeholder, options }
       <button type="button" className="btn-row-edit multi-line-input-add" onClick={() => handleAdd(lines.length - 1)}>
         ＋ 行を追加
       </button>
-      {options && (
-        <datalist id={listId}>
-          {options.map((o) => <option key={o} value={o} />)}
-        </datalist>
-      )}
     </div>
   );
 }

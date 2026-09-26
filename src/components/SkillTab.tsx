@@ -43,6 +43,8 @@ export default function SkillTab() {
   const [workHistory, setWorkHistory] = useState<WorkHistoryEntry[]>(loadWorkHistory);
   const [whForm, setWhForm] = useState(EMPTY_WH_FORM);
   const [editingWhId, setEditingWhId] = useState<string | null>(null);
+  // フォームの内容を入れ替えたときに入力部品の内部状態（手入力モードなど）もリセットするためのキー
+  const [whFormKey, setWhFormKey] = useState(0);
   const [entries, setEntries] = useState<SkillEntry[]>(loadSkillEntries);
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -67,6 +69,11 @@ export default function SkillTab() {
     saveCertifications(next);
   }
 
+  function loadWhForm(next: typeof EMPTY_WH_FORM) {
+    setWhForm(next);
+    setWhFormKey((k) => k + 1);
+  }
+
   function persistWH(next: WorkHistoryEntry[]) {
     setWorkHistory(next);
     saveWorkHistory(next);
@@ -89,12 +96,12 @@ export default function SkillTab() {
     } else {
       persistWH([...workHistory, { ...record, id: generateId() }]);
     }
-    setWhForm(EMPTY_WH_FORM);
+    loadWhForm(EMPTY_WH_FORM);
   }
 
   function handleWhEdit(entry: WorkHistoryEntry) {
     setEditingWhId(entry.id);
-    setWhForm({
+    loadWhForm({
       startDate: normalizeYearMonth(entry.startDate), endDate: normalizeYearMonth(entry.endDate), duration: entry.duration,
       clientType: entry.clientType, systemName: entry.systemName,
       machine: entry.machine, os: entry.os, languages: entry.languages,
@@ -104,12 +111,12 @@ export default function SkillTab() {
 
   function handleWhDelete(id: string) {
     persistWH(workHistory.filter((e) => e.id !== id));
-    if (editingWhId === id) { setEditingWhId(null); setWhForm(EMPTY_WH_FORM); }
+    if (editingWhId === id) { setEditingWhId(null); loadWhForm(EMPTY_WH_FORM); }
   }
 
   function handleWhCancel() {
     setEditingWhId(null);
-    setWhForm(EMPTY_WH_FORM);
+    loadWhForm(EMPTY_WH_FORM);
   }
 
   function persist(next: SkillEntry[]) {
@@ -271,7 +278,7 @@ export default function SkillTab() {
       {/* スキル一覧（職歴） */}
       <div className="skill-form-section">
         <h3 className="skill-form-title">{editingWhId ? '職歴を編集' : '職歴を追加'}</h3>
-        <div className="skill-form-grid">
+        <div className="skill-form-grid" key={whFormKey}>
           {/* 作業期間 */}
           <div className="wh-form-row-group">
             <div className="form-row">
