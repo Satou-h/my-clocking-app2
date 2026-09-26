@@ -65,6 +65,7 @@ export default function TransferTab({ records, transportRecords, onImport, onImp
   // カナコード import
   const [jumonInput, setJumonInput]         = useState('');
   const [jumonImportAtt, setJumonImportAtt] = useState<AttendanceRecord[] | null>(null);
+  const [jumonImportTrp, setJumonImportTrp] = useState<TransportRecord[]>([]);
   const [jumonImportInfo, setJumonImportInfo] = useState<{ year: number; month: number } | null>(null);
   const [jumonImportMode, setJumonImportMode] = useState<'merge' | 'replace'>('merge');
   const [jumonImportMeta, setJumonImportMeta] = useState<TransferMeta | undefined>();
@@ -131,7 +132,7 @@ export default function TransferTab({ records, transportRecords, onImport, onImp
 
   // ── カナコード ────────────────────────────────────────────────────────────
   function handleJumonGenerate() {
-    const bytes = encodeMonth(records, xferYear, xferMonth, transferMeta);
+    const bytes = encodeMonth(records, transportRecords, xferYear, xferMonth, transferMeta);
     setJumonStr(formatJumon(bytesToJumon(bytes)));
     setJumonError('');
   }
@@ -142,6 +143,7 @@ export default function TransferTab({ records, transportRecords, onImport, onImp
     const result = decodeMonth(bytes);
     if (!result) { setJumonError('カナコードのバージョンが不正です。'); return; }
     setJumonImportAtt(result.records);
+    setJumonImportTrp(result.transportRecords);
     setJumonImportInfo({ year: result.year, month: result.month });
     setJumonImportMeta(result.meta);
     setJumonApplyMeta(true);
@@ -150,7 +152,8 @@ export default function TransferTab({ records, transportRecords, onImport, onImp
 
   function handleJumonImport() {
     if (!jumonImportAtt) return;
-    onImport(jumonImportAtt, jumonImportMode);
+    if (jumonImportAtt.length > 0) onImport(jumonImportAtt, jumonImportMode);
+    if (jumonImportTrp.length > 0)  onImportTransport(jumonImportTrp, jumonImportMode);
     if (jumonImportMeta && jumonApplyMeta) onImportMeta(jumonImportMeta);
     setJumonImportAtt(null); setJumonImportInfo(null); setJumonInput('');
   }
@@ -176,7 +179,7 @@ export default function TransferTab({ records, transportRecords, onImport, onImp
 
       <div className="csv-section">
         <h4>エクスポート（QRコード生成）</h4>
-        <p className="hint">勤怠と交通費（日付・金額・往復）をQRコード画像に変換します。スマホでスキャンするか、スクリーンショットを保存してください。<br/>※ 勤怠・交通費の備考も含まれます。交通費の行先・出発地・到着地はQRに含まれません。備考が多いとQRコードに収まらない場合があります。全フィールドを転送する場合は「全データバックアップ」をご利用ください。</p>
+        <p className="hint">勤怠と交通費をQRコード画像に変換します。スマホでスキャンするか、スクリーンショットを保存してください。<br/>※ 勤怠・交通費の備考、交通費の行先・出発地・到着地も含まれます。データ量が多いとQRコードに収まらない場合があります。その場合はカナコードまたは「全データバックアップ」をご利用ください。</p>
         <button className="btn btn-secondary" onClick={handleQrGenerate} disabled={qrGenerating}>
           {qrGenerating ? '生成中…' : 'QRコードを生成'}
         </button>
@@ -230,7 +233,7 @@ export default function TransferTab({ records, transportRecords, onImport, onImp
 
       {/* ── カナコード転送 ── */}
       <h3>カナコード転送</h3>
-      <p className="hint">月次勤怠データをカタカナ文字列に変換します。コードをコピー&amp;ペーストまたは手入力することで、別デバイスへ勤怠データと基準時間・社員番号・苗字を転送できます（備考を含む・交通費は除く）。</p>
+      <p className="hint">1ヶ月分のデータをカタカナ文字列に変換します。コードをコピー&amp;ペーストまたは手入力することで、別デバイスへ勤怠・交通費（行先・出発地・到着地・備考を含む）と基準時間・社員番号・苗字を転送できます。</p>
 
       <div className="csv-section">
         <h4>コードを生成（エクスポート）</h4>
@@ -264,7 +267,7 @@ export default function TransferTab({ records, transportRecords, onImport, onImp
         {jumonError && <div className="csv-errors"><strong>{jumonError}</strong></div>}
         {jumonImportAtt && jumonImportInfo && (
           <div className="csv-preview">
-            <strong>{jumonImportInfo.year}年{jumonImportInfo.month}月の勤怠データを読み込みました（{jumonImportAtt.length}件）</strong>
+            <strong>{jumonImportInfo.year}年{jumonImportInfo.month}月のデータを読み込みました（勤怠 {jumonImportAtt.length}件・交通費 {jumonImportTrp.length}件）</strong>
             <table className="data-table preview-table" style={{marginTop:8}}>
               <thead><tr><th>日付</th><th>種別</th><th>出勤</th><th>退勤</th><th>休憩</th><th>備考</th></tr></thead>
               <tbody>
