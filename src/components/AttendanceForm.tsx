@@ -35,7 +35,8 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
   const [useRange, setUseRange] = useState(false);
   const [dateTo, setDateTo] = useState(existingRecord?.date ?? today());
   const [skipWeekends, setSkipWeekends] = useState(true);
-  const [noTransport, setNoTransport] = useState(existingRecord?.noTransport ?? false);
+  const [noTransport, setNoTransport]   = useState(existingRecord?.noTransport ?? false);
+  const [isKishaDay, setIsKishaDay]     = useState(existingRecord?.isKishaDay ?? false);
   const [transferDate, setTransferDate] = useState(existingRecord?.transferDate ?? '');
 
   function buildDateRange(from: string, to: string): string[] {
@@ -139,6 +140,7 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
       customStartTime: useCustomTime && customStartTime ? customStartTime : undefined,
       customEndTime: useCustomTime && customEndTime ? customEndTime : undefined,
       noTransport: canToggleNoTransport ? noTransport : undefined,
+      isKishaDay: needsTime ? isKishaDay || undefined : undefined,
       transferDate: isTransferWork ? transferDate : undefined,
     };
 
@@ -288,6 +290,27 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
               onChange={(e) => setNoTransport(e.target.checked)}
             />
             交通費なし（在宅勤務・徒歩圏内など）
+          </label>
+        </div>
+      )}
+
+      {needsTime && (
+        <div className="form-row">
+          <label style={{ width: 140 }} />
+          <label className="range-toggle">
+            <input
+              type="checkbox"
+              checked={isKishaDay}
+              onChange={(e) => {
+                setIsKishaDay(e.target.checked);
+                if (e.target.checked) {
+                  if (!notes) setNotes('帰社日');
+                } else {
+                  if (notes === '帰社日') setNotes('');
+                }
+              }}
+            />
+            帰社日（現場ではなく自社への出社）
           </label>
         </div>
       )}
