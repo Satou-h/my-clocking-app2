@@ -669,6 +669,7 @@ h3 {
   display: flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
   font-size: 13px;
   color: #636e72;
   font-weight: 500;
@@ -926,6 +927,53 @@ hr {
   margin-top: 4px;
   color: #e65100;
 }
+/* 検算ブロック */
+.bulk-check-verify {
+  border-color: #c5cae9;
+  background: #f8f9ff;
+  margin-top: 12px;
+}
+.bulk-check-verify .bulk-check-icon { background: #7986cb; }
+.bulk-check-verify.bulk-check-ok { border-color: #b7e4c7; background: #f0fbf4; }
+.bulk-check-verify.bulk-check-ok .bulk-check-icon { background: #00b894; }
+.bulk-check-verify.bulk-check-missing { border-color: #f5c2c7; background: #fff5f5; }
+.bulk-check-verify.bulk-check-missing .bulk-check-icon { background: #e53935; }
+.bulk-verify-body { margin-top: 10px; margin-left: 32px; }
+.bulk-verify-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.bulk-verify-label {
+  font-size: 13px;
+  font-weight: 500;
+  width: 140px;
+  flex-shrink: 0;
+}
+.bulk-verify-input {
+  width: 68px;
+  padding: 5px 8px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  font-size: 14px;
+  text-align: right;
+}
+.bulk-verify-input-min { width: 56px; }
+.bulk-verify-unit { font-size: 13px; color: #555; }
+.bulk-verify-computed {
+  font-size: 15px;
+  font-weight: 600;
+  color: #2d3436;
+  min-width: 60px;
+}
+.bulk-verify-fill {
+  font-size: 12px;
+  padding: 4px 10px;
+  margin-left: 8px;
+}
+
 .bulk-download-actions {
   display: flex;
   align-items: center;

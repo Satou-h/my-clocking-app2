@@ -6,6 +6,7 @@ import {
   calcLateNightMinutes, isLateArrival, isEarlyDeparture, formatMinutes, getEffectiveBreak,
 } from '../utils/storage';
 import { getHolidayName } from '../utils/holidays';
+import TimeSelect from './TimeSelect';
 
 interface Props {
   existingRecord?: AttendanceRecord;
@@ -34,7 +35,8 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
   const [useRange, setUseRange] = useState(false);
   const [dateTo, setDateTo] = useState(existingRecord?.date ?? today());
   const [skipWeekends, setSkipWeekends] = useState(true);
-  const [noTransport, setNoTransport] = useState(existingRecord?.noTransport ?? false);
+  const [noTransport, setNoTransport]   = useState(existingRecord?.noTransport ?? false);
+  const [isKishaDay, setIsKishaDay]     = useState(existingRecord?.isKishaDay ?? false);
   const [transferDate, setTransferDate] = useState(existingRecord?.transferDate ?? '');
 
   function buildDateRange(from: string, to: string): string[] {
@@ -138,6 +140,7 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
       customStartTime: useCustomTime && customStartTime ? customStartTime : undefined,
       customEndTime: useCustomTime && customEndTime ? customEndTime : undefined,
       noTransport: canToggleNoTransport ? noTransport : undefined,
+      isKishaDay: needsTime ? isKishaDay || undefined : undefined,
       transferDate: isTransferWork ? transferDate : undefined,
     };
 
@@ -292,14 +295,35 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
       )}
 
       {needsTime && (
+        <div className="form-row">
+          <label style={{ width: 140 }} />
+          <label className="range-toggle">
+            <input
+              type="checkbox"
+              checked={isKishaDay}
+              onChange={(e) => {
+                setIsKishaDay(e.target.checked);
+                if (e.target.checked) {
+                  if (!notes) setNotes('帰社日');
+                } else {
+                  if (notes === '帰社日') setNotes('');
+                }
+              }}
+            />
+            帰社日（現場ではなく自社への出社）
+          </label>
+        </div>
+      )}
+
+      {needsTime && (
         <>
           <div className="form-row">
             <label>出勤時間 <span className="std-hint">(基準 {effectiveStart})</span></label>
-            <input type="time" value={clockIn} onChange={(e) => setClockIn(e.target.value)} />
+            <TimeSelect value={clockIn} onChange={setClockIn} minuteStep={5} ariaLabel="出勤時間" />
           </div>
           <div className="form-row">
             <label>退勤時間 <span className="std-hint">(基準 {effectiveEnd})</span></label>
-            <input type="time" value={clockOut} onChange={(e) => setClockOut(e.target.value)} />
+            <TimeSelect value={clockOut} onChange={setClockOut} minuteStep={5} ariaLabel="退勤時間" />
           </div>
           <div className="form-row">
             <label>休憩時間（分）</label>
@@ -337,21 +361,11 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
             <div className="custom-time-fields">
               <div className="form-row">
                 <label>基準 出勤時間</label>
-                <input
-                  type="time"
-                  value={customStartTime}
-                  onChange={(e) => setCustomStartTime(e.target.value)}
-                  placeholder={workSettings.standardStartTime}
-                />
+                <TimeSelect value={customStartTime || workSettings.standardStartTime} onChange={setCustomStartTime} minuteStep={5} ariaLabel="この日の基準出勤時間" />
               </div>
               <div className="form-row">
                 <label>基準 退勤時間</label>
-                <input
-                  type="time"
-                  value={customEndTime}
-                  onChange={(e) => setCustomEndTime(e.target.value)}
-                  placeholder={workSettings.standardEndTime}
-                />
+                <TimeSelect value={customEndTime || workSettings.standardEndTime} onChange={setCustomEndTime} minuteStep={5} ariaLabel="この日の基準退勤時間" />
               </div>
             </div>
           )}

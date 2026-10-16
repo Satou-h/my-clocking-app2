@@ -13,6 +13,8 @@ export interface AttendanceRecord {
   customEndTime?: string;
   // 在宅勤務・徒歩圏内など、その日は交通費が発生しない場合に立てるフラグ
   noTransport?: boolean;
+  // 現場ではなく自社へ出社した日（検算の現場総勤務時間に含まない）
+  isKishaDay?: boolean;
   // 振替休日出勤の場合、代わりに休む振替休日の日付（YYYY-MM-DD）
   transferDate?: string;
 }

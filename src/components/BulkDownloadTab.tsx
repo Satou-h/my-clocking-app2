@@ -6,6 +6,7 @@ import {
   loadUserProfile, calcPaidLeaveRemaining,
   loadLeaveApplications, loadLateEarlyApplications,
   loadSkillProfile, loadSkillEntries, loadCertifications, loadWorkHistory,
+  calcWorkMinutes, getEffectiveBreak, formatMinutes,
 } from '../utils/storage';
 import { checkMonthCompleteness, fmtDateShort, type DocCompleteness } from '../utils/completeness';
 import { printMonthlyAttendancePDF } from '../utils/attendancePdf';
@@ -30,6 +31,8 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
   const [filterYear, setFilterYear] = useState(now.getFullYear());
   const [filterMonth, setFilterMonth] = useState(now.getMonth() + 1);
   const [downloading, setDownloading] = useState(false);
+  const [checkHours, setCheckHours] = useState('');
+  const [checkMins,  setCheckMins]  = useState('');
 
   const currentYear = now.getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
@@ -73,7 +76,33 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
     required: true, complete: skillIssues.length === 0, missingDates: [], extraDates: [], issues: skillIssues,
   };
 
-  const allComplete = completeness.allComplete && attendance.complete && workReport.complete && skillSheet.complete;
+  // 月次総勤務時間を計算（検算に使用）
+  const isWorkType = (t: string) =>
+    t === 'work' || t === 'am_leave' || t === 'pm_leave'
+    || t === 'scheduled_holiday_work' || t === 'legal_holiday_work' || t === 'transfer_holiday_work';
+  const monthPrefix = `${filterYear}-${String(filterMonth).padStart(2, '0')}`;
+  const totalWorkMins = records
+    .filter((r) => r.date.startsWith(monthPrefix))
+    .reduce((acc, r) => {
+      if (!isWorkType(r.type) || !r.clockIn || !r.clockOut) return acc;
+      if (r.isKishaDay) return acc; // 帰社日は現場勤務時間に含めない
+      const effBreak = getEffectiveBreak(r.type, r.clockIn, r.clockOut, r.breakMinutes ?? 0);
+      return acc + calcWorkMinutes(r.clockIn, r.clockOut, effBreak);
+    }, 0);
+
+  // 帰社日の件数（表示用）
+  const kishaDayCount = records.filter(
+    (r) => r.date.startsWith(monthPrefix) && r.isKishaDay && isWorkType(r.type) && r.clockIn && r.clockOut,
+  ).length;
+
+  // 検算チェック（入力値がある場合のみ照合）
+  const checkFilled = checkHours !== '' || checkMins !== '';
+  const checkEnteredMins = checkFilled
+    ? (parseInt(checkHours) || 0) * 60 + (parseInt(checkMins) || 0)
+    : null;
+  const checkPassed = checkEnteredMins === null || checkEnteredMins === totalWorkMins;
+
+  const allComplete = completeness.allComplete && attendance.complete && workReport.complete && skillSheet.complete && checkPassed;
 
   async function handleBulkDownload() {
     const p = loadUserProfile();
@@ -194,6 +223,68 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
             </div>
           );
         })}
+      </div>
+
+      {/* ── 検算 ── */}
+      <div className={`bulk-check-item bulk-check-verify${!checkFilled ? '' : checkPassed ? ' bulk-check-ok' : ' bulk-check-missing'}`}>
+        <div className="bulk-check-head">
+          <span className="bulk-check-icon">{checkFilled ? (checkPassed ? '✓' : '×') : '？'}</span>
+          <span className="bulk-check-label">現場の総勤務時間（検算）</span>
+          <span className="bulk-check-status">
+            {!checkFilled ? '未入力（任意）' : checkPassed ? '一致' : '不一致'}
+          </span>
+        </div>
+        <div className="bulk-verify-body">
+          <p className="hint" style={{ marginBottom: 8 }}>
+            現場（客先）システムで確認した月間総勤務時間を入力してください。
+            システムの計算値と一致しない場合はダウンロードできません。未入力の場合はスキップされます。
+            ※ 帰社日フラグが立っている日は計算から除外されます。
+          </p>
+          <div className="bulk-verify-row">
+            <label className="bulk-verify-label">現場の総勤務時間</label>
+            <input
+              type="number"
+              min={0}
+              className="bulk-verify-input"
+              value={checkHours}
+              onChange={(e) => setCheckHours(e.target.value)}
+              placeholder="0"
+            />
+            <span className="bulk-verify-unit">時間</span>
+            <input
+              type="number"
+              min={0}
+              max={59}
+              className="bulk-verify-input bulk-verify-input-min"
+              value={checkMins}
+              onChange={(e) => setCheckMins(e.target.value)}
+              placeholder="0"
+            />
+            <span className="bulk-verify-unit">分</span>
+          </div>
+          <div className="bulk-verify-row">
+            <label className="bulk-verify-label">システム計算値</label>
+            <span className="bulk-verify-computed">{formatMinutes(totalWorkMins)}</span>
+            {kishaDayCount > 0 && (
+              <span className="hint" style={{ margin: 0, fontSize: 12 }}>（帰社日 {kishaDayCount}日 除外済み）</span>
+            )}
+            <button
+              type="button"
+              className="btn btn-secondary bulk-verify-fill"
+              onClick={() => {
+                setCheckHours(String(Math.floor(totalWorkMins / 60)));
+                setCheckMins(String(totalWorkMins % 60));
+              }}
+            >
+              計算値を入力
+            </button>
+          </div>
+          {checkFilled && !checkPassed && (
+            <div className="bulk-missing-dates">
+              入力値（{parseInt(checkHours) || 0}時間{parseInt(checkMins) || 0}分）がシステム計算値（{formatMinutes(totalWorkMins)}）と一致しません
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="bulk-download-actions">

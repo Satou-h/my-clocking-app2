@@ -218,6 +218,7 @@ export default function App() {
             className="header-profile-input header-time-select"
             value={workSettings.standardStartTime}
             onChange={(v) => handleWorkTimeChange('standardStartTime', v)}
+            minuteStep={5}
             ariaLabel="基準出勤時間"
           />
           <span className="header-time-sep">〜</span>
@@ -225,6 +226,7 @@ export default function App() {
             className="header-profile-input header-time-select"
             value={workSettings.standardEndTime}
             onChange={(v) => handleWorkTimeChange('standardEndTime', v)}
+            minuteStep={5}
             ariaLabel="基準退勤時間"
           />
         </div>
