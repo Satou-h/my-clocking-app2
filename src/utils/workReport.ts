@@ -76,3 +76,47 @@ export function hasContent(w: WeekReportData) {
   return w.tools.trim() !== '' || w.goodPoints.trim() !== '' || w.badPoints.trim() !== '' ||
     w.notes.trim() !== '' || w.reasonFirst.trim() !== '' || w.reasonSecond.trim() !== '';
 }
+
+// ── 別の月・週への転記 ─────────────────────────────────────────────────────────
+
+export interface WeekRef {
+  year: number;
+  month: number;
+  week: number; // 0 始まり（第一週 = 0）
+}
+
+// 1週分を別の月・週へ転記する。move のときは転記元の週を空にする
+export function transferWeek(src: WeekRef, dst: WeekRef, move: boolean) {
+  const srcWeeks = loadAllWeeks(src.year, src.month);
+  const data = { ...srcWeeks[src.week] };
+  if (move) {
+    saveAllWeeks(src.year, src.month, srcWeeks.map((w, i) => (i === src.week ? { ...EMPTY_WEEK } : w)));
+  }
+  // 転記元と同じ月の場合は、上で保存した内容を読み直してから転記先を書き換える
+  const dstWeeks = loadAllWeeks(dst.year, dst.month);
+  saveAllWeeks(dst.year, dst.month, dstWeeks.map((w, i) => (i === dst.week ? data : w)));
+}
+
+// 月全体（全週＋総括）を別の月へ転記する。move のときは転記元を空にする
+export function transferMonth(
+  src: { year: number; month: number }, dst: { year: number; month: number }, move: boolean,
+) {
+  const weeks = loadAllWeeks(src.year, src.month);
+  const summary = loadSummary(src.year, src.month);
+  saveAllWeeks(dst.year, dst.month, weeks.map((w) => ({ ...w })));
+  saveSummary(dst.year, dst.month, summary);
+  if (move) {
+    saveAllWeeks(src.year, src.month, WEEK_LABELS.map(() => ({ ...EMPTY_WEEK })));
+    saveSummary(src.year, src.month, '');
+  }
+}
+
+// 転記先に上書きされる内容があるか
+export function weekHasData(ref: WeekRef): boolean {
+  const w = loadAllWeeks(ref.year, ref.month)[ref.week];
+  return !!w && hasContent(w);
+}
+
+export function monthHasData(year: number, month: number): boolean {
+  return loadAllWeeks(year, month).some(hasContent) || loadSummary(year, month).trim() !== '';
+}

@@ -4,6 +4,7 @@ import { printWorkReport } from '../utils/pdf';
 import type { WeekReportData } from '../utils/pdf';
 import {
   WEEK_LABELS, EMPTY_WEEK, loadAllWeeks, saveAllWeeks, loadSummary, saveSummary, loadName, saveName, hasContent,
+  transferWeek, transferMonth, weekHasData, monthHasData,
 } from '../utils/workReport';
 
 const CONDITIONS = ['', '◎', '○', '△', '×'];
@@ -21,6 +22,13 @@ export default function WorkReportTab() {
   const [name, setName] = useState(loadName);
   const [summaryDraft, setSummaryDraft] = useState(() => loadSummary(currentYear, currentMonth));
   const [monthlySummary, setMonthlySummary] = useState(() => loadSummary(currentYear, currentMonth));
+
+  // 別の月・週への転記
+  const [xferScope, setXferScope] = useState<'week' | 'month'>('week');
+  const [xferMode, setXferMode] = useState<'copy' | 'move'>('copy');
+  const [xferYear, setXferYear] = useState(currentYear);
+  const [xferMonth, setXferMonth] = useState(currentMonth);
+  const [xferWeek, setXferWeek] = useState(0);
 
   useEffect(() => {
     const loaded = loadAllWeeks(year, month);
@@ -54,6 +62,54 @@ export default function WorkReportTab() {
   function handleSaveSummary() {
     saveSummary(year, month, summaryDraft);
     setMonthlySummary(summaryDraft);
+  }
+
+  // 指定した月・週を表示し直す（同じ月のまま週だけ変わる場合もあるため、状態を直接読み込む）
+  function showReport(y: number, m: number, week: number) {
+    const loaded = loadAllWeeks(y, m);
+    const s = loadSummary(y, m);
+    setYear(y);
+    setMonth(m);
+    setSelectedWeek(week);
+    setSavedWeeks(loaded);
+    setForm({ ...loaded[week] });
+    setMonthlySummary(s);
+    setSummaryDraft(s);
+  }
+
+  function handleTransfer() {
+    const isWeek = xferScope === 'week';
+    const verb = xferMode === 'move' ? '移動' : 'コピー';
+    const srcLabel = `${year}年${month}月${isWeek ? ` ${WEEK_LABELS[selectedWeek]}` : '（全週・総括）'}`;
+    const dstLabel = `${xferYear}年${xferMonth}月${isWeek ? ` ${WEEK_LABELS[xferWeek]}` : ''}`;
+
+    if (year === xferYear && month === xferMonth && (!isWeek || selectedWeek === xferWeek)) {
+      alert('転記元と転記先が同じです。');
+      return;
+    }
+    const srcHasData = isWeek ? hasContent(savedWeeks[selectedWeek]) : savedWeeks.some(hasContent) || monthlySummary.trim() !== '';
+    if (!srcHasData) {
+      alert(`${srcLabel}には保存済みの内容がありません。`);
+      return;
+    }
+    // 転記は保存済みの内容で行う
+    const unsaved = JSON.stringify(form) !== JSON.stringify(savedWeeks[selectedWeek]) || summaryDraft !== monthlySummary;
+    if (unsaved && !window.confirm('保存していない変更があります。保存済みの内容で転記しますか？')) return;
+
+    const dstHasData = isWeek
+      ? weekHasData({ year: xferYear, month: xferMonth, week: xferWeek })
+      : monthHasData(xferYear, xferMonth);
+    const message = `${srcLabel} を ${dstLabel} に${verb}します。`
+      + (dstHasData ? `\n\n${dstLabel}にはすでに内容があります。上書きしてよろしいですか？` : '')
+      + (xferMode === 'move' ? `\n\n※ 移動すると ${srcLabel} の内容は空になります。` : '');
+    if (!window.confirm(message)) return;
+
+    if (isWeek) {
+      transferWeek({ year, month, week: selectedWeek }, { year: xferYear, month: xferMonth, week: xferWeek }, xferMode === 'move');
+    } else {
+      transferMonth({ year, month }, { year: xferYear, month: xferMonth }, xferMode === 'move');
+    }
+    showReport(xferYear, xferMonth, isWeek ? xferWeek : 0);
   }
 
   function handlePrint() {
@@ -93,6 +149,45 @@ export default function WorkReportTab() {
         </div>
         <button className="btn btn-pdf" onClick={handlePrint}>PDF出力</button>
       </div>
+
+      {/* 別の月・週への転記 */}
+      <details className="work-report-transfer">
+        <summary>別の月・週に転記</summary>
+        <p className="hint">
+          保存済みの内容を別の月・週へコピーまたは移動します。間違えて別の月に作成した場合は「移動」、同じ形式で別の月に作成したい場合は「コピー」を使ってください。
+        </p>
+        <div className="form-row">
+          <label>転記する範囲</label>
+          <div className="radio-group">
+            <label><input type="radio" checked={xferScope === 'week'} onChange={() => setXferScope('week')} /> 表示中の週（{WEEK_LABELS[selectedWeek]}）</label>
+            <label><input type="radio" checked={xferScope === 'month'} onChange={() => setXferScope('month')} /> 表示中の月すべて（全週・総括）</label>
+          </div>
+        </div>
+        <div className="form-row">
+          <label>転記先</label>
+          <select value={xferYear} onChange={(e) => setXferYear(Number(e.target.value))}>
+            {years.map((y) => <option key={y} value={y}>{y}年</option>)}
+          </select>
+          <select value={xferMonth} onChange={(e) => setXferMonth(Number(e.target.value))}>
+            {months.map((m) => <option key={m} value={m}>{m}月</option>)}
+          </select>
+          {xferScope === 'week' && (
+            <select value={xferWeek} onChange={(e) => setXferWeek(Number(e.target.value))}>
+              {WEEK_LABELS.map((label, i) => <option key={i} value={i}>{label}</option>)}
+            </select>
+          )}
+        </div>
+        <div className="form-row">
+          <label>方法</label>
+          <div className="radio-group">
+            <label><input type="radio" checked={xferMode === 'copy'} onChange={() => setXferMode('copy')} /> コピー（元の内容を残す）</label>
+            <label><input type="radio" checked={xferMode === 'move'} onChange={() => setXferMode('move')} /> 移動（元の内容を消す）</label>
+          </div>
+        </div>
+        <div className="work-report-save-row">
+          <button className="btn btn-secondary" onClick={handleTransfer}>転記する</button>
+        </div>
+      </details>
 
       {/* 週選択タブ */}
       <div className="week-tab-nav">

@@ -993,6 +993,47 @@ hr {
   padding: 16px 20px;
   margin-bottom: 16px;
 }
+.work-report-transfer {
+  margin-bottom: 14px;
+  padding: 8px 14px;
+  background: #f8f9ff;
+  border: 1px solid #e0e4ef;
+  border-radius: 8px;
+}
+.work-report-transfer summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: #2d6cdf;
+}
+.work-report-transfer[open] summary {
+  margin-bottom: 8px;
+}
+.work-report-transfer .form-row {
+  flex-wrap: wrap;
+}
+.radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: 14px;
+}
+/* .form-row input の幅・余白指定がラジオボタンに効かないようにする */
+.form-row .radio-group input {
+  flex: none;
+  width: auto;
+  padding: 0;
+  margin: 0;
+}
+.radio-group label {
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: inherit;
+  font-weight: normal;
+}
 .week-tab-nav {
   display: flex;
   gap: 4px;
