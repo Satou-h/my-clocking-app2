@@ -319,13 +319,15 @@ h3 {
   gap: 10px;
   margin-bottom: 16px;
 }
-.list-filter select {
+.list-filter select,
+.list-filter-name {
   padding: 7px 12px;
   border: 1px solid #dfe6e9;
   border-radius: 6px;
   font-size: 14px;
   background: #f8f9fa;
 }
+.list-filter-name { width: 140px; }
 
 /* Monthly summary */
 .monthly-summary {
@@ -1676,7 +1678,8 @@ hr {
   .list-filter {
     flex-wrap: wrap;
   }
-  .list-filter select {
+  .list-filter select,
+  .list-filter-name {
     flex: 1;
     min-width: 100px;
   }

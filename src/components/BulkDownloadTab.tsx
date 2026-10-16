@@ -57,12 +57,12 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
     issues: attendanceIssues,
   };
 
-  // 作業報告書: 対象月のいずれかの週が入力済みで、氏名が入力されていること
+  // 作業報告書: 対象月のいずれかの週が入力済みで、氏名が入力されていること（氏名は勤務表・交通費にも印字する）
   const reportWeeks = loadAllWeeks(filterYear, filterMonth);
   const reportName = loadName();
   const workReportIssues = [
     ...(reportWeeks.some(hasContent) ? [] : ['作業報告書が入力されていません']),
-    ...(reportName.trim() ? [] : ['作業報告書の氏名が入力されていません']),
+    ...(reportName.trim() ? [] : ['氏名が入力されていません（勤務表・交通費・作業報告書共通）']),
   ];
   const workReport: DocCompleteness = {
     required: true, complete: workReportIssues.length === 0, missingDates: [], extraDates: [], issues: workReportIssues,
@@ -111,10 +111,10 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
 
     setDownloading(true);
     try {
-      await printMonthlyAttendancePDF(records, workSettings, filterYear, filterMonth, plRemaining, p.employeeId, p.lastName);
+      await printMonthlyAttendancePDF(records, workSettings, filterYear, filterMonth, plRemaining, p.employeeId, p.lastName, reportName);
 
       await wait(600);
-      printTransportRecords(transportRecords, filterYear, filterMonth, p.employeeId, p.lastName);
+      printTransportRecords(transportRecords, filterYear, filterMonth, p.employeeId, p.lastName, reportName);
 
       const prefix = `${filterYear}-${String(filterMonth).padStart(2, '0')}`;
 

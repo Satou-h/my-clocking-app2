@@ -7,6 +7,7 @@ import { generateId, loadUserProfile } from '../utils/storage';
 import { printTransportRecords } from '../utils/pdf';
 import { getHolidayName } from '../utils/holidays';
 import { checkMonthCompleteness, formatCompletenessIssue } from '../utils/completeness';
+import { loadName, saveName } from '../utils/workReport';
 
 interface Props {
   records: TransportRecord[];
@@ -36,6 +37,13 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
   const [useRange, setUseRange] = useState(false);
   const [dateTo, setDateTo] = useState('');
   const [skipWeekends, setSkipWeekends] = useState(false);
+  const [name, setName] = useState(loadName);
+
+  // 氏名は作業報告書・勤務表と共通で保存する
+  function handleNameChange(value: string) {
+    setName(value);
+    saveName(value);
+  }
 
   // 勤務日一括登録
   const [showBulkForm, setShowBulkForm] = useState(false);
@@ -218,6 +226,14 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
         <select value={filterMonth} onChange={(e) => setFilterMonth(Number(e.target.value))}>
           {months.map((m) => <option key={m} value={m}>{m}月</option>)}
         </select>
+        <input
+          className="list-filter-name"
+          type="text"
+          value={name}
+          onChange={(e) => handleNameChange(e.target.value)}
+          placeholder="氏名"
+          aria-label="氏名"
+        />
         {!showForm && !showBulkForm && (
           <>
             <button className="btn btn-primary" onClick={openAdd}>+ 追加</button>
@@ -231,6 +247,7 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
           onClick={() => {
             const p = loadUserProfile();
             if (!p.employeeId || !p.lastName) { alert('画面上部に社員番号と苗字を入力してください。'); return; }
+            if (!name.trim()) { alert('氏名を入力してください。'); return; }
             const completeness = checkMonthCompleteness(
               filterYear, filterMonth, attendanceRecords, records, [], [], DEFAULT_WORK_SETTINGS,
             );
@@ -238,7 +255,7 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
               alert(formatCompletenessIssue('交通費', completeness.transport));
               return;
             }
-            printTransportRecords(records, filterYear, filterMonth, p.employeeId, p.lastName);
+            printTransportRecords(records, filterYear, filterMonth, p.employeeId, p.lastName, name);
           }}
           title={`${filterYear}年${filterMonth}月をPDF出力`}
         >

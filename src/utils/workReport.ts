@@ -117,6 +117,23 @@ export function weekHasData(ref: WeekRef): boolean {
   return !!w && hasContent(w);
 }
 
+// QR / カナコードで受け取った作業報告書を取り込む
+// merge: 受け取った週（と空でない総括）だけ上書きし、他の週は残す / replace: 対象月の内容をすべて置き換える
+export function importWorkReport(
+  year: number, month: number,
+  data: { weeks: (WeekReportData | null)[]; summary: string },
+  mode: 'merge' | 'replace',
+) {
+  const current = loadAllWeeks(year, month);
+  const weeks = WEEK_LABELS.map((_, i) => {
+    const w = data.weeks[i];
+    if (w) return { ...w };
+    return mode === 'replace' ? { ...EMPTY_WEEK } : (current[i] ?? { ...EMPTY_WEEK });
+  });
+  saveAllWeeks(year, month, weeks);
+  if (mode === 'replace' || data.summary.trim() !== '') saveSummary(year, month, data.summary);
+}
+
 export function monthHasData(year: number, month: number): boolean {
   return loadAllWeeks(year, month).some(hasContent) || loadSummary(year, month).trim() !== '';
 }

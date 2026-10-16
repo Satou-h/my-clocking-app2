@@ -1,14 +1,16 @@
 /**
  * transfer.ts — QRコード / カナコード転送用データ変換ユーティリティ
  *
- * QR      : バイナリ形式 v6（勤怠 + 交通費 + 付加情報 + 備考 + 交通費の行先・出発地・到着地 + 有給残日数）
- * カナコード: コンパクトバイナリ v5（勤怠 + 交通費 + 付加情報 + 備考 + 交通費の行先・出発地・到着地 + 有給残日数）→ カタカナ文字列
- * 付加情報 : 基準時間（勤務設定・日ごとの変更）、社員番号、苗字、対象月の有給残日数（月初）
+ * QR      : バイナリ形式 v7（勤怠 + 交通費 + 付加情報 + 備考 + 交通費の行先・出発地・到着地 + 有給残日数 + 作業報告書）
+ * カナコード: コンパクトバイナリ v6（勤怠 + 交通費 + 付加情報 + 備考 + 交通費の行先・出発地・到着地 + 有給残日数 + 作業報告書）→ カタカナ文字列
+ * 付加情報 : 基準時間（勤務設定・日ごとの変更）、社員番号、苗字、対象月の有給残日数（月初）、氏名
  */
 
 import type { AttendanceRecord, AttendanceType, WorkSettings } from '../types/attendance';
 import type { TransportRecord } from '../types/transport';
+import type { WeekReportData } from './pdf';
 import { generateId } from './storage';
+import { EMPTY_WEEK, WEEK_LABELS } from './workReport';
 
 // ── 型コード ───────────────────────────────────────────────────────────────────
 const TYPE_ENCODE: Partial<Record<AttendanceType, number>> = {
@@ -108,6 +110,15 @@ export interface TransferMeta {
   lastName?: string;
   // 対象月の月初の有給残日数（未設定なら undefined）
   paidLeaveDays?: number;
+  // 氏名（勤務表・交通費・作業報告書共通。作業報告書ブロックに含めて転送）
+  name?: string;
+}
+
+// 作業報告書（対象月の週ごとの内容と総括）
+export interface TransferWorkReport {
+  // 第一週〜第五週。転送されなかった週（未入力）は null
+  weeks: (WeekReportData | null)[];
+  summary: string;
 }
 
 const NO_TIME = 0xFFF;
@@ -166,6 +177,14 @@ class ByteReader {
   }
   text(): string {
     const len = this.u8();
+    this.need(len);
+    const s = new TextDecoder().decode(this.buf.slice(this.off, this.off + len));
+    this.off += len;
+    return s;
+  }
+  longText(): string {
+    const first = this.u8();
+    const len = first < 0x80 ? first : ((first & 0x7F) << 8) | this.u8();
     this.need(len);
     const s = new TextDecoder().decode(this.buf.slice(this.off, this.off + len));
     this.off += len;
@@ -270,13 +289,75 @@ function decodePaidLeave(r: ByteReader, meta: TransferMeta) {
   meta.paidLeaveDays = halfDays / 2;
 }
 
+// ── 作業報告書ブロック ───────────────────────────────────────────────────────
+// [name_len:1][氏名 UTF-8] [総括: 長文] [week_mask:1]（bit i = 第i+1週を含む）
+// + 含む週ごとに [condFirst:4][condSecond:4]（CONDITIONS の番号）
+//   + 長文 × 6（使用ツール・前半理由・後半理由・良かった点・悪かった点・備考）
+// 長文: 長さ 0〜127 は1バイト、128〜32767 は2バイト（先頭ビット=1）+ UTF-8
+const WR_CONDITIONS = ['', '◎', '○', '△', '×'];
+const WR_TEXT_FIELDS = ['tools', 'reasonFirst', 'reasonSecond', 'goodPoints', 'badPoints', 'notes'] as const;
+
+function pushLongText(out: number[], text?: string) {
+  const enc = new TextEncoder();
+  let s = text ?? '';
+  while (enc.encode(s).length > 0x7FFF) s = s.slice(0, -1);
+  const bytes = enc.encode(s);
+  if (bytes.length < 0x80) out.push(bytes.length);
+  else out.push(0x80 | (bytes.length >> 8), bytes.length & 0xFF);
+  for (const b of bytes) out.push(b);
+}
+
+function isEmptyWeek(w: WeekReportData): boolean {
+  return (Object.keys(EMPTY_WEEK) as (keyof WeekReportData)[]).every((k) => (w[k] ?? '') === EMPTY_WEEK[k]);
+}
+
+function encodeWorkReport(meta: TransferMeta, report?: TransferWorkReport): number[] {
+  const out: number[] = [];
+  pushText(out, meta.name);
+  pushLongText(out, report?.summary);
+  const weeks = WEEK_LABELS.map((_, i) => report?.weeks[i] ?? null);
+  const included = weeks.map((w) => !!w && !isEmptyWeek(w));
+  out.push(included.reduce((mask, inc, i) => (inc ? mask | (1 << i) : mask), 0));
+  weeks.forEach((w, i) => {
+    if (!w || !included[i]) return;
+    const c1 = Math.max(WR_CONDITIONS.indexOf(w.conditionFirst), 0);
+    const c2 = Math.max(WR_CONDITIONS.indexOf(w.conditionSecond), 0);
+    out.push((c1 << 4) | c2);
+    for (const f of WR_TEXT_FIELDS) pushLongText(out, w[f]);
+  });
+  return out;
+}
+
+function decodeWorkReport(r: ByteReader, meta: TransferMeta): TransferWorkReport | undefined {
+  const name = r.text();
+  if (name) meta.name = name;
+  const summary = r.longText();
+  const mask = r.u8();
+  const weeks: (WeekReportData | null)[] = WEEK_LABELS.map(() => null);
+  for (let i = 0; i < WEEK_LABELS.length; i++) {
+    if (!(mask & (1 << i))) continue;
+    const c = r.u8();
+    const w: WeekReportData = {
+      ...EMPTY_WEEK,
+      conditionFirst: WR_CONDITIONS[c >> 4] ?? '',
+      conditionSecond: WR_CONDITIONS[c & 0xF] ?? '',
+    };
+    for (const f of WR_TEXT_FIELDS) w[f] = r.longText();
+    weeks[i] = w;
+  }
+  if (mask === 0 && summary === '') return undefined;
+  return { weeks, summary };
+}
+
 // ── 月ごとバイナリ encode / decode ─────────────────────────────────────────────
 // ヘッダー: [ver:1][year_hi:1][year_lo:1][month:1][count:1] = 5 bytes
 // ver 1: レコードのみ / ver 2: レコード + 付加情報 / ver 3: レコード + 付加情報 + 備考
 // ver 4: ver 3 + 交通費ブロック [trp_count:1] + trp_count × 4 bytes + 交通費の備考 + 行先・出発地・到着地
 // ver 5: ver 4 + 有給残日数ブロック
+// ver 6: ver 5 + 作業報告書ブロック
 export function encodeMonth(
   records: AttendanceRecord[], transportRecords: TransportRecord[], year: number, month: number, meta: TransferMeta = {},
+  workReport?: TransferWorkReport,
 ): Uint8Array {
   const prefix = `${year}-${String(month).padStart(2,'0')}`;
   const recs = records
@@ -291,10 +372,10 @@ export function encodeMonth(
   const metaBytes = [
     ...encodeMeta(recs, meta), ...encodeNotes(recs),
     ...trpBytes, ...encodeNotes(trpRecs), ...encodeRouteTexts(trpRecs),
-    ...encodePaidLeave(meta),
+    ...encodePaidLeave(meta), ...encodeWorkReport(meta, workReport),
   ];
   const buf = new Uint8Array(5 + recs.length * 6 + metaBytes.length);
-  buf[0] = 5; buf[1] = year >> 8; buf[2] = year & 0xFF; buf[3] = month; buf[4] = recs.length;
+  buf[0] = 6; buf[1] = year >> 8; buf[2] = year & 0xFF; buf[3] = month; buf[4] = recs.length;
   recs.forEach((r, i) => buf.set(packRecord(r), 5 + i * 6));
   buf.set(metaBytes, 5 + recs.length * 6);
   return buf;
@@ -302,10 +383,11 @@ export function encodeMonth(
 
 export function decodeMonth(buf: Uint8Array): {
   records: AttendanceRecord[]; transportRecords: TransportRecord[]; year: number; month: number; meta?: TransferMeta;
+  workReport?: TransferWorkReport;
 } | null {
   try {
     const ver = buf[0];
-    if (buf.length < 5 || ver < 1 || ver > 5) return null;
+    if (buf.length < 5 || ver < 1 || ver > 6) return null;
     const year  = (buf[1] << 8) | buf[2];
     const month = buf[3];
     const count = buf[4];
@@ -327,7 +409,8 @@ export function decodeMonth(buf: Uint8Array): {
       decodeRouteTexts(reader, transportRecords);
     }
     if (ver >= 5) decodePaidLeave(reader, meta);
-    return { records, transportRecords, year, month, meta };
+    const workReport = ver >= 6 ? decodeWorkReport(reader, meta) : undefined;
+    return { records, transportRecords, year, month, meta, workReport };
   } catch { return null; }
 }
 
@@ -378,22 +461,26 @@ function unpackTransport(buf: Uint8Array, off: number, year: number, month: numb
 // 備考: ver 4 以降（勤怠の備考 → 交通費の備考の順に備考ブロックを2つ）
 // 交通費の行先・出発地・到着地: ver 5 以降
 // 有給残日数: ver 6 以降
+// 作業報告書（氏名を含む）: ver 7 以降
 //
 // 旧 JSON 形式 (v1) との後方互換: decodeQR が両方を自動判別
 const QR2_PREFIX = 'QR2:';
 
-export function encodeQR(att: AttendanceRecord[], trp: TransportRecord[], year: number, month: number, meta: TransferMeta = {}): string {
+export function encodeQR(
+  att: AttendanceRecord[], trp: TransportRecord[], year: number, month: number, meta: TransferMeta = {},
+  workReport?: TransferWorkReport,
+): string {
   const prefix = `${year}-${String(month).padStart(2, '0')}`;
   const attRecs = att.filter(r => r.date.startsWith(prefix)).sort((a, b) => a.date.localeCompare(b.date));
   const trpRecs = trp.filter(r => r.date.startsWith(prefix)).sort((a, b) => a.date.localeCompare(b.date));
 
   const metaBytes = [
     ...encodeMeta(attRecs, meta), ...encodeNotes(attRecs), ...encodeNotes(trpRecs), ...encodeRouteTexts(trpRecs),
-    ...encodePaidLeave(meta),
+    ...encodePaidLeave(meta), ...encodeWorkReport(meta, workReport),
   ];
   const dataLen = 7 + attRecs.length * 6 + trpRecs.length * 4;
   const buf = new Uint8Array(dataLen + metaBytes.length);
-  buf[0] = 6;                              // version
+  buf[0] = 7;                            // version
   buf[1] = year >> 8; buf[2] = year & 0xFF;
   buf[3] = month;
   buf[4] = attRecs.length;
@@ -408,7 +495,10 @@ export function encodeQR(att: AttendanceRecord[], trp: TransportRecord[], year: 
   return QR2_PREFIX + btoa(binary);
 }
 
-export function decodeQR(text: string): { att: AttendanceRecord[]; trp: TransportRecord[]; year: number; month: number; meta?: TransferMeta } | null {
+export function decodeQR(text: string): {
+  att: AttendanceRecord[]; trp: TransportRecord[]; year: number; month: number; meta?: TransferMeta;
+  workReport?: TransferWorkReport;
+} | null {
   // ── v2 バイナリ形式 ──
   if (text.startsWith(QR2_PREFIX)) {
     try {
@@ -416,7 +506,7 @@ export function decodeQR(text: string): { att: AttendanceRecord[]; trp: Transpor
       const buf = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) buf[i] = binary.charCodeAt(i);
       const ver = buf[0];
-      if (buf.length < 7 || ver < 2 || ver > 6) return null;
+      if (buf.length < 7 || ver < 2 || ver > 7) return null;
       const year   = (buf[1] << 8) | buf[2];
       const month  = buf[3];
       const attCnt = buf[4];
@@ -435,7 +525,8 @@ export function decodeQR(text: string): { att: AttendanceRecord[]; trp: Transpor
       }
       if (ver >= 5) decodeRouteTexts(reader, trp);
       if (ver >= 6) decodePaidLeave(reader, meta);
-      return { att, trp, year, month, meta };
+      const workReport = ver >= 7 ? decodeWorkReport(reader, meta) : undefined;
+      return { att, trp, year, month, meta, workReport };
     } catch { return null; }
   }
 

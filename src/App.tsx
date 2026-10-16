@@ -15,6 +15,7 @@ import CSVImport from './components/CSVImport';
 import TransferTab from './components/TransferTab';
 import TimeSelect from './components/TimeSelect';
 import type { TransferMeta } from './utils/transfer';
+import { saveName } from './utils/workReport';
 import WorkSettingsForm from './components/WorkSettingsForm';
 import TransportTab from './components/TransportTab';
 import ApplicationDocumentsTab from './components/ApplicationDocumentsTab';
@@ -160,7 +161,7 @@ export default function App() {
     setTab('list');
   }
 
-  // QR / カナコードで受け取った基準時間・社員番号・苗字を反映（含まれている項目のみ上書き）
+  // QR / カナコードで受け取った基準時間・社員番号・苗字・氏名を反映（含まれている項目のみ上書き）
   function handleImportMeta(meta: TransferMeta, year: number, month: number) {
     // 有給残日数は転送元の対象月の設定として保存する
     if (meta.paidLeaveDays !== undefined) {
@@ -168,6 +169,7 @@ export default function App() {
       handleSavePaidLeave([...paidLeave.filter((s) => s !== existing), { year, month, totalDays: meta.paidLeaveDays }]);
     }
     if (meta.workSettings) handleSaveWorkSettings({ ...workSettings, ...meta.workSettings });
+    if (meta.name) saveName(meta.name);
     if (meta.employeeId || meta.lastName) {
       const next = {
         ...userProfile,

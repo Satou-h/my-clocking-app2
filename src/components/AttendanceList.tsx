@@ -9,6 +9,7 @@ import {
 import { printMonthlyAttendancePDF } from '../utils/attendancePdf';
 import { getHolidayName } from '../utils/holidays';
 import { checkMonthCompleteness, formatCompletenessIssue } from '../utils/completeness';
+import { loadName, saveName } from '../utils/workReport';
 
 interface Props {
   records: AttendanceRecord[];
@@ -30,6 +31,13 @@ type DayRow =
 export default function AttendanceList({ records, workSettings, paidLeaveSettings, filterYear, filterMonth, onFilterChange, onEdit, onDelete, onSavePaidLeave }: Props) {
   const currentYear = new Date().getFullYear();
   const [plInput, setPlInput] = useState('');
+  const [name, setName] = useState(loadName);
+
+  // 氏名は作業報告書・交通費と共通で保存する
+  function handleNameChange(value: string) {
+    setName(value);
+    saveName(value);
+  }
 
   const prefix = `${filterYear}-${String(filterMonth).padStart(2, '0')}`;
 
@@ -152,17 +160,26 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
         <select value={filterMonth} onChange={(e) => onFilterChange(filterYear, Number(e.target.value))}>
           {months.map((m) => <option key={m} value={m}>{m}月</option>)}
         </select>
+        <input
+          className="list-filter-name"
+          type="text"
+          value={name}
+          onChange={(e) => handleNameChange(e.target.value)}
+          placeholder="氏名"
+          aria-label="氏名"
+        />
         <button
           className="btn btn-pdf"
           onClick={() => {
             const p = loadUserProfile();
             if (!p.employeeId || !p.lastName) { alert('画面上部に社員番号と苗字を入力してください。'); return; }
+            if (!name.trim()) { alert('氏名を入力してください。'); return; }
             const completeness = checkMonthCompleteness(filterYear, filterMonth, records, [], [], [], workSettings);
             if (!completeness.attendance.complete) {
               alert(formatCompletenessIssue('勤務表', completeness.attendance));
               return;
             }
-            printMonthlyAttendancePDF(records, workSettings, filterYear, filterMonth, plRemaining, p.employeeId, p.lastName)
+            printMonthlyAttendancePDF(records, workSettings, filterYear, filterMonth, plRemaining, p.employeeId, p.lastName, name)
               .catch((err: Error) => alert('PDF生成エラー: ' + err.message));
           }}
           title={`${filterYear}年${filterMonth}月をPDF出力`}

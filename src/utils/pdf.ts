@@ -1031,6 +1031,7 @@ export function printTransportRecords(
   month: number,
   employeeId = '',
   lastName = '',
+  name = '',
 ) {
   const prefix = `${year}-${String(month).padStart(2, '0')}`;
   const filtered = records
@@ -1092,6 +1093,7 @@ export function printTransportRecords(
     margin-bottom: 5px;
   }
   .report-title { font-size: 13px; font-weight: 700; color: #2d6cdf; }
+  .report-name  { font-size: 11px; font-weight: 600; color: #1a1a2e; margin-top: 4px; }
   .header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
   .sign-row { display: flex; gap: 14px; }
   .sign-item { display: flex; flex-direction: column; align-items: center; }
@@ -1190,7 +1192,10 @@ export function printTransportRecords(
 <button class="print-btn" onclick="window.print()">印刷 / PDF保存</button>
 
 <div class="report-header">
-  <div class="report-title">${year}年${month}月　交通費一覧</div>
+  <div>
+    <div class="report-title">${year}年${month}月　交通費一覧</div>
+    ${name ? `<div class="report-name">氏名: ${name}</div>` : ''}
+  </div>
   <div class="header-right">
     <div class="sign-row">
       <div class="sign-item"><div class="sign-label">検印</div><div class="sign-box"></div></div>

@@ -95,6 +95,7 @@ export async function printMonthlyAttendancePDF(
   plRemaining: number | null = null,
   employeeId = '',
   lastName = '',
+  name = '',
 ): Promise<void> {
   const fontBytes = await loadFont();
   const pdfDoc = await PDFDocument.create();
@@ -193,6 +194,12 @@ export async function printMonthlyAttendancePDF(
   const dateLabel = `出力日: ${new Date().toLocaleDateString('ja-JP')}`;
   const dateLW = font.widthOfTextAtSize(dateLabel, META_SZ);
   page.drawText(dateLabel, { x: M + cW - dateLW, y: Y - META_SZ, size: META_SZ, font, color: GRAY_TXT });
+  if (name) {
+    const NAME_SZ = 10;
+    const nameLabel = `氏名: ${name}`;
+    const nameLW = font.widthOfTextAtSize(nameLabel, NAME_SZ);
+    page.drawText(nameLabel, { x: M + cW - nameLW, y: Y - TITLE_SZ - 3 - META_SZ, size: NAME_SZ, font, color: DARK_TXT });
+  }
   Y -= TITLE_SZ + META_SZ + 7;
   page.drawLine({ start: { x: M, y: Y }, end: { x: M + cW, y: Y }, color: TITLE_BLUE, thickness: 1 });
   Y -= 5;
