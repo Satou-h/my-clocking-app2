@@ -746,8 +746,13 @@ export function printWorkReport(
     color: #1a1a1a;
     background: #fff;
     padding: 6mm 8mm 4mm;
+    width: 281mm;
     max-width: 281mm;
     margin: 0 auto;
+    /* ページ全体に均等に表示 */
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
   }
 
   /* フォーム番号 */
@@ -817,6 +822,8 @@ export function printWorkReport(
     border-collapse: collapse;
     font-size: 8pt;
     table-layout: fixed;
+    flex: 1;        /* 余白を埋めるよう縦に伸びる */
+    min-height: 0;
   }
   table.main th, table.main td {
     border: 1px solid #888;
@@ -901,6 +908,11 @@ export function printWorkReport(
   .td-bad  { width: 19%; }
   .td-other { width: 19%; }
 
+  /* tbody 各行（前半/後半の 2行で1週 → 10行で5週）均等に高さを割り当て */
+  table.main tbody tr { height: 12mm; }
+  /* 総括欄はやや高め */
+  table.main tfoot tr:first-child { height: 26mm; }
+
   /* 総括欄行 */
   .td-sum-label {
     background: #e8e8e8;
@@ -950,14 +962,12 @@ export function printWorkReport(
   @page { size: A4 landscape; margin: 8mm; }
   @media print {
     .print-btn { display: none; }
-    body { width: 281mm; max-width: 281mm; margin: 0 auto; }
+    body { width: 281mm; max-width: 281mm; margin: 0 auto; height: 100vh; }
   }
 </style>
 </head>
 <body>
 <button class="print-btn" onclick="window.print()">印刷 / PDF保存</button>
-
-<div class="form-no">様式1-2-26.1</div>
 
 <div class="doc-header">
   <div class="meta-boxes">
