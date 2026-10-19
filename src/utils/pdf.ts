@@ -1,4 +1,4 @@
-﻿import html2canvas from 'html2canvas';
+import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import type { AttendanceRecord, WorkSettings } from '../types/attendance';
 import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
@@ -17,7 +17,19 @@ function buildFilename(prefix: string, dateStr: string, employeeId: string, last
   return `${prefix}${dateStr}${userPart}`;
 }
 
-async function htmlToPdf(html: string, landscape: boolean, filename: string): Promise<void> {
+// 勤務表(attendancePdf.ts)と同じ同梱フォント
+const NOTO_SANS_JP = 'NotoSansJP';
+let notoSansJpLoad: Promise<void> | null = null;
+function loadNotoSansJp(): Promise<void> {
+  notoSansJpLoad ??= new FontFace(NOTO_SANS_JP, `url(${import.meta.env.BASE_URL}fonts/NotoSansJP-Regular.ttf)`)
+    .load()
+    .then((face) => { document.fonts.add(face); });
+  return notoSansJpLoad;
+}
+
+async function htmlToPdf(html: string, landscape: boolean, filename: string, useNotoSansJp = false): Promise<void> {
+  // html2canvas は描画時点で読み込み済みのフォントしか使えないため、先に読み込む
+  if (useNotoSansJp) await loadNotoSansJp();
   const viewportW = landscape ? 1300 : 900;
   const parsed = new DOMParser().parseFromString(html, 'text/html');
 
@@ -86,8 +98,8 @@ async function htmlToPdf(html: string, landscape: boolean, filename: string): Pr
   }
 }
 
-function openPrintWindow(html: string, landscape = false, filename = 'document.pdf'): void {
-  htmlToPdf(html, landscape, filename).catch(err =>
+function openPrintWindow(html: string, landscape = false, filename = 'document.pdf', useNotoSansJp = false): void {
+  htmlToPdf(html, landscape, filename, useNotoSansJp).catch(err =>
     alert('PDF生成エラー: ' + (err instanceof Error ? err.message : String(err)))
   );
 }
@@ -749,8 +761,8 @@ export function printWorkReport(
     width: 281mm;
     max-width: 281mm;
     margin: 0 auto;
-    /* ページ全体に均等に表示 */
-    height: 100vh;
+    /* A4横(1300px幅換算)の高さに固定し、表を全体に均等に広げる */
+    height: 918px;
     display: flex;
     flex-direction: column;
   }
@@ -962,7 +974,7 @@ export function printWorkReport(
   @page { size: A4 landscape; margin: 8mm; }
   @media print {
     .print-btn { display: none; }
-    body { width: 281mm; max-width: 281mm; margin: 0 auto; height: 100vh; }
+    body { width: 281mm; max-width: 281mm; margin: 0 auto; }
   }
 </style>
 </head>
@@ -1086,12 +1098,14 @@ export function printTransportRecords(
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', 'Meiryo', sans-serif;
-    font-size: 9px;
+    /* 勤務表と同じ同梱フォント(Regularのみ)。太字は使わない */
+    font-family: '${NOTO_SANS_JP}', sans-serif;
+    /* 900px を A4縦幅(595pt)に縮めて貼るため、勤務表の pt × 約1.51 を px で指定 */
+    font-size: 10.5px;
     color: #1a1a2e;
     background: #fff;
-    max-width: 190mm;
-    margin: 0 auto;
+    /* 画像化して A4 幅(900px)に貼るため、勤務表と同じ約8mm相当の余白を px で確保 */
+    padding: 34px 34px 0;
   }
 
   .report-header {
@@ -1102,18 +1116,18 @@ export function printTransportRecords(
     padding-bottom: 4px;
     margin-bottom: 5px;
   }
-  .report-title { font-size: 13px; font-weight: 700; color: #2d6cdf; }
+  .report-title { font-size: 19.5px; font-weight: 400; color: #2d6cdf; }
   .name-box {
     display: inline-flex;
     margin-top: 4px;
     border: 1px solid #dde1ee;
-    font-size: 11px;
+    font-size: 15px;
   }
   .name-box-label {
     background: #f1f3f9;
     color: #636e72;
-    font-size: 8.5px;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 400;
     padding: 3px 8px;
     border-right: 1px solid #dde1ee;
     display: flex;
@@ -1122,25 +1136,25 @@ export function printTransportRecords(
   .name-box-value {
     min-width: 130px;
     padding: 3px 10px;
-    font-weight: 600;
+    font-weight: 400;
     color: #1a1a2e;
   }
   .header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
   .sign-row { display: flex; gap: 14px; }
   .sign-item { display: flex; flex-direction: column; align-items: center; }
-  .sign-label { font-size: 7.5px; color: #666; margin-bottom: 3px; }
+  .sign-label { font-size: 10.5px; color: #666; margin-bottom: 3px; }
   .sign-box { width: 70px; height: 32px; border-bottom: 1.5px solid #555; display: block; }
 
   .summary {
     width: 100%;
     border-collapse: collapse;
     margin-bottom: 5px;
-    font-size: 8.5px;
   }
   .summary th {
     background: #f1f3f9;
     color: #636e72;
-    font-weight: 600;
+    font-size: 10.5px;
+    font-weight: 400;
     padding: 2px 6px;
     border: 1px solid #dde1ee;
     text-align: center;
@@ -1150,18 +1164,19 @@ export function printTransportRecords(
     padding: 2px 6px;
     border: 1px solid #dde1ee;
     text-align: center;
-    font-weight: 700;
+    font-size: 12px;
+    font-weight: 400;
     white-space: nowrap;
   }
-  .summary td.total { color: #2d6cdf; font-size: 10px; }
+  .summary td.total { color: #2d6cdf; }
 
   table.detail { width: 100%; border-collapse: collapse; }
   table.detail th {
     background: #2d6cdf;
     color: #fff;
     padding: 3px 5px;
-    font-size: 8.5px;
-    font-weight: 600;
+    font-size: 10.5px;
+    font-weight: 400;
     text-align: center;
     white-space: nowrap;
     border: 1px solid #1a54c4;
@@ -1172,31 +1187,31 @@ export function printTransportRecords(
     border-right: 1px solid #eef0f5;
     vertical-align: middle;
     white-space: nowrap;
-    font-size: 9px;
+    font-size: 10.5px;
     text-align: center;
   }
   table.detail tr:nth-child(even) td { background: #f9faff; }
-  td.td-dest { text-align: left; font-weight: 600; }
-  td.td-amount { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
-  td.td-notes { text-align: left; white-space: normal; max-width: 100px; font-size: 8px; color: #636e72; }
+  td.td-dest { text-align: left; font-weight: 400; }
+  td.td-amount { text-align: right; font-weight: 400; font-variant-numeric: tabular-nums; }
+  td.td-notes { text-align: left; white-space: normal; max-width: 100px; font-size: 10px; color: #636e72; }
 
   .tr-total td {
     background: #f1f3f9 !important;
     border-top: 2px solid #dfe6e9;
-    font-weight: 700;
+    font-weight: 400;
   }
-  .td-total-label { text-align: right; color: #636e72; font-size: 8.5px; }
-  .td-total-amount { font-size: 11px; color: #2d6cdf; }
+  .td-total-label { text-align: right; color: #636e72; font-size: 10.5px; }
+  .td-total-amount { font-size: 12px; color: #2d6cdf; }
 
-  .dow-日 { color: #e53935; font-weight: 700; }
-  .dow-土 { color: #1e88e5; font-weight: 700; }
+  .dow-日 { color: #e53935; font-weight: 400; }
+  .dow-土 { color: #1e88e5; font-weight: 400; }
 
   .badge {
     display: inline-block;
     padding: 0 5px;
     border-radius: 8px;
-    font-size: 8px;
-    font-weight: 700;
+    font-size: 10.5px;
+    font-weight: 400;
     line-height: 1.6;
   }
   .badge-rt { background: #e3f2fd; color: #1565c0; }
@@ -1266,5 +1281,5 @@ export function printTransportRecords(
 </body>
 </html>`;
 
-  openPrintWindow(html, false, buildFilename('小口交通費', `${year}${String(month).padStart(2, '0')}`, employeeId, lastName) + '.pdf');
+  openPrintWindow(html, false, buildFilename('小口交通費', `${year}${String(month).padStart(2, '0')}`, employeeId, lastName) + '.pdf', true);
 }
