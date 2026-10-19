@@ -1082,6 +1082,12 @@ export function printTransportRecords(
       </tr>`;
   }).join('');
 
+  // 勤務表と同じく常に31行分の枠を確保する（31件を超える場合はそのまま）
+  const MAX_ROWS = 31;
+  const dataRowCount = filtered.length === 0 ? 1 : filtered.length;
+  const blankRows = '<tr class="tr-blank">' + '<td></td>'.repeat(7) + '</tr>';
+  const blankRowsHtml = blankRows.repeat(Math.max(0, MAX_ROWS - dataRowCount));
+
   const totalRow = filtered.length > 0 ? `
     <tr class="tr-total">
       <td colspan="5" class="td-total-label">合計 ${filtered.length}件</td>
@@ -1143,7 +1149,7 @@ export function printTransportRecords(
   .sign-row { display: flex; gap: 14px; }
   .sign-item { display: flex; flex-direction: column; align-items: center; }
   .sign-label { font-size: 10.5px; color: #666; margin-bottom: 3px; }
-  .sign-box { width: 70px; height: 32px; border-bottom: 1.5px solid #555; display: block; }
+  .sign-box { width: 140px; height: 32px; border-bottom: 1.5px solid #555; display: block; }
 
   .summary {
     width: 100%;
@@ -1191,6 +1197,10 @@ export function printTransportRecords(
     text-align: center;
   }
   table.detail tr:nth-child(even) td { background: #f9faff; }
+  /* 勤務表と紙面上の行高をそろえる（勤務表 22.08pt / 見出し 15pt を px 換算） */
+  table.detail thead tr { height: 23px; }
+  table.detail tbody tr { height: 33.4px; }
+  table.detail tfoot tr { height: 23px; }
   td.td-dest { text-align: left; font-weight: 400; }
   td.td-amount { text-align: right; font-weight: 400; font-variant-numeric: tabular-nums; }
   td.td-notes { text-align: left; white-space: normal; max-width: 100px; font-size: 10px; color: #636e72; }
@@ -1272,8 +1282,9 @@ export function printTransportRecords(
   </thead>
   <tbody>
     ${filtered.length === 0
-      ? '<tr><td colspan="7" style="text-align:center;padding:20px;color:#aaa;">データがありません</td></tr>'
+      ? '<tr><td colspan="7" style="text-align:center;color:#aaa;">データがありません</td></tr>'
       : rows}
+    ${blankRowsHtml}
   </tbody>
   ${totalRow ? `<tfoot>${totalRow}</tfoot>` : ''}
 </table>
