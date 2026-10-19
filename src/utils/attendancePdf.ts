@@ -191,15 +191,11 @@ export async function printMonthlyAttendancePDF(
     `基準: ${workSettings.standardStartTime}〜${workSettings.standardEndTime}　残業: 8h超過分　深夜: 22:00〜翌5:00`,
     { x: M, y: Y - TITLE_SZ - 3 - META_SZ, size: META_SZ, font, color: GRAY_TXT },
   );
-  const dateLabel = `出力日: ${new Date().toLocaleDateString('ja-JP')}`;
-  const dateLW = font.widthOfTextAtSize(dateLabel, META_SZ);
-  page.drawText(dateLabel, { x: M + cW - dateLW, y: Y - META_SZ, size: META_SZ, font, color: GRAY_TXT });
-  if (name) {
-    const NAME_SZ = 10;
-    const nameLabel = `氏名: ${name}`;
-    const nameLW = font.widthOfTextAtSize(nameLabel, NAME_SZ);
-    page.drawText(nameLabel, { x: M + cW - nameLW, y: Y - TITLE_SZ - 3 - META_SZ, size: NAME_SZ, font, color: DARK_TXT });
-  }
+  const NAME_SZ = 10; const NAME_BOX_H = 20; const NAME_LABEL_W = 34;
+  const nameValW = Math.max(100, font.widthOfTextAtSize(name, NAME_SZ) + 16);
+  const nameBoxX = M + cW - NAME_LABEL_W - nameValW;
+  cell(nameBoxX, Y, NAME_LABEL_W, NAME_BOX_H, '氏名', 8, GRAY_TXT, TH_BG);
+  cell(nameBoxX + NAME_LABEL_W, Y, nameValW, NAME_BOX_H, name, NAME_SZ, DARK_TXT);
   Y -= TITLE_SZ + META_SZ + 7;
   page.drawLine({ start: { x: M, y: Y }, end: { x: M + cW, y: Y }, color: TITLE_BLUE, thickness: 1 });
   Y -= 5;
@@ -224,7 +220,7 @@ export async function printMonthlyAttendancePDF(
   Y -= SUM_H + 4;
 
   // ── 3. Paid-leave table ───────────────────────────────────────────────────
-  const PL_COL = 100;
+  const PL_COL = sumW;
   cell(M, Y, PL_COL, SUM_H, '有給日数', 7, GRAY_TXT, TH_BG);
   cell(M + PL_COL, Y, PL_COL, SUM_H, '有給残日数', 7, GRAY_TXT, TH_BG);
   Y -= SUM_H;

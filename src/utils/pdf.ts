@@ -1103,13 +1103,33 @@ export function printTransportRecords(
     margin-bottom: 5px;
   }
   .report-title { font-size: 13px; font-weight: 700; color: #2d6cdf; }
-  .report-name  { font-size: 11px; font-weight: 600; color: #1a1a2e; margin-top: 4px; }
+  .name-box {
+    display: inline-flex;
+    margin-top: 4px;
+    border: 1px solid #dde1ee;
+    font-size: 11px;
+  }
+  .name-box-label {
+    background: #f1f3f9;
+    color: #636e72;
+    font-size: 8.5px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-right: 1px solid #dde1ee;
+    display: flex;
+    align-items: center;
+  }
+  .name-box-value {
+    min-width: 130px;
+    padding: 3px 10px;
+    font-weight: 600;
+    color: #1a1a2e;
+  }
   .header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
   .sign-row { display: flex; gap: 14px; }
   .sign-item { display: flex; flex-direction: column; align-items: center; }
   .sign-label { font-size: 7.5px; color: #666; margin-bottom: 3px; }
   .sign-box { width: 70px; height: 32px; border-bottom: 1.5px solid #555; display: block; }
-  .print-date   { font-size: 8px; color: #999; }
 
   .summary {
     width: 100%;
@@ -1204,14 +1224,13 @@ export function printTransportRecords(
 <div class="report-header">
   <div>
     <div class="report-title">${year}年${month}月　交通費一覧</div>
-    ${name ? `<div class="report-name">氏名: ${name}</div>` : ''}
+    <div class="name-box"><span class="name-box-label">氏名</span><span class="name-box-value">${name}</span></div>
   </div>
   <div class="header-right">
     <div class="sign-row">
       <div class="sign-item"><div class="sign-label">検印</div><div class="sign-box"></div></div>
       <div class="sign-item"><div class="sign-label">受領印</div><div class="sign-box"></div></div>
     </div>
-    <div class="print-date">出力日: ${new Date().toLocaleDateString('ja-JP')}</div>
   </div>
 </div>
 
