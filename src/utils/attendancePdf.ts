@@ -231,7 +231,10 @@ export async function printMonthlyAttendancePDF(
   Y -= SUM_H + 5;
 
   // ── 4. Detail table ───────────────────────────────────────────────────────
-  const DET_H = 13; const TH_H = 15; const SZ = 7;
+  const TH_H = 15; const SZ = 7;
+  // 月による変動を避けるため常に31行分で割り、ページ下端(余白M)まで埋める
+  const MAX_ROWS = 31;
+  const DET_H = (Y - TH_H - M) / MAX_ROWS;
 
   // Column widths: cols[0..9] fixed, cols[10] = remaining width
   const fixedCols = [60, 55, 42, 42, 42, 47, 47, 47, 42, 36];
