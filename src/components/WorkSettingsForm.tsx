@@ -52,7 +52,7 @@ export default function WorkSettingsForm({ settings, onClearAttendance, onClearT
 
       <div className="danger-zone">
         <h3>データ管理</h3>
-        <p className="hint">削除したデータは元に戻せません。操作前にCSVエクスポートでバックアップを取ることをお勧めします。</p>
+        <p className="hint">削除したデータは元に戻せません。</p>
         <div className="danger-actions">
           <div className="danger-item">
             <div className="danger-desc">
