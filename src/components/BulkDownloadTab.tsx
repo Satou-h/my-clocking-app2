@@ -6,7 +6,7 @@ import {
   loadUserProfile, calcPaidLeaveRemaining,
   loadLeaveApplications, loadLateEarlyApplications,
   loadSkillProfile, loadSkillEntries, loadCertifications, loadWorkHistory,
-  calcWorkMinutes, getEffectiveBreak, formatMinutes,
+  calcSiteWorkMinutes, getWorkLocation, formatMinutes,
 } from '../utils/storage';
 import { checkMonthCompleteness, fmtDateShort, type DocCompleteness } from '../utils/completeness';
 import { printMonthlyAttendancePDF } from '../utils/attendancePdf';
@@ -81,19 +81,22 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
     t === 'work' || t === 'am_leave' || t === 'pm_leave'
     || t === 'scheduled_holiday_work' || t === 'legal_holiday_work' || t === 'transfer_holiday_work';
   const monthPrefix = `${filterYear}-${String(filterMonth).padStart(2, '0')}`;
-  const totalWorkMins = records
-    .filter((r) => r.date.startsWith(monthPrefix))
-    .reduce((acc, r) => {
-      if (!isWorkType(r.type) || !r.clockIn || !r.clockOut) return acc;
-      if (r.isKishaDay) return acc; // 帰社日は現場勤務時間に含めない
-      const effBreak = getEffectiveBreak(r.type, r.clockIn, r.clockOut, r.breakMinutes ?? 0);
-      return acc + calcWorkMinutes(r.clockIn, r.clockOut, effBreak);
-    }, 0);
+  const monthWorkRecords = records.filter(
+    (r) => r.date.startsWith(monthPrefix) && isWorkType(r.type) && r.clockIn && r.clockOut,
+  );
+  // 帰社した時間は現場勤務時間に含めない
+  const totalWorkMins = monthWorkRecords.reduce((acc, r) => acc + calcSiteWorkMinutes(r), 0);
 
-  // 帰社日の件数（表示用）
-  const kishaDayCount = records.filter(
-    (r) => r.date.startsWith(monthPrefix) && r.isKishaDay && isWorkType(r.type) && r.clockIn && r.clockOut,
-  ).length;
+  // 帰社の件数（表示用）
+  const kishaDayCount = monthWorkRecords.filter((r) => getWorkLocation(r) === 'kisha').length;
+  const halfKishaCount = monthWorkRecords.filter((r) => {
+    const loc = getWorkLocation(r);
+    return loc === 'am_kisha' || loc === 'pm_kisha';
+  }).length;
+  const kishaSummary = [
+    kishaDayCount > 0 ? `終日帰社 ${kishaDayCount}日` : '',
+    halfKishaCount > 0 ? `午前/午後帰社 ${halfKishaCount}日` : '',
+  ].filter(Boolean).join('・');
 
   // 検算チェック（入力値がある場合のみ照合）
   const checkFilled = checkHours !== '' || checkMins !== '';
@@ -238,7 +241,7 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
           <p className="hint" style={{ marginBottom: 8 }}>
             現場（客先）システムで確認した月間総勤務時間を入力してください。
             システムの計算値と一致しない場合はダウンロードできません。未入力の場合はスキップされます。
-            ※ 帰社日フラグが立っている日は計算から除外されます。
+            ※ 勤務区分が帰社の日は、帰社した時間を計算から除外します（午前/午後帰社は切替時刻で按分）。
           </p>
           <div className="bulk-verify-row">
             <label className="bulk-verify-label">現場の総勤務時間</label>
@@ -265,8 +268,8 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
           <div className="bulk-verify-row">
             <label className="bulk-verify-label">システム計算値</label>
             <span className="bulk-verify-computed">{formatMinutes(totalWorkMins)}</span>
-            {kishaDayCount > 0 && (
-              <span className="hint" style={{ margin: 0, fontSize: 12 }}>（帰社日 {kishaDayCount}日 除外済み）</span>
+            {kishaSummary && (
+              <span className="hint" style={{ margin: 0, fontSize: 12 }}>（{kishaSummary} 除外済み）</span>
             )}
             <button
               type="button"

@@ -1,6 +1,16 @@
 export type AttendanceType = 'work' | 'paid_leave' | 'planned_paid_leave' | 'holiday' | 'absence' | 'am_leave' | 'pm_leave' | 'scheduled_holiday_work' | 'legal_holiday_work'
   | 'transfer_holiday_work' | 'transfer_holiday';
 
+// 勤務区分: 現場（客先）か自社への帰社か。午前帰社・午後帰社は切替時刻で現場と自社の時間を分ける
+export type WorkLocation = 'site' | 'kisha' | 'am_kisha' | 'pm_kisha';
+
+export const WORK_LOCATION_LABELS: Record<WorkLocation, string> = {
+  site: '現場',
+  kisha: '終日帰社',
+  am_kisha: '午前帰社',
+  pm_kisha: '午後帰社',
+};
+
 export interface AttendanceRecord {
   id: string;
   date: string;
@@ -13,7 +23,11 @@ export interface AttendanceRecord {
   customEndTime?: string;
   // 在宅勤務・徒歩圏内など、その日は交通費が発生しない場合に立てるフラグ
   noTransport?: boolean;
-  // 現場ではなく自社へ出社した日（検算の現場総勤務時間に含まない）
+  // 勤務区分（未設定は現場）。帰社した時間は検算の現場総勤務時間に含まない
+  workLocation?: WorkLocation;
+  // 午前帰社・午後帰社の場合の現場⇔自社の切替時刻（HH:MM）
+  kishaSwitchTime?: string;
+  // 旧形式の帰社日フラグ（workLocation 導入前のデータ。true は終日帰社として扱う）
   isKishaDay?: boolean;
   // 振替休日出勤の場合、代わりに休む振替休日の日付（YYYY-MM-DD）
   transferDate?: string;

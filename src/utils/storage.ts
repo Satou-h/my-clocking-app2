@@ -1,4 +1,4 @@
-import type { AttendanceRecord, PaidLeaveSettings, WorkSettings } from '../types/attendance';
+import type { AttendanceRecord, PaidLeaveSettings, WorkSettings, WorkLocation } from '../types/attendance';
 import { DEFAULT_WORK_SETTINGS } from '../types/attendance';
 import type { TransportRecord } from '../types/transport';
 import type { SkillEntry, Certification, SkillSheetProfile, WorkHistoryEntry } from '../types/skill';
@@ -266,6 +266,34 @@ export function getEffectiveBreak(type: string, clockIn: string, clockOut: strin
   if (end <= start) end += 1440;
   const lunchOverlap = Math.max(0, Math.min(end, 780) - Math.max(start, 720)); // 12:00-13:00
   return lunchOverlap > 0 ? Math.max(breakMinutes, 60) : breakMinutes;
+}
+
+export const DEFAULT_KISHA_SWITCH_TIME = '13:00';
+
+export function getWorkLocation(r: Pick<AttendanceRecord, 'workLocation' | 'isKishaDay'>): WorkLocation {
+  return r.workLocation ?? (r.isKishaDay ? 'kisha' : 'site');
+}
+
+// 現場（客先）での勤務時間。帰社した時間は含まない。
+// 午前帰社は「切替時刻〜退勤」、午後帰社は「出勤〜切替時刻」を現場とし、12:00-13:00 と重なる分は休憩として差し引く
+export function calcSiteWorkMinutes(r: AttendanceRecord): number {
+  if (!r.clockIn || !r.clockOut) return 0;
+  const effBreak = getEffectiveBreak(r.type, r.clockIn, r.clockOut, r.breakMinutes ?? 0);
+  const total = calcWorkMinutes(r.clockIn, r.clockOut, effBreak);
+  const loc = getWorkLocation(r);
+  if (loc === 'site') return total;
+  if (loc === 'kisha') return 0;
+
+  const start = timeToMins(r.clockIn);
+  let end = timeToMins(r.clockOut);
+  if (end <= start) end += 1440;
+  let sw = timeToMins(r.kishaSwitchTime || DEFAULT_KISHA_SWITCH_TIME);
+  if (sw < start) sw += 1440;
+  sw = Math.min(Math.max(sw, start), end);
+
+  const [segStart, segEnd] = loc === 'pm_kisha' ? [start, sw] : [sw, end];
+  const segBreak = Math.min(overlapMins(segStart, segEnd, 720, 780), effBreak);
+  return Math.max(0, Math.min(total, segEnd - segStart - segBreak));
 }
 
 export function calcOvertimeMinutes(workMinutes: number): number {

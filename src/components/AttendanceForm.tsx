@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import type { AttendanceRecord, AttendanceType, WorkSettings } from '../types/attendance';
-import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
+import type { AttendanceRecord, AttendanceType, WorkLocation, WorkSettings } from '../types/attendance';
+import { ATTENDANCE_TYPE_LABELS, WORK_LOCATION_LABELS } from '../types/attendance';
 import {
   generateId, calcWorkMinutes, calcOvertimeMinutes,
   calcLateNightMinutes, isLateArrival, isEarlyDeparture, formatMinutes, getEffectiveBreak,
+  getWorkLocation, calcSiteWorkMinutes, DEFAULT_KISHA_SWITCH_TIME,
 } from '../utils/storage';
 import { getHolidayName } from '../utils/holidays';
 import TimeSelect from './TimeSelect';
@@ -36,7 +37,8 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
   const [dateTo, setDateTo] = useState(existingRecord?.date ?? today());
   const [skipWeekends, setSkipWeekends] = useState(true);
   const [noTransport, setNoTransport]   = useState(existingRecord?.noTransport ?? false);
-  const [isKishaDay, setIsKishaDay]     = useState(existingRecord?.isKishaDay ?? false);
+  const [workLocation, setWorkLocation] = useState<WorkLocation>(existingRecord ? getWorkLocation(existingRecord) : 'site');
+  const [kishaSwitchTime, setKishaSwitchTime] = useState(existingRecord?.kishaSwitchTime ?? DEFAULT_KISHA_SWITCH_TIME);
   const [transferDate, setTransferDate] = useState(existingRecord?.transferDate ?? '');
 
   function buildDateRange(from: string, to: string): string[] {
@@ -64,6 +66,22 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
   const isTransferWork = type === 'transfer_holiday_work';
   const isHalfLeave = type === 'am_leave' || type === 'pm_leave';
   const canToggleNoTransport = needsTime && type !== 'absence';
+  const canSetLocation = needsTime && type !== 'absence';
+  const isHalfKisha = workLocation === 'am_kisha' || workLocation === 'pm_kisha';
+
+  // 勤務区分を変えたら備考の定型文も合わせる（手入力した備考は上書きしない）
+  const KISHA_NOTES: Record<WorkLocation, string> = { site: '', kisha: '帰社日', am_kisha: '午前帰社', pm_kisha: '午後帰社' };
+  function handleWorkLocationChange(loc: WorkLocation) {
+    setWorkLocation(loc);
+    if (!notes || Object.values(KISHA_NOTES).includes(notes)) setNotes(KISHA_NOTES[loc]);
+  }
+
+  const siteMins = canSetLocation && isHalfKisha && clockIn && clockOut
+    ? calcSiteWorkMinutes({
+        id: '', date, type, clockIn, clockOut,
+        breakMinutes: parseInt(breakMinutes) || 0, workLocation, kishaSwitchTime,
+      })
+    : null;
 
   const effectiveStart = (useCustomTime && customStartTime) ? customStartTime : workSettings.standardStartTime;
   const effectiveEnd = (useCustomTime && customEndTime) ? customEndTime : workSettings.standardEndTime;
@@ -140,8 +158,8 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
       customStartTime: useCustomTime && customStartTime ? customStartTime : undefined,
       customEndTime: useCustomTime && customEndTime ? customEndTime : undefined,
       noTransport: canToggleNoTransport ? noTransport : undefined,
-      isKishaDay: needsTime ? isKishaDay || undefined : undefined,
-      transferDate: isTransferWork ? transferDate : undefined,
+      workLocation: canSetLocation && workLocation !== 'site' ? workLocation : undefined,
+      kishaSwitchTime: canSetLocation && isHalfKisha ? kishaSwitchTime : undefined,      transferDate: isTransferWork ? transferDate : undefined,
     };
 
     // 振替休日出勤：代わりに取得する振替休日の日付が必須
@@ -294,25 +312,33 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
         </div>
       )}
 
-      {needsTime && (
+      {canSetLocation && (
         <div className="form-row">
-          <label style={{ width: 140 }} />
-          <label className="range-toggle">
-            <input
-              type="checkbox"
-              checked={isKishaDay}
-              onChange={(e) => {
-                setIsKishaDay(e.target.checked);
-                if (e.target.checked) {
-                  if (!notes) setNotes('帰社日');
-                } else {
-                  if (notes === '帰社日') setNotes('');
-                }
-              }}
-            />
-            帰社日（現場ではなく自社への出社）
-          </label>
+          <label>勤務区分</label>
+          <select value={workLocation} onChange={(e) => handleWorkLocationChange(e.target.value as WorkLocation)}>
+            {(Object.entries(WORK_LOCATION_LABELS) as [WorkLocation, string][]).map(([v, l]) => (
+              <option key={v} value={v}>{l}</option>
+            ))}
+          </select>
         </div>
+      )}
+      {canSetLocation && isHalfKisha && (
+        <div className="form-row">
+          <label>{workLocation === 'pm_kisha' ? '帰社時刻' : '現場到着時刻'}</label>
+          <TimeSelect value={kishaSwitchTime} onChange={setKishaSwitchTime} minuteStep={5} ariaLabel="現場と自社の切替時刻" />
+          {siteMins !== null && calc && (
+            <span className="range-count">現場 {formatMinutes(siteMins)} / 自社 {formatMinutes(calc.work - siteMins)}</span>
+          )}
+        </div>
+      )}
+      {canSetLocation && workLocation !== 'site' && (
+        <p className="form-hint">
+          {workLocation === 'kisha'
+            ? 'この日の勤務時間は検算（現場の総勤務時間）に含めません。'
+            : workLocation === 'pm_kisha'
+              ? '出勤〜帰社時刻を現場の勤務時間として検算に含めます（12:00-13:00は休憩として除外）。'
+              : '現場到着時刻〜退勤を現場の勤務時間として検算に含めます（12:00-13:00は休憩として除外）。'}
+        </p>
       )}
 
       {needsTime && (
