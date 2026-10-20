@@ -115,7 +115,7 @@ export default function WorkReportTab() {
   function handlePrint() {
     const { employeeId, lastName } = loadUserProfile();
     if (!employeeId || !lastName) {
-      alert('画面上部に社員番号と苗字を入力してください。');
+      alert('「設定」で社員番号と苗字を入力してください。');
       return;
     }
     printWorkReport(year, month, name, savedWeeks, employeeId, lastName, monthlySummary);

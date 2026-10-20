@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import type { AttendanceRecord, WorkSettings, PaidLeaveSettings } from '../types/attendance';
-import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
+import { ATTENDANCE_TYPE_LABELS, WORK_LOCATION_LABELS } from '../types/attendance';
 import {
   calcWorkMinutes, calcOvertimeMinutes, calcLateNightMinutes,
   isLateArrival, isEarlyDeparture, formatMinutes, loadUserProfile, getEffectiveBreak,
-  calcPaidLeaveMonthStatus, findPaidLeaveSetting,
+  calcPaidLeaveMonthStatus, findPaidLeaveSetting, getWorkLocation,
 } from '../utils/storage';
+import { calcMonthlySummary, isWorkType } from '../utils/summary';
 import { printMonthlyAttendancePDF } from '../utils/attendancePdf';
 import { getHolidayName } from '../utils/holidays';
 import { checkMonthCompleteness, formatCompletenessIssue } from '../utils/completeness';
@@ -45,46 +46,29 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
     .filter((r) => r.date.startsWith(prefix))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  const isWorkType = (type: string) =>
-    type === 'work' || type === 'am_leave' || type === 'pm_leave'
-    || type === 'scheduled_holiday_work' || type === 'legal_holiday_work' || type === 'transfer_holiday_work';
+  const summary = calcMonthlySummary(records, workSettings, filterYear, filterMonth);
+  const paidDays = summary.paidDays;
 
-  // 月次集計（実際の登録レコードのみ）
-  const summary = filtered.reduce(
-    (acc, r) => {
-      if (!isWorkType(r.type) || !r.clockIn || !r.clockOut) return acc;
-      const effBreak = getEffectiveBreak(r.type, r.clockIn, r.clockOut, r.breakMinutes ?? 0);
-      const work = calcWorkMinutes(r.clockIn, r.clockOut, effBreak);
-      const ln = calcLateNightMinutes(r.clockIn, r.clockOut);
-      const refStart = r.customStartTime ?? workSettings.standardStartTime;
-      const refEnd = r.customEndTime ?? workSettings.standardEndTime;
-      const isHalf = r.type === 'am_leave' || r.type === 'pm_leave';
-      const late = !isHalf && isLateArrival(r.clockIn, refStart);
-      const early = !isHalf && isEarlyDeparture(r.clockOut, refEnd, r.clockIn);
-      // 所定休日出勤は全時間を残業に加算、法定休日出勤は専用集計
-      const ot = r.type === 'scheduled_holiday_work' ? work
-        : r.type === 'legal_holiday_work' ? 0
-        : calcOvertimeMinutes(work);
-      const legalHoliday = r.type === 'legal_holiday_work' ? work : 0;
-      return {
-        workDays: acc.workDays + (r.type === 'work' || r.type === 'transfer_holiday_work' ? 1 : 0),
-        scheduledHolidayDays: acc.scheduledHolidayDays + (r.type === 'scheduled_holiday_work' ? 1 : 0),
-        legalHolidayDays: acc.legalHolidayDays + (r.type === 'legal_holiday_work' ? 1 : 0),
-        workMins: acc.workMins + work,
-        overtimeMins: acc.overtimeMins + ot,
-        legalHolidayMins: acc.legalHolidayMins + legalHoliday,
-        lateNightMins: acc.lateNightMins + ln,
-        lateCount: acc.lateCount + (late ? 1 : 0),
-        earlyCount: acc.earlyCount + (early ? 1 : 0),
-      };
-    },
-    { workDays: 0, scheduledHolidayDays: 0, legalHolidayDays: 0, workMins: 0, overtimeMins: 0, legalHolidayMins: 0, lateNightMins: 0, lateCount: 0, earlyCount: 0 }
-  );
-  const paidDays = filtered.reduce((acc, r) => {
-    if (r.type === 'paid_leave' || r.type === 'planned_paid_leave') return acc + 1;
-    if (r.type === 'am_leave' || r.type === 'pm_leave') return acc + 0.5;
-    return acc;
-  }, 0);
+  // 1日分の表示用の値（表とスマホ用カードで共通）
+  function rowValues(r: AttendanceRecord) {
+    const hasTime = isWorkType(r.type) && r.clockIn && r.clockOut;
+    const effBreak = hasTime ? getEffectiveBreak(r.type, r.clockIn!, r.clockOut!, r.breakMinutes ?? 0) : 0;
+    const workMin = hasTime ? calcWorkMinutes(r.clockIn!, r.clockOut!, effBreak) : null;
+    const otMin = workMin !== null
+      ? r.type === 'scheduled_holiday_work' ? workMin
+        : r.type === 'legal_holiday_work' ? null
+        : calcOvertimeMinutes(workMin)
+      : null;
+    const legalHolidayMin = r.type === 'legal_holiday_work' && workMin !== null ? workMin : null;
+    const lnMin = hasTime ? calcLateNightMinutes(r.clockIn!, r.clockOut!) : null;
+    const refStart = r.customStartTime ?? workSettings.standardStartTime;
+    const refEnd = r.customEndTime ?? workSettings.standardEndTime;
+    const isHalf = r.type === 'am_leave' || r.type === 'pm_leave';
+    const late = hasTime && !isHalf ? isLateArrival(r.clockIn!, refStart) : false;
+    const early = hasTime && !isHalf ? isEarlyDeparture(r.clockOut!, refEnd, r.clockIn) : false;
+    const location = getWorkLocation(r);
+    return { effBreak, workMin, otMin, legalHolidayMin, lnMin, late, early, location };
+  }
 
   // 有給残日数（月度ごと。翌月へは繰り越さない）
   const plStatus = calcPaidLeaveMonthStatus(records, paidLeaveSettings, filterYear, filterMonth);
@@ -172,7 +156,7 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
           className="btn btn-pdf"
           onClick={() => {
             const p = loadUserProfile();
-            if (!p.employeeId || !p.lastName) { alert('画面上部に社員番号と苗字を入力してください。'); return; }
+            if (!p.employeeId || !p.lastName) { alert('「設定」で社員番号と苗字を入力してください。'); return; }
             if (!name.trim()) { alert('氏名を入力してください。'); return; }
             const completeness = checkMonthCompleteness(filterYear, filterMonth, records, [], [], [], workSettings);
             if (!completeness.attendance.complete) {
@@ -252,9 +236,9 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
           onKeyDown={(e) => e.key === 'Enter' && handleSavePaidLeave()}
         />
         <span className="paid-leave-inline-unit">日</span>
-        <button className="btn btn-primary" style={{ padding: '5px 14px', fontSize: '13px' }} onClick={handleSavePaidLeave}>設定</button>
+        <button className="btn btn-primary btn-sm" onClick={handleSavePaidLeave}>設定</button>
         {plMonthSetting && (
-          <button className="btn btn-secondary" style={{ padding: '5px 14px', fontSize: '13px' }} onClick={handleClearPaidLeave}
+          <button className="btn btn-secondary btn-sm" onClick={handleClearPaidLeave}
             title="当月の設定を削除します">
             解除
           </button>
@@ -324,23 +308,7 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
               }
 
               const r = row.record;
-              const hasTime = isWorkType(r.type) && r.clockIn && r.clockOut;
-              const rowEffBreak = hasTime ? getEffectiveBreak(r.type, r.clockIn!, r.clockOut!, r.breakMinutes ?? 0) : 0;
-              const workMin = hasTime
-                ? calcWorkMinutes(r.clockIn!, r.clockOut!, rowEffBreak)
-                : null;
-              const otMin = workMin !== null
-                ? r.type === 'scheduled_holiday_work' ? workMin
-                  : r.type === 'legal_holiday_work' ? null
-                  : calcOvertimeMinutes(workMin)
-                : null;
-              const legalHolidayMin = r.type === 'legal_holiday_work' && workMin !== null ? workMin : null;
-              const lnMin = hasTime ? calcLateNightMinutes(r.clockIn!, r.clockOut!) : null;
-              const rowRefStart = r.customStartTime ?? workSettings.standardStartTime;
-              const rowRefEnd = r.customEndTime ?? workSettings.standardEndTime;
-              const rowIsHalf = r.type === 'am_leave' || r.type === 'pm_leave';
-              const late = hasTime && !rowIsHalf ? isLateArrival(r.clockIn!, rowRefStart) : false;
-              const early = hasTime && !rowIsHalf ? isEarlyDeparture(r.clockOut!, rowRefEnd, r.clockIn) : false;
+              const { effBreak: rowEffBreak, workMin, otMin, legalHolidayMin, lnMin, late, early, location } = rowValues(r);
 
               return (
                 <tr key={r.id} className={`row-${r.type}`}>
@@ -352,6 +320,7 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
                     {r.type === 'transfer_holiday_work' && (
                       <span className="transfer-date-note">振替: {r.transferDate ? formatDay(r.transferDate) : '未設定'}</span>
                     )}
+                    {location !== 'site' && <span className="badge badge-kisha">{WORK_LOCATION_LABELS[location]}</span>}
                     {r.noTransport && <span className="badge badge-no-transport" title="交通費なし（在宅勤務・徒歩圏内など）">交通費なし</span>}
                   </td>
                   <td>{r.clockIn ?? '-'}</td>
@@ -384,6 +353,62 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
           </tbody>
         </table>
       </div>
+
+      {/* スマホ用: 1日1行のカード表示（表は横スクロールが必要になるため） */}
+      <ul className="day-cards">
+        {dayRows.map((row) => {
+          if (row.kind !== 'record') {
+            const d = new Date(row.date + 'T00:00:00');
+            return (
+              <li key={row.date} className={`day-card ${row.kind === 'off' ? 'is-off' : 'is-empty'}`}>
+                <DayHead date={d} />
+                <div className="day-card-body">
+                  {row.kind === 'off'
+                    ? <><span className="badge badge-holiday">休日</span> <span className="day-card-note">{row.label}</span></>
+                    : <span className="day-card-note">未入力</span>}
+                </div>
+              </li>
+            );
+          }
+          const r = row.record;
+          const v = rowValues(r);
+          return (
+            <li key={r.id} className={`day-card row-${r.type}`}>
+              <DayHead date={new Date(r.date + 'T00:00:00')} />
+              <button type="button" className="day-card-body day-card-button" onClick={() => onEdit(r)} aria-label={`${r.date} を編集`}>
+                <span className="day-card-tags">
+                  <span className={`badge badge-${r.type}`}>{ATTENDANCE_TYPE_LABELS[r.type]}</span>
+                  {v.location !== 'site' && <span className="badge badge-kisha">{WORK_LOCATION_LABELS[v.location]}</span>}
+                  {v.late && <span className="badge badge-late">遅刻</span>}
+                  {v.early && <span className="badge badge-early">早退</span>}
+                  {r.noTransport && <span className="badge badge-no-transport">交通費なし</span>}
+                </span>
+                <span className="day-card-time">
+                  {r.clockIn && r.clockOut ? `${r.clockIn} 〜 ${r.clockOut}` : ''}
+                  {r.notes && <span className="day-card-note"> {r.notes}</span>}
+                </span>
+              </button>
+              <div className="day-card-side">
+                <span className="day-card-work">{v.workMin !== null ? formatMinutes(v.workMin) : ''}</span>
+                {!!v.otMin && <span className="day-card-ot">残業 {formatMinutes(v.otMin)}</span>}
+                <button type="button" className="btn-icon btn-delete" onClick={() => confirmDelete(r.id, r.date)}>削除</button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+const DOW_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
+
+function DayHead({ date }: { date: Date }) {
+  const dow = date.getDay();
+  return (
+    <div className="day-card-date">
+      <span className="day-card-day">{date.getDate()}</span>
+      <span className={`dow-label ${dow === 0 ? 'dow-sun' : dow === 6 ? 'dow-sat' : ''}`}>{DOW_LABELS[dow]}</span>
     </div>
   );
 }

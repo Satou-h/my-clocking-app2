@@ -109,7 +109,7 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
 
   async function handleBulkDownload() {
     const p = loadUserProfile();
-    if (!p.employeeId || !p.lastName) { alert('画面上部に社員番号と苗字を入力してください。'); return; }
+    if (!p.employeeId || !p.lastName) { alert('「設定」で社員番号と苗字を入力してください。'); return; }
     if (!allComplete) return;
 
     setDownloading(true);
@@ -238,7 +238,7 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
           </span>
         </div>
         <div className="bulk-verify-body">
-          <p className="hint" style={{ marginBottom: 8 }}>
+          <p className="hint mb-8">
             現場（客先）システムで確認した月間総勤務時間を入力してください。
             システムの計算値と一致しない場合はダウンロードできません。未入力の場合はスキップされます。
             ※ 勤務区分が帰社の日は、帰社した時間を計算から除外します（午前/午後帰社は切替時刻で按分）。
@@ -269,7 +269,7 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
             <label className="bulk-verify-label">システム計算値</label>
             <span className="bulk-verify-computed">{formatMinutes(totalWorkMins)}</span>
             {kishaSummary && (
-              <span className="hint" style={{ margin: 0, fontSize: 12 }}>（{kishaSummary} 除外済み）</span>
+              <span className="hint hint-inline">（{kishaSummary} 除外済み）</span>
             )}
             <button
               type="button"

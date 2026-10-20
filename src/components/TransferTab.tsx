@@ -28,8 +28,8 @@ function TransferMetaPreview({ meta, month, apply, onApplyChange }: {
 }) {
   if (!meta || (!meta.workSettings && !meta.employeeId && !meta.lastName && meta.paidLeaveDays === undefined && !meta.name)) return null;
   return (
-    <div style={{ margin: '8px 0' }}>
-      <ul style={{ margin: '0 0 6px', paddingLeft: 20 }}>
+    <div className="my-8">
+      <ul className="bullet-list">
         {meta.workSettings && <li>基準時間: {meta.workSettings.standardStartTime} ～ {meta.workSettings.standardEndTime}</li>}
         {meta.employeeId && <li>社員番号: {meta.employeeId}</li>}
         {meta.lastName && <li>苗字: {meta.lastName}</li>}
@@ -54,8 +54,8 @@ function WorkReportPreview({ report, month, apply, onApplyChange }: {
     ...(report.summary.trim() ? ['総括'] : []),
   ];
   return (
-    <div style={{ margin: '8px 0' }}>
-      <ul style={{ margin: '0 0 6px', paddingLeft: 20 }}>
+    <div className="my-8">
+      <ul className="bullet-list">
         <li>作業報告書: {parts.join('・')}</li>
       </ul>
       <label className="range-toggle">
@@ -128,7 +128,7 @@ export default function TransferTab({
     } catch (e) {
       const tooBig = /too big|amount of data/i.test(String(e));
       setQrError(tooBig
-        ? 'データ量が多すぎてQRコードに収まりません。備考や作業報告書を短くするか、カナコードまたは「全データバックアップ」をご利用ください。'
+        ? 'データ量が多すぎてQRコードに収まりません。備考や作業報告書を短くするか、カナコードをご利用ください。'
         : 'QRコードの生成に失敗しました: ' + String(e));
     } finally {
       setQrGenerating(false);
@@ -237,7 +237,7 @@ export default function TransferTab({
 
       <div className="csv-section">
         <h4>エクスポート（QRコード生成）</h4>
-        <p className="hint">勤怠・交通費・作業報告書をQRコード画像に変換します。スマホでスキャンするか、スクリーンショットを保存してください。<br/>※ 勤怠・交通費の備考、交通費の行先・出発地・到着地も含まれます。データ量が多いとQRコードに収まらない場合があります。その場合はカナコードまたは「全データバックアップ」をご利用ください。</p>
+        <p className="hint">勤怠・交通費・作業報告書をQRコード画像に変換します。スマホでスキャンするか、スクリーンショットを保存してください。<br/>※ 勤怠・交通費の備考、交通費の行先・出発地・到着地も含まれます。データ量が多いとQRコードに収まらない場合があります。その場合はカナコードをご利用ください。</p>
         <button className="btn btn-secondary" onClick={handleQrGenerate} disabled={qrGenerating}>
           {qrGenerating ? '生成中…' : 'QRコードを生成'}
         </button>
@@ -252,7 +252,7 @@ export default function TransferTab({
       <div className="csv-section">
         <h4>インポート（QRコードをスキャン）</h4>
         <p className="hint">カメラでスキャン、または保存した画像ファイルを選択してください。</p>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div className="btn-row">
           <button className="btn btn-secondary"
             onClick={() => { setQrScanMode(s => s === 'camera' ? 'none' : 'camera'); setQrError(''); }}>
             {qrScanMode === 'camera' ? 'カメラを閉じる' : '📷 カメラでスキャン'}
@@ -260,14 +260,14 @@ export default function TransferTab({
           <button className="btn btn-secondary" onClick={() => qrFileRef.current?.click()}>
             🖼️ 画像ファイルを選択
           </button>
-          <input ref={qrFileRef} type="file" accept="image/*" style={{display:'none'}} onChange={handleQrImageFile} />
+          <input ref={qrFileRef} type="file" accept="image/*" className="is-hidden" onChange={handleQrImageFile} />
         </div>
         {qrScanMode === 'camera' && <QRScanner onDecode={handleQrDecoded} onClose={() => setQrScanMode('none')} />}
         {qrError && <div className="csv-errors"><strong>{qrError}</strong></div>}
         {qrImportAtt && qrImportInfo && (
           <div className="csv-preview">
             <strong>{qrImportInfo.year}年{qrImportInfo.month}月のデータを読み込みました</strong>
-            <ul style={{ margin: '8px 0', paddingLeft: 20 }}>
+            <ul className="bullet-list my-8">
               <li>勤怠レコード: {qrImportAtt.length}件</li>
               <li>交通費レコード: {qrImportTrp?.length ?? 0}件</li>
             </ul>
@@ -300,7 +300,7 @@ export default function TransferTab({
         {jumonStr && (
           <div className="jumon-display">
             <pre className="jumon-text">{jumonStr}</pre>
-            <button className="btn btn-secondary" style={{marginTop:8}}
+            <button className="btn btn-secondary mt-8"
               onClick={() => navigator.clipboard?.writeText(jumonStr.replace(/[　\n]/g,''))}>
               コピー
             </button>
@@ -327,7 +327,7 @@ export default function TransferTab({
         {jumonImportAtt && jumonImportInfo && (
           <div className="csv-preview">
             <strong>{jumonImportInfo.year}年{jumonImportInfo.month}月のデータを読み込みました（勤怠 {jumonImportAtt.length}件・交通費 {jumonImportTrp.length}件）</strong>
-            <table className="data-table preview-table" style={{marginTop:8}}>
+            <table className="data-table preview-table mt-8">
               <thead><tr><th>日付</th><th>種別</th><th>出勤</th><th>退勤</th><th>休憩</th><th>備考</th></tr></thead>
               <tbody>
                 {jumonImportAtt.slice(0, 8).map(r => (
@@ -341,13 +341,13 @@ export default function TransferTab({
                   </tr>
                 ))}
                 {jumonImportAtt.length > 8 && (
-                  <tr><td colSpan={6} style={{textAlign:'center',color:'#888'}}>…他 {jumonImportAtt.length - 8} 件</td></tr>
+                  <tr><td colSpan={6} className="td-more">…他 {jumonImportAtt.length - 8} 件</td></tr>
                 )}
               </tbody>
             </table>
             <TransferMetaPreview meta={jumonImportMeta} month={jumonImportInfo.month} apply={jumonApplyMeta} onApplyChange={setJumonApplyMeta} />
             <WorkReportPreview report={jumonImportReport} month={jumonImportInfo.month} apply={jumonApplyReport} onApplyChange={setJumonApplyReport} />
-            <div className="form-row" style={{marginTop:8}}>
+            <div className="form-row mt-8">
               <label>取り込み方式</label>
               <select value={jumonImportMode} onChange={e => setJumonImportMode(e.target.value as 'merge' | 'replace')}>
                 <option value="merge">マージ（取り込む日付のデータは上書き、他の日は残す）</option>
@@ -415,8 +415,8 @@ function QRScanner({ onDecode, onClose }: { onDecode: (text: string) => void; on
     <div className="qr-scanner">
       <p className="hint">カメラにQRコードをかざしてください</p>
       <video ref={videoRef} playsInline autoPlay muted className="qr-video" />
-      <canvas ref={canvasRef} style={{ display: 'none' }} />
-      <button className="btn btn-secondary" style={{ marginTop: 8 }} onClick={() => { stopCamera(); onClose(); }}>
+      <canvas ref={canvasRef} className="is-hidden" />
+      <button className="btn btn-secondary mt-8" onClick={() => { stopCamera(); onClose(); }}>
         キャンセル
       </button>
     </div>

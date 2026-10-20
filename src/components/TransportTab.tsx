@@ -246,7 +246,7 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
           className="btn btn-pdf"
           onClick={() => {
             const p = loadUserProfile();
-            if (!p.employeeId || !p.lastName) { alert('画面上部に社員番号と苗字を入力してください。'); return; }
+            if (!p.employeeId || !p.lastName) { alert('「設定」で社員番号と苗字を入力してください。'); return; }
             if (!name.trim()) { alert('氏名を入力してください。'); return; }
             const completeness = checkMonthCompleteness(
               filterYear, filterMonth, attendanceRecords, records, [], [], DEFAULT_WORK_SETTINGS,
@@ -270,8 +270,7 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
 
           {/* 日付（単一 or 範囲） */}
           {!editId && (
-            <div className="form-row">
-              <label style={{ width: 140 }} />
+            <div className="form-row form-row-check">
               <label className="range-toggle">
                 <input
                   type="checkbox"
@@ -327,8 +326,7 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
                   </span>
                 )}
               </div>
-              <div className="form-row">
-                <label style={{ width: 140 }} />
+              <div className="form-row form-row-check">
                 <label className="range-toggle">
                   <input
                     type="checkbox"
@@ -437,8 +435,8 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
           <p className="hint">当月の勤務日に同じ交通費をまとめて登録します。</p>
 
           {/* 勤務日チェックリスト */}
-          <div className="form-row" style={{ alignItems: 'flex-start' }}>
-            <label style={{ paddingTop: 4 }}>対象日</label>
+          <div className="form-row form-row-top">
+            <label>対象日</label>
             <div className="bulk-day-list">
               <label className="bulk-select-all">
                 <input
@@ -553,7 +551,7 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
           <tbody>
             {monthRecords.length === 0 ? (
               <tr>
-                <td colSpan={8} className="empty-message" style={{ padding: '32px 0' }}>
+                <td colSpan={8} className="empty-message">
                   この月の交通費はありません
                 </td>
               </tr>

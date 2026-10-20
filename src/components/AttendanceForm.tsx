@@ -221,15 +221,14 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
       <h2>{existingRecord ? '勤怠編集' : '勤怠入力'}</h2>
 
       <div className="quick-fill">
-        <span className="quick-fill-label">クイック入力：</span>
-        <button type="button" className="btn-quick" onClick={fillStandard}>定時</button>
+        <span className="quick-fill-label">クイック入力</span>
+        <button type="button" className="btn-quick" onClick={fillStandard}>定時 {workSettings.standardStartTime}〜{workSettings.standardEndTime}</button>
         <button type="button" className="btn-quick btn-quick-am" onClick={fillAmLeave}>午前休</button>
         <button type="button" className="btn-quick btn-quick-pm" onClick={fillPmLeave}>午後休</button>
       </div>
 
       {!existingRecord && (
-        <div className="form-row">
-          <label style={{ width: 140 }} />
+        <div className="form-row form-row-check">
           <label className="range-toggle">
             <input
               type="checkbox"
@@ -263,8 +262,7 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
               <span className="range-count">{rangeCount}日間</span>
             )}
           </div>
-          <div className="form-row">
-            <label style={{ width: 140 }} />
+          <div className="form-row form-row-check">
             <label className="range-toggle">
               <input
                 type="checkbox"
@@ -299,8 +297,7 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
       )}
 
       {canToggleNoTransport && (
-        <div className="form-row">
-          <label style={{ width: 140 }} />
+        <div className="form-row form-row-check">
           <label className="range-toggle">
             <input
               type="checkbox"
@@ -314,12 +311,21 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
 
       {canSetLocation && (
         <div className="form-row">
-          <label>勤務区分</label>
-          <select value={workLocation} onChange={(e) => handleWorkLocationChange(e.target.value as WorkLocation)}>
+          <label id="work-location-label">勤務区分</label>
+          <div className="segmented" role="radiogroup" aria-labelledby="work-location-label">
             {(Object.entries(WORK_LOCATION_LABELS) as [WorkLocation, string][]).map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
+              <button
+                key={v}
+                type="button"
+                role="radio"
+                aria-checked={workLocation === v}
+                className={`segmented-item ${workLocation === v ? 'active' : ''}`}
+                onClick={() => handleWorkLocationChange(v)}
+              >
+                {l}
+              </button>
             ))}
-          </select>
+          </div>
         </div>
       )}
       {canSetLocation && isHalfKisha && (

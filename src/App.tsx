@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { Fragment, useState, useCallback } from 'react';
 import type { AttendanceRecord, PaidLeaveSettings, WorkSettings } from './types/attendance';
 import type { TransportRecord } from './types/transport';
 import {
@@ -12,8 +12,10 @@ import {
 import AttendanceForm from './components/AttendanceForm';
 import AttendanceList from './components/AttendanceList';
 import TransferTab from './components/TransferTab';
-import TimeSelect from './components/TimeSelect';
+import MonthStatus from './components/MonthStatus';
+import Icon, { type IconName } from './components/Icon';
 import type { TransferMeta } from './utils/transfer';
+import { getSubmitStatus } from './utils/submitStatus';
 import { saveName } from './utils/workReport';
 import WorkSettingsForm from './components/WorkSettingsForm';
 import TransportTab from './components/TransportTab';
@@ -23,7 +25,36 @@ import SkillTab from './components/SkillTab';
 import BulkDownloadTab from './components/BulkDownloadTab';
 import './App.css';
 
-type Tab = 'input' | 'list' | 'transfer' | 'transport' | 'settings' | 'documents' | 'report' | 'skill' | 'bulk';
+type Tab = 'input' | 'list' | 'transfer' | 'transport' | 'settings' | 'documents' | 'report' | 'skill' | 'bulk'
+  // スマホの下タブ「提出」「その他」から開くメニュー画面
+  | 'menu-submit' | 'menu-more';
+
+type NavGroupId = 'daily' | 'submit' | 'more';
+
+// 使う流れ（毎日 → 月末 → たまに）でメニューを分ける
+const NAV_GROUPS: { id: NavGroupId; label: string; items: { key: Tab; label: string; icon: IconName; desc?: string }[] }[] = [
+  {
+    id: 'daily', label: '日々の入力', items: [
+      { key: 'input', label: '勤怠入力', icon: 'pen' },
+      { key: 'list', label: '勤怠一覧', icon: 'calendar' },
+      { key: 'transport', label: '交通費', icon: 'train' },
+    ],
+  },
+  {
+    id: 'submit', label: '月末の提出', items: [
+      { key: 'report', label: '作業報告', icon: 'report', desc: '週ごとの作業内容と月のまとめ' },
+      { key: 'documents', label: '申請書類', icon: 'form', desc: '休暇申請書・遅刻早退申請書' },
+      { key: 'skill', label: 'スキル表', icon: 'user', desc: 'スキル・資格・職務経歴' },
+      { key: 'bulk', label: '一括ダウンロード', icon: 'download', desc: '提出書類をまとめてPDF出力' },
+    ],
+  },
+  {
+    id: 'more', label: 'その他', items: [
+      { key: 'transfer', label: 'QR/カナコード', icon: 'qr', desc: '別の端末へデータを移す' },
+      { key: 'settings', label: '設定', icon: 'settings', desc: '社員情報・基準時間・テーマ・データ削除' },
+    ],
+  },
+];
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('input');
@@ -93,7 +124,7 @@ export default function App() {
     savePaidLeaveSettings(settings);
   }
 
-  // ヘッダーの基準時間は選択したその場で保存する
+  // 設定画面の基準時間は選択したその場で保存する
   function handleWorkTimeChange(key: 'standardStartTime' | 'standardEndTime', value: string) {
     if (!value) return;
     handleSaveWorkSettings({ ...workSettings, [key]: value });
@@ -196,86 +227,122 @@ export default function App() {
     setTab('transport');
   }
 
-  const tabs: { key: Tab; label: string }[] = [
-    { key: 'input', label: '勤怠入力' },
-    { key: 'list', label: '勤怠一覧' },
-    { key: 'transport', label: '交通費' },
-    { key: 'documents', label: '申請書類' },
-    { key: 'report', label: '作業報告' },
-    { key: 'skill', label: 'スキル表' },
-    { key: 'bulk', label: '一括ダウンロード' },
-    { key: 'transfer', label: 'QR/カナコード' },
-    { key: 'settings', label: '設定' },
+  function openTab(key: Tab) {
+    if (key !== 'input') setEditingRecord(undefined);
+    setTab(key);
+    window.scrollTo(0, 0);
+  }
+
+  // 月末に提出する書類の入力状況（今月分）。未対応の件数をメニューに表示する
+  const now = new Date();
+  const thisYear = now.getFullYear();
+  const thisMonth = now.getMonth() + 1;
+  const todayStr = `${thisYear}-${String(thisMonth).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const submitItems = getSubmitStatus(thisYear, thisMonth, records, transportRecords, workSettings, todayStr);
+  const pendingCount = submitItems.filter((i) => !i.done).length;
+
+  const profileMissing = !userProfile.employeeId.trim() || !userProfile.lastName.trim();
+  const groupOfTab = NAV_GROUPS.find((g) => g.items.some((i) => i.key === tab))?.id;
+
+  function renderMenuList(groupId: NavGroupId) {
+    const group = NAV_GROUPS.find((g) => g.id === groupId)!;
+    return (
+      <>
+        <h2 className="page-title">{group.label}</h2>
+        <nav className="menu-list" aria-label={group.label}>
+          {group.items.map((item) => (
+            <button key={item.key} type="button" className="menu-list-item" onClick={() => openTab(item.key)}>
+              <Icon name={item.icon} size={20} />
+              <span>
+                {item.label}
+                {item.desc && <span className="menu-list-desc">{item.desc}</span>}
+              </span>
+              <span className="menu-list-chevron"><Icon name="chevron" size={18} /></span>
+            </button>
+          ))}
+        </nav>
+      </>
+    );
+  }
+
+  const bottomItems: { key: Tab; label: string; icon: IconName; active: boolean; count?: number }[] = [
+    { key: 'input', label: '入力', icon: 'pen', active: tab === 'input' },
+    { key: 'list', label: '一覧', icon: 'calendar', active: tab === 'list' },
+    { key: 'transport', label: '交通費', icon: 'train', active: tab === 'transport' },
+    { key: 'menu-submit', label: '提出', icon: 'download', active: tab === 'menu-submit' || groupOfTab === 'submit', count: pendingCount },
+    { key: 'menu-more', label: 'その他', icon: 'more', active: tab === 'menu-more' || groupOfTab === 'more' },
   ];
 
   return (
     <div className="app">
       <header className="app-header">
-        <h1>勤怠管理</h1>
-        <div className="header-worktime">
-          <span className="header-profile-label">基準時間</span>
-          <TimeSelect
-            className="header-profile-input header-time-select"
-            value={workSettings.standardStartTime}
-            onChange={(v) => handleWorkTimeChange('standardStartTime', v)}
-            minuteStep={5}
-            ariaLabel="基準出勤時間"
-          />
-          <span className="header-time-sep">〜</span>
-          <TimeSelect
-            className="header-profile-input header-time-select"
-            value={workSettings.standardEndTime}
-            onChange={(v) => handleWorkTimeChange('standardEndTime', v)}
-            minuteStep={5}
-            ariaLabel="基準退勤時間"
-          />
+        <div className="app-brand">
+          <span className="app-logo"><Icon name="clock" size={16} /></span>
+          <h1>勤怠管理</h1>
         </div>
-        <div className="header-profile">
-          <label className="header-profile-label">社員番号</label>
-          <input
-            className="header-profile-input"
-            type="text"
-            value={userProfile.employeeId}
-            onChange={(e) => handleProfileChange('employeeId', e.target.value)}
-            placeholder="例: SS00"
-          />
-          <label className="header-profile-label">苗字</label>
-          <input
-            className="header-profile-input"
-            type="text"
-            value={userProfile.lastName}
-            onChange={(e) => handleProfileChange('lastName', e.target.value)}
-            placeholder="例: 佐藤"
-          />
-        </div>
+        <button type="button" className="header-user" onClick={() => openTab('settings')} aria-label="社員情報の設定">
+          {profileMissing
+            ? <span className="header-user-unset">社員情報 未設定</span>
+            : <span>{userProfile.employeeId} {userProfile.lastName}</span>}
+          <span className="header-avatar">{userProfile.lastName.trim().charAt(0) || <Icon name="user" size={16} />}</span>
+        </button>
       </header>
 
-      <nav className="tab-nav">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            className={`tab-btn ${tab === t.key ? 'active' : ''}`}
-            onClick={() => {
-              if (t.key !== 'input') setEditingRecord(undefined);
-              setTab(t.key);
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
-      </nav>
+      <div className="app-body">
+        <nav className="side-nav" aria-label="メインメニュー">
+          <div className="side-nav-inner">
+            {NAV_GROUPS.map((group) => (
+              <Fragment key={group.id}>
+                <div className="nav-group-label">{group.label}</div>
+                {group.items.map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    className={`nav-item ${tab === item.key ? 'active' : ''}`}
+                    aria-current={tab === item.key ? 'page' : undefined}
+                    onClick={() => openTab(item.key)}
+                  >
+                    <Icon name={item.icon} />
+                    {item.label}
+                    {item.key === 'bulk' && pendingCount > 0 && <span className="nav-count">{pendingCount}件</span>}
+                  </button>
+                ))}
+              </Fragment>
+            ))}
+          </div>
+        </nav>
 
       <main className="app-main">
+        {profileMissing && tab !== 'settings' && (
+          <div className="notice-banner" role="status">
+            <Icon name="alert" />
+            <span>社員番号・苗字が未設定です（PDFの出力に必要です）</span>
+            <button type="button" className="btn-link" onClick={() => openTab('settings')}>設定する</button>
+          </div>
+        )}
+        {tab === 'menu-submit' && renderMenuList('submit')}
+        {tab === 'menu-more' && renderMenuList('more')}
         {tab === 'input' && (
-          <AttendanceForm
-            key={editingRecord?.id ?? 'new'}
-            existingRecord={editingRecord}
-            records={records}
-            workSettings={workSettings}
-            onSave={handleSave}
-            onSaveMultiple={handleSaveMultiple}
-            onCancel={editingRecord ? () => { setEditingRecord(undefined); setTab('list'); } : undefined}
-          />
+          <div className="input-layout">
+            <AttendanceForm
+              key={editingRecord?.id ?? 'new'}
+              existingRecord={editingRecord}
+              records={records}
+              workSettings={workSettings}
+              onSave={handleSave}
+              onSaveMultiple={handleSaveMultiple}
+              onCancel={editingRecord ? () => { setEditingRecord(undefined); setTab('list'); } : undefined}
+            />
+            <MonthStatus
+              year={thisYear}
+              month={thisMonth}
+              records={records}
+              workSettings={workSettings}
+              paidLeaveSettings={paidLeave}
+              submitItems={submitItems}
+              onOpenBulk={() => openTab('bulk')}
+            />
+          </div>
         )}
         {tab === 'list' && (
           <AttendanceList
@@ -331,12 +398,32 @@ export default function App() {
         {tab === 'settings' && (
           <WorkSettingsForm
             settings={workSettings}
+            userProfile={userProfile}
+            onProfileChange={handleProfileChange}
+            onWorkTimeChange={handleWorkTimeChange}
             onClearAttendance={handleClearAttendance}
             onClearTransport={handleClearTransport}
             onClearAll={handleClearAll}
           />
         )}
       </main>
+      </div>
+
+      <nav className="bottom-nav" aria-label="メインメニュー">
+        {bottomItems.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            className={`bottom-nav-item ${item.active ? 'active' : ''}`}
+            aria-current={item.active ? 'page' : undefined}
+            onClick={() => openTab(item.key)}
+          >
+            <Icon name={item.icon} size={22} />
+            {item.label}
+            {!!item.count && <span className="bottom-nav-count" aria-label={`未対応 ${item.count}件`}>{item.count}</span>}
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }

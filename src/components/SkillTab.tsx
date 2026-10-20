@@ -358,7 +358,7 @@ export default function SkillTab() {
               <label>役割</label>
               <input type="text" value={whForm.role} onChange={(e) => setWhForm((p) => ({ ...p, role: e.target.value }))} placeholder="PG" />
             </div>
-            <div className="form-row" style={{ flex: 2 }}>
+            <div className="form-row flex-2">
               <label>作業工程</label>
               <input type="text" value={whForm.workProcess} onChange={(e) => setWhForm((p) => ({ ...p, workProcess: e.target.value }))} placeholder="例: 製造、単体テスト、結合テスト" />
             </div>

@@ -1,21 +1,83 @@
+import { useState } from 'react';
 import type { WorkSettings } from '../types/attendance';
+import type { UserProfile } from '../utils/storage';
+import { loadTheme, saveTheme, type Theme } from '../utils/theme';
+import TimeSelect from './TimeSelect';
 
 interface Props {
   settings: WorkSettings;
+  userProfile: UserProfile;
+  onProfileChange: (key: 'employeeId' | 'lastName', value: string) => void;
+  onWorkTimeChange: (key: 'standardStartTime' | 'standardEndTime', value: string) => void;
   onClearAttendance: () => void;
   onClearTransport: () => void;
   onClearAll: () => void;
 }
 
-export default function WorkSettingsForm({ settings, onClearAttendance, onClearTransport, onClearAll }: Props) {
+const THEME_OPTIONS: { value: Theme; label: string }[] = [
+  { value: 'auto', label: '自動' },
+  { value: 'light', label: 'ライト' },
+  { value: 'dark', label: 'ダーク' },
+];
+
+export default function WorkSettingsForm({
+  settings, userProfile, onProfileChange, onWorkTimeChange, onClearAttendance, onClearTransport, onClearAll,
+}: Props) {
   const { standardStartTime: startTime, standardEndTime: endTime } = settings;
+  const [theme, setTheme] = useState<Theme>(loadTheme);
+
+  function handleThemeChange(next: Theme) {
+    setTheme(next);
+    saveTheme(next);
+  }
 
   return (
     <div className="work-settings-form">
-      <h2>勤務時間設定</h2>
-      <p className="hint">
-        基準出退勤時間は画面上部のヘッダーで変更できます。この時間を基準に遅刻・早退・残業・深夜時間を計算します。
-      </p>
+      <h2>設定</h2>
+
+      <h3>社員情報</h3>
+      <p className="hint">勤務表・交通費などのPDFに印字されます。</p>
+      <div className="form-row">
+        <label htmlFor="settings-employee-id">社員番号</label>
+        <input
+          id="settings-employee-id"
+          type="text"
+          value={userProfile.employeeId}
+          onChange={(e) => onProfileChange('employeeId', e.target.value)}
+          placeholder="例: SS00"
+        />
+      </div>
+      <div className="form-row">
+        <label htmlFor="settings-last-name">苗字</label>
+        <input
+          id="settings-last-name"
+          type="text"
+          value={userProfile.lastName}
+          onChange={(e) => onProfileChange('lastName', e.target.value)}
+          placeholder="例: 佐藤"
+        />
+      </div>
+
+      <h3>勤務時間</h3>
+      <p className="hint">この時間を基準に遅刻・早退・残業・深夜時間を計算します。</p>
+      <div className="form-row">
+        <label>基準時間</label>
+        <div className="time-range">
+          <TimeSelect
+            value={startTime}
+            onChange={(v) => onWorkTimeChange('standardStartTime', v)}
+            minuteStep={5}
+            ariaLabel="基準出勤時間"
+          />
+          <span>〜</span>
+          <TimeSelect
+            value={endTime}
+            onChange={(v) => onWorkTimeChange('standardEndTime', v)}
+            minuteStep={5}
+            ariaLabel="基準退勤時間"
+          />
+        </div>
+      </div>
 
       <div className="settings-info">
         <div className="info-grid">
@@ -47,6 +109,26 @@ export default function WorkSettingsForm({ settings, onClearAttendance, onClearT
           </div>
         </div>
       </div>
+
+      <h3>表示</h3>
+      <div className="form-row">
+        <label id="settings-theme-label">テーマ</label>
+        <div className="segmented" role="radiogroup" aria-labelledby="settings-theme-label">
+          {THEME_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              role="radio"
+              aria-checked={theme === opt.value}
+              className={`segmented-item ${theme === opt.value ? 'active' : ''}`}
+              onClick={() => handleThemeChange(opt.value)}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="form-hint">「自動」は端末のダークモード設定に合わせます。</p>
 
       <hr />
 

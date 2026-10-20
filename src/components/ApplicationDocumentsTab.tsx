@@ -163,7 +163,7 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
 
   function printLeaveRecord(record: LeaveApplicationRecord) {
     const { employeeId, lastName } = loadUserProfile();
-    if (!employeeId || !lastName) { alert('画面上部に社員番号と苗字を入力してください。'); return; }
+    if (!employeeId || !lastName) { alert('「設定」で社員番号と苗字を入力してください。'); return; }
     const ym = deriveYearMonth(record.dateEntries[0]?.date ?? record.applicationDate);
     if (ym) {
       const completeness = checkMonthCompleteness(
@@ -187,7 +187,7 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
     if (dateEntries.length === 0) { alert('日付を1つ以上追加してください。'); return; }
     const record = buildLeaveRecord(editingLeaveId ?? generateId());
     const { employeeId, lastName } = loadUserProfile();
-    if (!employeeId || !lastName) { alert('画面上部に社員番号と苗字を入力してください。'); return; }
+    if (!employeeId || !lastName) { alert('「設定」で社員番号と苗字を入力してください。'); return; }
     upsertLeaveApplication(record);
     setLeaveApplications(loadLeaveApplications());
     printLeaveRecord(record);
@@ -267,7 +267,7 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
 
   function printLateEarlyRecord(record: LateEarlyApplicationRecord) {
     const { employeeId, lastName } = loadUserProfile();
-    if (!employeeId || !lastName) { alert('画面上部に社員番号と苗字を入力してください。'); return; }
+    if (!employeeId || !lastName) { alert('「設定」で社員番号と苗字を入力してください。'); return; }
     const ym = deriveYearMonth(record.targetDate);
     if (ym) {
       const completeness = checkMonthCompleteness(
@@ -292,7 +292,7 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
   function handlePrintLateEarly() {
     const record = buildLateEarlyRecord(editingLateEarlyId ?? generateId());
     const { employeeId, lastName } = loadUserProfile();
-    if (!employeeId || !lastName) { alert('画面上部に社員番号と苗字を入力してください。'); return; }
+    if (!employeeId || !lastName) { alert('「設定」で社員番号と苗字を入力してください。'); return; }
     upsertLateEarlyApplication(record);
     setLateEarlyApplications(loadLateEarlyApplications());
     printLateEarlyRecord(record);
@@ -370,8 +370,8 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
                   onChange={(e) => setApplicationDate(e.target.value)}
                 />
               </div>
-              <div className="form-row" style={{ alignItems: 'flex-start' }}>
-                <label style={{ paddingTop: 6 }}>取得日一覧</label>
+              <div className="form-row form-row-top">
+                <label>取得日一覧</label>
                 <div className="date-entry-list">
                   {dateEntries.map((entry) => (
                     <div key={entry.date} className="date-entry">
@@ -424,7 +424,6 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
                 />
                 <select
                   className="date-entry-type"
-                  style={{ marginLeft: 8 }}
                   value={addingType}
                   onChange={(e) => setAddingType(e.target.value as LeaveType)}
                 >
@@ -434,8 +433,7 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
                 </select>
                 <button
                   type="button"
-                  className="btn btn-secondary"
-                  style={{ marginLeft: 8, padding: '5px 14px', fontSize: '13px' }}
+                  className="btn btn-secondary btn-sm"
                   onClick={addDate}
                 >追加</button>
               </div>
