@@ -417,25 +417,26 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
               </div>
               <div className="form-row">
                 <label>手動で日付を追加</label>
-                <input
-                  type="date"
-                  value={addingDate}
-                  onChange={(e) => setAddingDate(e.target.value)}
-                />
-                <select
-                  className="date-entry-type"
-                  value={addingType}
-                  onChange={(e) => setAddingType(e.target.value as LeaveType)}
-                >
-                  {(Object.keys(LEAVE_LABELS) as LeaveType[]).map((k) => (
-                    <option key={k} value={k}>{LEAVE_LABELS[k]}</option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={addDate}
-                >追加</button>
+                <div className="date-add-fields">
+                  <input
+                    type="date"
+                    value={addingDate}
+                    onChange={(e) => setAddingDate(e.target.value)}
+                  />
+                  <select
+                    value={addingType}
+                    onChange={(e) => setAddingType(e.target.value as LeaveType)}
+                  >
+                    {(Object.keys(LEAVE_LABELS) as LeaveType[]).map((k) => (
+                      <option key={k} value={k}>{LEAVE_LABELS[k]}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={addDate}
+                  >追加</button>
+                </div>
               </div>
               <div className="form-row">
                 <label>取得日数</label>

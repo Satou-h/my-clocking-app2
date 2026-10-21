@@ -1322,6 +1322,38 @@ hr {
   color: var(--text-faint);
   padding: 6px 0;
 }
+.form-row-top > .date-entry-list { flex: 1; }
+.date-add-fields {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.date-add-fields input { min-width: 0; }
+.date-add-fields select { flex: none; width: auto; }
+.date-add-fields .btn { flex: none; }
+
+/* 休暇申請書: スマホでは1行に詰め込まず、遅早退申請書と同じく入力欄を全幅で並べる */
+@media (max-width: 768px) {
+  .leave-app-section { padding: 16px; }
+  .date-entry { padding: 6px 8px 6px 12px; }
+  .date-entry-label { min-width: 0; flex: none; }
+  .form-row .date-entry select {
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto;
+  }
+  .date-tag-remove {
+    min-width: 36px;
+    min-height: 36px;
+    margin-left: 0;
+  }
+  .date-add-fields { flex-wrap: wrap; }
+  .form-row .date-add-fields input { flex: 1 1 100%; }
+  .form-row .date-add-fields select { flex: 1 1 0; min-width: 0; width: auto; }
+  .date-add-fields .btn { min-height: 44px; }
+}
 
 /* Work Report Tab */
 .work-report-toolbar {
