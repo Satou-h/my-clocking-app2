@@ -1,92 +1,295 @@
-import { PDFDocument, rgb, type Color } from 'pdf-lib';
+// 勤務表PDF（会社の様式1-1-26.1 と同じ項目・A4横）
+import { PDFDocument } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
-import type { AttendanceRecord, WorkSettings, AttendanceType } from '../types/attendance';
-import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
+import type { AttendanceRecord, AttendanceType, WorkSettings } from '../types/attendance';
+import { ATTENDANCE_TYPE_LABELS, WORK_LOCATION_LABELS } from '../types/attendance';
 import {
-  calcWorkMinutes, calcOvertimeMinutes, calcLateNightMinutes,
-  isLateArrival, isEarlyDeparture, formatMinutes, getEffectiveBreak,
+  calcWorkMinutes, calcOvertimeMinutes, calcLateNightMinutes, calcPaidLeaveUsed,
+  isLateArrival, isEarlyDeparture, getEffectiveBreak, getWorkLocation, timeToMins,
 } from './storage';
 import { getHolidayName } from './holidays';
+import {
+  C, DOW_JA, createPainter, drawStatGroups, downloadPdf, hm, loadFont, quarterHours, shortTime, todayString,
+  type Stat,
+} from './pdfKit';
 
-// ── Shared font cache ─────────────────────────────────────────────────────────
-let cachedFontBytes: ArrayBuffer | null = null;
-async function loadFont(): Promise<ArrayBuffer> {
-  if (cachedFontBytes) return cachedFontBytes;
-  const res = await fetch(import.meta.env.BASE_URL + 'fonts/NotoSansJP-Regular.ttf');
-  if (!res.ok) throw new Error('フォントの読み込みに失敗しました');
-  cachedFontBytes = await res.arrayBuffer();
-  return cachedFontBytes;
+const FORM_NO = '様式1-1-26.1';
+const DAILY_LIMIT = 8 * 60;
+const WORK_TYPES = new Set<AttendanceType>(['work', 'am_leave', 'pm_leave', 'scheduled_holiday_work', 'legal_holiday_work', 'transfer_holiday_work']);
+const LEAVE_TYPES = new Set<AttendanceType>(['paid_leave', 'planned_paid_leave', 'am_leave', 'pm_leave', 'holiday', 'transfer_holiday']);
+
+interface DayRow {
+  day: number;
+  dow: number;
+  isOff: boolean;          // 土日祝
+  holiday: string | null;
+  rec?: AttendanceRecord;
+  worked: boolean;
+  start?: string;
+  end?: string;
+  brk: number;             // 休憩
+  bind: number;            // 勤務時間（出社〜退社）
+  actual: number;          // 実働
+  normal: number;          // 普通勤務（8hまで）
+  overNormal: number;      // 普通残業（8h超）
+  overSched: number;       // 所定休日出勤
+  overLegal: number;       // 法定休日出勤
+  overTotal: number;       // 時間外 計
+  night: number;           // 深夜
+  lateEarly: number;       // 遅刻早退（分）
 }
 
-function openPdf(bytes: Uint8Array, filename: string): void {
-  const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+type MinKey = 'brk' | 'bind' | 'actual' | 'normal' | 'overTotal' | 'overNormal' | 'overSched' | 'overLegal' | 'night' | 'lateEarly';
+
+function calcDay(dateKey: string, day: number, rec: AttendanceRecord | undefined, ws: WorkSettings): DayRow {
+  const dow = new Date(dateKey + 'T00:00:00').getDay();
+  const holiday = getHolidayName(dateKey);
+  const row: DayRow = {
+    day, dow, holiday, rec, isOff: dow === 0 || dow === 6 || !!holiday, worked: false,
+    brk: 0, bind: 0, actual: 0, normal: 0, overNormal: 0, overSched: 0, overLegal: 0, overTotal: 0, night: 0, lateEarly: 0,
+  };
+  if (!rec || !WORK_TYPES.has(rec.type) || !rec.clockIn || !rec.clockOut) return row;
+
+  const { clockIn, clockOut, type } = rec;
+  row.worked = true;
+  row.start = clockIn;
+  row.end = clockOut;
+  row.brk = getEffectiveBreak(type, clockIn, clockOut, rec.breakMinutes ?? 0);
+  row.actual = Math.max(0, calcWorkMinutes(clockIn, clockOut, row.brk));
+  row.bind = row.actual + row.brk;
+  // アプリの集計と同じく、所定休日出勤は全時間を残業、法定休日出勤は専用で集計する
+  if (type === 'scheduled_holiday_work') row.overSched = row.actual;
+  else if (type === 'legal_holiday_work') row.overLegal = row.actual;
+  else {
+    row.normal = Math.min(row.actual, DAILY_LIMIT);
+    row.overNormal = calcOvertimeMinutes(row.actual);
+  }
+  row.overTotal = row.overNormal + row.overSched + row.overLegal;
+  row.night = calcLateNightMinutes(clockIn, clockOut);
+
+  // 遅刻早退（午前休・午後休と、土日祝・休日出勤の日は対象外。会社様式と同じく平日の勤務だけ）
+  if (!row.isOff && (type === 'work' || type === 'transfer_holiday_work')) {
+    const refS = rec.customStartTime ?? ws.standardStartTime;
+    const refE = rec.customEndTime ?? ws.standardEndTime;
+    if (isLateArrival(clockIn, refS)) row.lateEarly += timeToMins(clockIn) - timeToMins(refS);
+    if (isEarlyDeparture(clockOut, refE, clockIn)) {
+      const inM = timeToMins(clockIn);
+      let outM = timeToMins(clockOut), endM = timeToMins(refE);
+      if (outM <= inM) outM += 1440;
+      if (endM < inM) endM += 1440;
+      row.lateEarly += endM - outM;
+    }
+  }
+  return row;
 }
 
-// ── Colors ────────────────────────────────────────────────────────────────────
-const TITLE_BLUE = rgb(0.176, 0.424, 0.871); // #2d6cdf
-const TH_BG      = rgb(0.945, 0.953, 0.976); // #f1f3f9
-const BORDER     = rgb(0.867, 0.882, 0.933); // #dde1ee
-const GRAY_TXT   = rgb(0.388, 0.431, 0.447); // #636e72
-const DARK_TXT   = rgb(0.102, 0.102, 0.180); // #1a1a2e
-const ORANGE_TXT = rgb(0.902, 0.318, 0.000); // #e65100
-const PURPLE_TXT = rgb(0.482, 0.122, 0.635); // #7b1fa2
-const RED_TXT    = rgb(0.773, 0.157, 0.157); // #c62828
-const GREEN_TXT  = rgb(0.000, 0.722, 0.580); // #00b894
-const RED_SUN    = rgb(0.898, 0.224, 0.208); // #e53935
-const BLU_SAT    = rgb(0.118, 0.533, 0.898); // #1e88e5
-const LIGHT_TXT  = rgb(0.700, 0.700, 0.700);
-const WHITE      = rgb(1.000, 1.000, 1.000);
+// 区分欄に出すラベル。平日の通常出勤は空欄、休日の通常出勤は会社様式と同じ「普通勤務」
+function kubunOf(r: DayRow): { label: string; tone: 'work' | 'leave' | 'alert' } | null {
+  if (!r.rec) return null;
+  const t = r.rec.type;
+  if (t === 'work') return r.isOff ? { label: '普通勤務', tone: 'work' } : null;
+  if (t === 'holiday' && r.isOff) return null;
+  if (t === 'absence') return { label: ATTENDANCE_TYPE_LABELS[t], tone: 'alert' };
+  return { label: ATTENDANCE_TYPE_LABELS[t], tone: LEAVE_TYPES.has(t) ? 'leave' : 'work' };
+}
 
-// Row backgrounds
-const OFF_BG  = rgb(0.949, 0.953, 0.961); // #f2f3f5
-const EMPT_BG = rgb(0.980, 0.984, 0.988); // #fafbfc
-const EVEN_BG = rgb(0.976, 0.980, 1.000); // #f9faff
-const PAID_BG = rgb(1.000, 0.996, 0.894); // #fffde7
-const HOL_BG  = rgb(0.945, 0.973, 0.910); // #f1f8e9
-const ABS_BG  = rgb(1.000, 0.941, 0.941); // #fff0f0
-const SH_BG   = rgb(1.000, 0.973, 0.941); // #fff8f0
-const LH_BG   = rgb(1.000, 0.957, 0.949); // #fff4f2
+export async function buildMonthlyAttendancePdf(
+  fontBytes: ArrayBuffer | Uint8Array,
+  records: AttendanceRecord[],
+  workSettings: WorkSettings,
+  year: number,
+  month: number,
+  plRemaining: number | null,
+  name: string,
+  issuedOn = todayString(),
+): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  doc.registerFontkit(fontkit);
+  const font = await doc.embedFont(fontBytes);
+  doc.setTitle(`${year}年${month}月 勤務表 ${name}`);
 
-// Badge definitions per attendance type
-const BADGE_BG: Record<AttendanceType, Color> = {
-  work:                   rgb(0.910, 0.940, 0.996), // #e8f0fe
-  paid_leave:             rgb(1.000, 0.976, 0.769), // #fff9c4
-  planned_paid_leave:     rgb(1.000, 0.976, 0.769), // #fff9c4
-  holiday:                rgb(0.910, 0.957, 0.914), // #e8f5e9
-  absence:                rgb(0.988, 0.894, 0.925), // #fce4ec
-  am_leave:               rgb(0.878, 0.949, 0.996), // #e0f2fe
-  pm_leave:               rgb(0.988, 0.894, 0.965), // #fce4ec
-  scheduled_holiday_work: rgb(1.000, 0.953, 0.878), // #fff3e0
-  legal_holiday_work:     rgb(0.984, 0.914, 0.902), // #fbe9e7
-  transfer_holiday_work:  rgb(0.929, 0.906, 0.965), // #ede7f6
-  transfer_holiday:       rgb(0.878, 0.949, 0.945), // #e0f2f1
-};
-const BADGE_TXT: Record<AttendanceType, Color> = {
-  work:                   TITLE_BLUE,
-  paid_leave:             rgb(0.522, 0.392, 0.016), // #856404
-  planned_paid_leave:     rgb(0.522, 0.392, 0.016), // #856404
-  holiday:                rgb(0.180, 0.490, 0.196), // #2e7d32
-  absence:                RED_TXT,
-  am_leave:               rgb(0.012, 0.467, 0.741), // #0277bd
-  pm_leave:               rgb(0.678, 0.078, 0.341), // #ad1457
-  scheduled_holiday_work: ORANGE_TXT,
-  legal_holiday_work:     rgb(0.749, 0.212, 0.047), // #bf360c
-  transfer_holiday_work:  rgb(0.369, 0.208, 0.694), // #5e35b1
-  transfer_holiday:       rgb(0.000, 0.412, 0.361), // #00695c
-};
+  const W = 841.89, H = 595.28; // A4 横
+  const page = doc.addPage([W, H]);
+  const p = createPainter(page, font);
+  const M = { l: 28, r: 28, t: 22, b: 18 };
+  const right = W - M.r;
 
-const DOW_JA = ['日', '月', '火', '水', '木', '金', '土'];
+  // ── データ ────────────────────────────────────────────────────────────────
+  const ym = `${year}-${String(month).padStart(2, '0')}`;
+  const byDate = new Map(records.filter(r => r.date.startsWith(ym)).map(r => [r.date, r]));
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const rows = Array.from({ length: daysInMonth }, (_, i) => {
+    const key = `${ym}-${String(i + 1).padStart(2, '0')}`;
+    return calcDay(key, i + 1, byDate.get(key), workSettings);
+  });
+  const sum = (k: MinKey) => rows.reduce((a, r) => a + r[k], 0);
+  const total = {
+    brk: sum('brk'), bind: sum('bind'), actual: sum('actual'), normal: sum('normal'),
+    overTotal: sum('overTotal'), overNormal: sum('overNormal'), overSched: sum('overSched'),
+    overLegal: sum('overLegal'), night: sum('night'), lateEarly: sum('lateEarly'),
+  };
+  const workDays = rows.filter(r => r.worked).length;
+  const absentDays = rows.filter(r => r.rec?.type === 'absence').length;
+  const lateEarlyDays = rows.filter(r => r.lateEarly > 0).length;
+  const plUsed = calcPaidLeaveUsed(records, year, month);
+  const plStart = plRemaining !== null ? plRemaining + plUsed : null;
 
-const IS_WORK = new Set(['work', 'am_leave', 'pm_leave', 'scheduled_holiday_work', 'legal_holiday_work', 'transfer_holiday_work']);
+  // ── ヘッダー ──────────────────────────────────────────────────────────────
+  p.txt(FORM_NO, 0, 14, 6.5, C.sub, 'right', right);
+  p.txt(`${year}年${month}月 勤務表`, M.l, M.t + 18, 17, C.primary);
+  let x = M.l;
+  const metaY = M.t + 40;
+  const meta = (label: string, value: string, size: number) => {
+    p.txt(label, x, metaY, 7, C.sub); x += p.width(label, 7) + 5;
+    p.txt(value, x, metaY, size, C.ink); x += p.width(value, size) + 22;
+  };
+  meta('氏名', name, 11);
+  meta('基準時間', `${shortTime(workSettings.standardStartTime)} 〜 ${shortTime(workSettings.standardEndTime)}`, 8.5);
+  meta('出力日', issuedOn, 8.5);
+  const stampX = p.stamps(['承認印', '確認印'], right, M.t - 2, 54, 54);
+  p.hline(M.l, stampX - 16, M.t + 48, C.primary, 1.2);
 
-// ══════════════════════════════════════════════════════════════════════════════
-// printMonthlyAttendancePDF  ── A4 portrait, 8mm margin
-// ══════════════════════════════════════════════════════════════════════════════
+  // ── 集計 ──────────────────────────────────────────────────────────────────
+  const tone = (v: number, alert = false): Stat['tone'] => (v === 0 ? 'zero' : alert ? 'alert' : 'normal');
+  const hours = (min: number, alert = false): Stat => ({ label: '', value: quarterHours(min), unit: 'h', tone: tone(min, alert) });
+  const plStat = (label: string, v: number | null, zeroFaint = false): Stat =>
+    v === null
+      ? { label, value: '未設定', unit: '', tone: 'zero' }
+      : { label, value: v.toFixed(1), unit: '日', tone: zeroFaint ? tone(v) : 'normal' };
+  const sumY = M.t + 60, sumH = 44;
+  drawStatGroups(p, [
+    { title: '日数', stats: [
+      { label: '出勤日数', value: String(workDays), unit: '日', tone: tone(workDays) },
+      { label: '欠勤日数', value: String(absentDays), unit: '日', tone: tone(absentDays, true) },
+      { label: '遅早退日数', value: lateEarlyDays.toFixed(1), unit: '日', tone: tone(lateEarlyDays, true) },
+    ] },
+    { title: '有給休暇', stats: [
+      plStat('前月残', plStart),
+      { label: '取得', value: plUsed.toFixed(1), unit: '日', tone: tone(plUsed) },
+      plStat('当月残', plRemaining),
+    ] },
+    { title: '時間（0.25h単位）', stats: [
+      { ...hours(total.bind), label: '勤務時間' },
+      { ...hours(total.brk), label: '休憩時間' },
+      { ...hours(total.actual), label: '実働時間' },
+      { ...hours(total.normal), label: '普通勤務' },
+      { ...hours(total.overNormal + total.overSched, true), label: '普残/所休' },
+      { ...hours(total.overLegal, true), label: '法定休日' },
+      { ...hours(total.night, true), label: '深夜勤務' },
+      { ...hours(total.lateEarly, true), label: '遅刻早退' },
+    ] },
+  ], M.l, right, sumY, sumH);
+
+  // ── 明細 ──────────────────────────────────────────────────────────────────
+  type Col = { key: 'date' | 'kubun' | 'start' | 'end' | 'daikyu' | 'note' | MinKey; label: string; w: number; group?: string };
+  const cols: Col[] = [
+    { key: 'date', label: '日付', w: 42 },
+    { key: 'kubun', label: '祝日・区分', w: 66 },
+    { key: 'start', label: '出社', w: 38, group: '打刻' },
+    { key: 'end', label: '退社', w: 38, group: '打刻' },
+    { key: 'brk', label: '休憩', w: 36, group: '打刻' },
+    { key: 'bind', label: '勤務', w: 40, group: '時間' },
+    { key: 'actual', label: '実働', w: 40, group: '時間' },
+    { key: 'normal', label: '普通勤務', w: 44, group: '時間' },
+    { key: 'overTotal', label: '計', w: 38, group: '時間外' },
+    { key: 'overNormal', label: '普通残業', w: 44, group: '時間外' },
+    { key: 'overSched', label: '所定休日', w: 44, group: '時間外' },
+    { key: 'overLegal', label: '法定休日', w: 44, group: '時間外' },
+    { key: 'night', label: '深夜', w: 38, group: 'その他' },
+    { key: 'lateEarly', label: '遅刻早退', w: 44, group: 'その他' },
+    { key: 'daikyu', label: '代休', w: 36, group: 'その他' },
+    { key: 'note', label: '備考', w: 0 },
+  ];
+  cols[cols.length - 1].w = right - M.l - cols.reduce((a, c) => a + c.w, 0);
+  const colX: number[] = [];
+  cols.reduce((acc, c) => (colX.push(acc), acc + c.w), M.l);
+  const isGroupStart = (i: number) => i > 0 && (!cols[i].group || cols[i - 1].group !== cols[i].group);
+  const OVER_KEYS = new Set(['overTotal', 'overNormal', 'overSched', 'overLegal', 'night']);
+  const colorOf = (key: string) => (OVER_KEYS.has(key) ? C.over : key === 'lateEarly' ? C.sun : C.ink);
+
+  const tY = sumY + sumH + 12, gH = 12, cH = 13, hH = gH + cH, totalH = 16, footH = 12;
+  const bodyTop = tY + hH;
+  // 月による変動を避けるため常に31行分で割る
+  const rowH = Math.min(13.5, Math.floor(((H - M.b - footH - totalH - bodyTop) / 31) * 10) / 10);
+
+  // 見出し（2段）
+  p.rect(M.l, tY, right - M.l, hH, { fill: C.primary });
+  const spans = new Map<string, { x1: number; x2: number }>();
+  cols.forEach((c, i) => {
+    if (!c.group) return;
+    const s = spans.get(c.group);
+    spans.set(c.group, { x1: s ? s.x1 : colX[i], x2: colX[i] + c.w });
+  });
+  for (const [g, s] of spans) {
+    p.cell(g, s.x1, tY, s.x2 - s.x1, gH + 1, 7, C.headerSub, 'center');
+    p.hline(s.x1 + 4, s.x2 - 4, tY + gH + 0.5, C.headerSub, 0.4);
+  }
+  cols.forEach((c, i) => {
+    const y = c.group ? tY + gH : tY, h = c.group ? cH : hH;
+    p.cell(c.label, colX[i], y, c.w, h, 7.3, C.white, 'center');
+    if (isGroupStart(i)) p.vline(colX[i], tY + 3, tY + hH - 3, C.white, 0.4, 0.35);
+  });
+
+  // 行
+  const fs = rowH < 12 ? 7.2 : 7.6;
+  rows.forEach((r, ri) => {
+    const y = bodyTop + rowH * ri;
+    const restDay = !r.worked && (r.isOff || r.rec?.type === 'holiday' || r.rec?.type === 'transfer_holiday');
+    if (restDay) p.rect(M.l, y, right - M.l, rowH, { fill: C.off });
+    p.hline(M.l, right, y + rowH, C.line, 0.45);
+
+    // 日付
+    const dayColor = r.holiday || r.dow === 0 ? C.sun : r.dow === 6 ? C.sat : C.ink;
+    p.cell(String(r.day), colX[0], y, 17, rowH, fs, C.ink, 'right', 0);
+    p.cell(DOW_JA[r.dow], colX[0] + 21, y, 12, rowH, fs, dayColor, 'left', 0);
+
+    // 祝日・区分（両方あるときは祝日名を備考へ）
+    const kubun = kubunOf(r);
+    const notes: string[] = [];
+    if (kubun) {
+      const bg = kubun.tone === 'leave' ? C.leaveSoft : kubun.tone === 'alert' ? C.alertSoft : C.primarySoft;
+      const fg = kubun.tone === 'leave' ? C.leave : kubun.tone === 'alert' ? C.sun : C.primary;
+      p.badge(kubun.label, colX[1] + 4, y, rowH, 6.5, bg, fg);
+      if (r.holiday) notes.push(r.holiday);
+    } else if (r.holiday) {
+      p.cell(r.holiday, colX[1], y, cols[1].w, rowH, 6.8, C.sun, 'left', 4);
+    }
+
+    if (r.worked) {
+      p.cell(shortTime(r.start!), colX[2], y, cols[2].w, rowH, fs, C.ink);
+      p.cell(shortTime(r.end!), colX[3], y, cols[3].w, rowH, fs, C.ink);
+      cols.forEach((c, i) => {
+        if (i < 4 || c.key === 'note' || c.key === 'daikyu') return;
+        const v = r[c.key as MinKey];
+        if (v) p.cell(hm(v), colX[i], y, c.w, rowH, fs, colorOf(c.key));
+      });
+      const loc = getWorkLocation(r.rec!);
+      if (loc !== 'site') notes.push(WORK_LOCATION_LABELS[loc]);
+    }
+    if (r.rec?.notes) notes.push(r.rec.notes);
+    if (notes.length) {
+      const ni = cols.length - 1;
+      p.cell(p.fit(notes.join('　'), 7, cols[ni].w - 12), colX[ni], y, cols[ni].w, rowH, 7, C.ink, 'left', 6);
+    }
+  });
+  const bodyBottom = bodyTop + rowH * rows.length;
+  cols.forEach((_, i) => { if (isGroupStart(i)) p.vline(colX[i], bodyTop, bodyBottom, C.lineStrong, 0.45); });
+
+  // 合計
+  p.rect(M.l, bodyBottom, right - M.l, totalH, { fill: C.primarySoft });
+  p.hline(M.l, right, bodyBottom, C.primary, 0.9);
+  p.cell('合計', colX[0], bodyBottom, cols[0].w + cols[1].w, totalH, 7.8, C.primary, 'left', 4);
+  cols.forEach((c, i) => {
+    if (i < 4 || c.key === 'note') return;
+    const v = c.key === 'daikyu' ? 0 : total[c.key as MinKey];
+    p.cell(hm(v), colX[i], bodyBottom, c.w, totalH, 7.8, v === 0 ? C.faint : colorOf(c.key));
+  });
+
+  p.txt('上部の時間は15分単位で集計（明細・合計は 時:分）。空欄は 0:00。', M.l, bodyBottom + totalH + 10, 6.3, C.sub);
+
+  return doc.save();
+}
+
 export async function printMonthlyAttendancePDF(
   records: AttendanceRecord[],
   workSettings: WorkSettings,
@@ -97,268 +300,7 @@ export async function printMonthlyAttendancePDF(
   lastName = '',
   name = '',
 ): Promise<void> {
-  const fontBytes = await loadFont();
-  const pdfDoc = await PDFDocument.create();
-  pdfDoc.registerFontkit(fontkit);
-  const font = await pdfDoc.embedFont(fontBytes);
-
-  // ── Data aggregation ──────────────────────────────────────────────────────
-  const prefix = `${year}-${String(month).padStart(2, '0')}`;
-  const filtered = records
-    .filter(r => r.date.startsWith(prefix))
-    .sort((a, b) => a.date.localeCompare(b.date));
-
-  let workDays = 0, shdDays = 0, lhdDays = 0, paidDays = 0;
-  let workMins = 0, otMins = 0, lhMins = 0, lnMins = 0, lateN = 0, earlyN = 0;
-  for (const r of filtered) {
-    if (r.type === 'paid_leave' || r.type === 'planned_paid_leave') { paidDays++; continue; }
-    if (r.type === 'am_leave' || r.type === 'pm_leave') paidDays += 0.5;
-    if (!IS_WORK.has(r.type) || !r.clockIn || !r.clockOut) continue;
-    if (r.type === 'work' || r.type === 'transfer_holiday_work') workDays++;
-    if (r.type === 'scheduled_holiday_work') shdDays++;
-    if (r.type === 'legal_holiday_work') lhdDays++;
-    const effBreak = getEffectiveBreak(r.type, r.clockIn, r.clockOut, r.breakMinutes ?? 0);
-    const w = calcWorkMinutes(r.clockIn, r.clockOut, effBreak);
-    workMins += w;
-    if (r.type === 'scheduled_holiday_work') otMins += w;
-    else if (r.type === 'legal_holiday_work') lhMins += w;
-    else otMins += calcOvertimeMinutes(w);
-    lnMins += calcLateNightMinutes(r.clockIn, r.clockOut);
-    const refS = r.customStartTime ?? workSettings.standardStartTime;
-    const refE = r.customEndTime   ?? workSettings.standardEndTime;
-    const isHalf = r.type === 'am_leave' || r.type === 'pm_leave';
-    if (!isHalf && isLateArrival(r.clockIn, refS)) lateN++;
-    if (!isHalf && isEarlyDeparture(r.clockOut, refE, r.clockIn)) earlyN++;
-  }
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const byDate = new Map(filtered.map(r => [r.date, r]));
-
-  // ── Page setup ────────────────────────────────────────────────────────────
-  const PW = 595.28; const PH = 841.89;
-  const M  = 22.68;  // 8mm margin
-  const cW = PW - 2 * M; // ≈549.92 pt
-
-  const page = pdfDoc.addPage([PW, PH]);
-  let Y = PH - M; // top of content (decreases as we go down)
-
-  // ── Drawing helpers ───────────────────────────────────────────────────────
-  // Center text horizontally within a column, baseline at midY
-  function drawCentered(text: string, colLeft: number, colW: number, midY: number, sz: number, color: Color) {
-    if (!text) return;
-    const tw = font.widthOfTextAtSize(text, sz);
-    const tx = colLeft + (colW - tw) / 2;
-    page.drawText(text, { x: tx < colLeft ? colLeft + 1 : tx, y: midY, size: sz, font, color });
-  }
-
-  // Draw a table cell (bg rect + border + centered text)
-  function cell(
-    x: number, top: number, w: number, h: number,
-    text: string, sz: number,
-    color: Color, bg?: Color,
-    align: 'center' | 'left' = 'center',
-    leftPad = 2,
-  ) {
-    const bottom = top - h;
-    if (bg) page.drawRectangle({ x, y: bottom, width: w, height: h, color: bg });
-    page.drawRectangle({ x, y: bottom, width: w, height: h, borderColor: BORDER, borderWidth: 0.3 });
-    if (!text) return;
-    const tw = font.widthOfTextAtSize(text, sz);
-    let tx: number;
-    if (align === 'center') {
-      tx = x + (w - tw) / 2;
-      if (tx < x + 1) tx = x + 1;
-    } else {
-      tx = x + leftPad;
-    }
-    page.drawText(text, { x: tx, y: bottom + h / 2 - sz * 0.3, size: sz, font, color });
-  }
-
-  // Draw a small badge (colored bg rect + text) centered in a cell
-  function badge(colLeft: number, top: number, colW: number, rowH: number, label: string, bg: Color, textColor: Color, sz = 7) {
-    const lw = font.widthOfTextAtSize(label, sz);
-    const bPad = 2.5;
-    const bW = lw + bPad * 2; const bH = sz + bPad * 1.2;
-    const bx = colLeft + (colW - bW) / 2;
-    const by = (top - rowH) + (rowH - bH) / 2;
-    page.drawRectangle({ x: bx, y: by, width: bW, height: bH, color: bg });
-    page.drawText(label, { x: bx + bPad, y: by + bPad * 0.4, size: sz, font, color: textColor });
-  }
-
-  // ── 1. Header ─────────────────────────────────────────────────────────────
-  const TITLE_SZ = 13; const META_SZ = 7;
-  page.drawText(`${year}年${month}月　勤怠一覧`, { x: M, y: Y - TITLE_SZ, size: TITLE_SZ, font, color: TITLE_BLUE });
-  page.drawText(
-    `基準: ${workSettings.standardStartTime}〜${workSettings.standardEndTime}　残業: 8h超過分　深夜: 22:00〜翌5:00`,
-    { x: M, y: Y - TITLE_SZ - 3 - META_SZ, size: META_SZ, font, color: GRAY_TXT },
-  );
-  const NAME_SZ = 10; const NAME_BOX_H = 20; const NAME_LABEL_W = 34;
-  const nameValW = Math.max(100, font.widthOfTextAtSize(name, NAME_SZ) + 16);
-  const nameBoxX = M + cW - NAME_LABEL_W - nameValW;
-  cell(nameBoxX, Y, NAME_LABEL_W, NAME_BOX_H, '氏名', 8, GRAY_TXT, TH_BG);
-  cell(nameBoxX + NAME_LABEL_W, Y, nameValW, NAME_BOX_H, name, NAME_SZ, DARK_TXT);
-  Y -= TITLE_SZ + META_SZ + 7;
-  page.drawLine({ start: { x: M, y: Y }, end: { x: M + cW, y: Y }, color: TITLE_BLUE, thickness: 1 });
-  Y -= 5;
-
-  // ── 2. Summary table ──────────────────────────────────────────────────────
-  const SUM_H = 14;
-  const sumLabels = ['出勤日数', '所定休日出勤', '法定休日出勤', '総労働時間', '残業時間', '法定休日時間', '深夜時間', '遅刻', '早退'];
-  const sumValues = [
-    `${workDays}日`, `${shdDays}日`, `${lhdDays}日`,
-    formatMinutes(workMins), formatMinutes(otMins), formatMinutes(lhMins), formatMinutes(lnMins),
-    `${lateN}回`, `${earlyN}回`,
-  ];
-  const sumColors: Color[] = [DARK_TXT, ORANGE_TXT, RED_TXT, DARK_TXT, ORANGE_TXT, RED_TXT, PURPLE_TXT, RED_TXT, RED_TXT];
-  const sumW = cW / 9;
-  const sumColW = Array.from({ length: 9 }, (_, i) => i < 8 ? sumW : cW - sumW * 8);
-
-  let sx = M;
-  for (let i = 0; i < 9; i++) { cell(sx, Y, sumColW[i], SUM_H, sumLabels[i], 7, GRAY_TXT, TH_BG); sx += sumColW[i]; }
-  Y -= SUM_H;
-  sx = M;
-  for (let i = 0; i < 9; i++) { cell(sx, Y, sumColW[i], SUM_H, sumValues[i], 8, sumColors[i]); sx += sumColW[i]; }
-  Y -= SUM_H + 4;
-
-  // ── 3. Paid-leave table ───────────────────────────────────────────────────
-  const PL_COL = sumW;
-  cell(M, Y, PL_COL, SUM_H, '有給日数', 7, GRAY_TXT, TH_BG);
-  cell(M + PL_COL, Y, PL_COL, SUM_H, '有給残日数', 7, GRAY_TXT, TH_BG);
-  Y -= SUM_H;
-  cell(M, Y, PL_COL, SUM_H, `${paidDays}日`, 8, DARK_TXT);
-  const plStr = plRemaining !== null ? `${plRemaining}日` : '未設定';
-  const plClr = plRemaining !== null ? (plRemaining <= 5 ? RED_TXT : GREEN_TXT) : GRAY_TXT;
-  cell(M + PL_COL, Y, PL_COL, SUM_H, plStr, 8, plClr);
-  Y -= SUM_H + 5;
-
-  // ── 4. Detail table ───────────────────────────────────────────────────────
-  const TH_H = 15; const SZ = 7;
-  // 月による変動を避けるため常に31行分で割り、ページ下端(余白M)まで埋める
-  const MAX_ROWS = 31;
-  const DET_H = (Y - TH_H - M) / MAX_ROWS;
-
-  // Column widths: cols[0..9] fixed, cols[10] = remaining width
-  const fixedCols = [60, 55, 42, 42, 42, 47, 47, 47, 42, 36];
-  const fixedSum  = fixedCols.reduce((s, v) => s + v, 0);
-  const detCols   = [...fixedCols, Math.round((cW - fixedSum) * 10) / 10];
-  const colX: number[] = [M];
-  for (let i = 0; i < detCols.length - 1; i++) colX.push(colX[i] + detCols[i]);
-
-  // Table header (blue background)
-  const detHeaders = ['日付', '種別', '出勤', '退勤', '休憩(分)', '労働時間', '残業', '法定休日', '深夜', '状態', '備考'];
-  for (let i = 0; i < detCols.length; i++) {
-    cell(colX[i], Y, detCols[i], TH_H, detHeaders[i], SZ, WHITE, TITLE_BLUE);
-  }
-  Y -= TH_H;
-
-  // Detail rows
-  for (let d = 1; d <= daysInMonth; d++) {
-    const dateKey = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    const r   = byDate.get(dateKey);
-    const dow = new Date(dateKey + 'T00:00:00').getDay();
-    const hName = getHolidayName(dateKey);
-    const isOff = dow === 0 || dow === 6 || !!hName;
-    const isOdd = d % 2 === 1;
-
-    // Row background
-    let rowBg: Color;
-    if (r) {
-      if      (r.type === 'holiday' || r.type === 'transfer_holiday') rowBg = HOL_BG;
-      else if (['paid_leave','planned_paid_leave','am_leave','pm_leave'].includes(r.type)) rowBg = PAID_BG;
-      else if (r.type === 'absence')                rowBg = ABS_BG;
-      else if (r.type === 'scheduled_holiday_work') rowBg = SH_BG;
-      else if (r.type === 'legal_holiday_work')     rowBg = LH_BG;
-      else rowBg = isOdd ? WHITE : EVEN_BG;
-    } else if (isOff) {
-      rowBg = OFF_BG;
-    } else {
-      rowBg = EMPT_BG;
-    }
-
-    // Draw all cell backgrounds + borders first
-    for (let i = 0; i < detCols.length; i++) {
-      const bottom = Y - DET_H;
-      page.drawRectangle({ x: colX[i], y: bottom, width: detCols[i], height: DET_H, color: rowBg });
-      page.drawRectangle({ x: colX[i], y: bottom, width: detCols[i], height: DET_H, borderColor: BORDER, borderWidth: 0.3 });
-    }
-
-    const midY = (Y - DET_H) + DET_H / 2 - SZ * 0.3;
-
-    // Col 0: 日付
-    {
-      const dayPart = `${d}日`;
-      const dowPart = `(${DOW_JA[dow]})`;
-      const dpW = font.widthOfTextAtSize(dayPart, SZ);
-      const dwW = font.widthOfTextAtSize(dowPart, SZ);
-      const startX = colX[0] + (detCols[0] - dpW - 2 - dwW) / 2;
-      const dowClr = dow === 0 ? RED_SUN : dow === 6 ? BLU_SAT : DARK_TXT;
-      page.drawText(dayPart, { x: startX,           y: midY, size: SZ, font, color: DARK_TXT });
-      page.drawText(dowPart, { x: startX + dpW + 2, y: midY, size: SZ, font, color: dowClr });
-    }
-
-    if (r) {
-      // Col 1: 種別 badge
-      const typeKey = r.type as AttendanceType;
-      badge(colX[1], Y, detCols[1], DET_H, ATTENDANCE_TYPE_LABELS[typeKey], BADGE_BG[typeKey], BADGE_TXT[typeKey]);
-
-      const hasTime = IS_WORK.has(r.type) && !!r.clockIn && !!r.clockOut;
-      const rowEffBreak = hasTime ? getEffectiveBreak(r.type, r.clockIn!, r.clockOut!, r.breakMinutes ?? 0) : 0;
-      const wMin = hasTime ? calcWorkMinutes(r.clockIn!, r.clockOut!, rowEffBreak) : null;
-      const ot = wMin !== null
-        ? r.type === 'scheduled_holiday_work' ? wMin
-          : r.type === 'legal_holiday_work'   ? null
-          : calcOvertimeMinutes(wMin)
-        : null;
-      const lhMin = r.type === 'legal_holiday_work' && wMin !== null ? wMin : null;
-      const ln    = hasTime ? calcLateNightMinutes(r.clockIn!, r.clockOut!) : null;
-
-      const ct = (ci: number, txt: string, clr: Color = DARK_TXT) =>
-        drawCentered(txt, colX[ci], detCols[ci], midY, SZ, clr);
-
-      ct(2, hasTime ? r.clockIn!  : '-', hasTime ? DARK_TXT : LIGHT_TXT);
-      ct(3, hasTime ? r.clockOut! : '-', hasTime ? DARK_TXT : LIGHT_TXT);
-      ct(4, IS_WORK.has(r.type) ? String(rowEffBreak) : '-',
-            IS_WORK.has(r.type) ? DARK_TXT : LIGHT_TXT);
-      ct(5, wMin !== null ? formatMinutes(wMin) : '-');
-      ct(6, ot  !== null ? (ot  > 0 ? formatMinutes(ot)  : '-') : '-', ot  && ot  > 0 ? ORANGE_TXT : DARK_TXT);
-      ct(7, lhMin !== null ? formatMinutes(lhMin) : '-', lhMin && lhMin > 0 ? rgb(0.749, 0.212, 0.047) : DARK_TXT);
-      ct(8, ln  !== null ? (ln  > 0 ? formatMinutes(ln)  : '-') : '-', ln  && ln  > 0 ? PURPLE_TXT : DARK_TXT);
-
-      // Col 9: 状態 (late/early)
-      const refS   = r.customStartTime ?? workSettings.standardStartTime;
-      const refE   = r.customEndTime   ?? workSettings.standardEndTime;
-      const isHalf = r.type === 'am_leave' || r.type === 'pm_leave';
-      const late  = hasTime && !isHalf && isLateArrival(r.clockIn!, refS);
-      const early = hasTime && !isHalf && isEarlyDeparture(r.clockOut!, refE, r.clockIn);
-      if (late || early) {
-        const stTxt = late && early ? '遅/早' : late ? '遅刻' : '早退';
-        drawCentered(stTxt, colX[9], detCols[9], midY, 6, RED_TXT);
-      }
-
-      // Col 10: 備考
-      if (r.notes) {
-        const noteTrunc = r.notes.length > 14 ? r.notes.slice(0, 13) + '…' : r.notes;
-        page.drawText(noteTrunc, { x: colX[10] + 2, y: midY, size: 6.5, font, color: GRAY_TXT });
-      }
-    } else {
-      // No record: holiday badge for off days, dashes otherwise
-      if (isOff) {
-        badge(colX[1], Y, detCols[1], DET_H, '休日', rgb(0.910, 0.957, 0.914), rgb(0.180, 0.490, 0.196));
-      } else {
-        drawCentered('-', colX[1], detCols[1], midY, SZ, LIGHT_TXT);
-      }
-      for (let ci = 2; ci <= 8; ci++) {
-        drawCentered('-', colX[ci], detCols[ci], midY, SZ, LIGHT_TXT);
-      }
-      if (hName) {
-        page.drawText(hName, { x: colX[10] + 2, y: midY, size: 6.5, font, color: GRAY_TXT });
-      }
-    }
-
-    Y -= DET_H;
-  }
-
-  // ── Save & download ───────────────────────────────────────────────────────
+  const bytes = await buildMonthlyAttendancePdf(await loadFont(), records, workSettings, year, month, plRemaining, name);
   const userPart = (employeeId || lastName) ? `_${employeeId}${lastName}` : '';
-  const filename  = `勤務表${year}${String(month).padStart(2, '0')}${userPart}.pdf`;
-  openPdf(await pdfDoc.save(), filename);
+  downloadPdf(bytes, `勤務表${year}${String(month).padStart(2, '0')}${userPart}.pdf`);
 }
