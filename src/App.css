@@ -2265,6 +2265,24 @@ hr {
   font-size: 13px;
   word-break: break-all;
 }
+.share-prompt-files-buttons {
+  max-height: 50vh;
+  padding: 4px 12px;
+  list-style: none;
+}
+.share-prompt-files-buttons li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+}
+.share-prompt-files-buttons li + li { border-top: 1px solid var(--border-soft); }
+.share-prompt-files-buttons .btn {
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 6px 14px;
+}
 .share-prompt-actions {
   display: flex;
   justify-content: flex-end;
