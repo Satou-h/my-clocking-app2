@@ -13,7 +13,6 @@ import {
   type Stat,
 } from './pdfKit';
 
-const FORM_NO = '様式1-1-26.1';
 const DAILY_LIMIT = 8 * 60;
 const WORK_TYPES = new Set<AttendanceType>(['work', 'am_leave', 'pm_leave', 'scheduled_holiday_work', 'legal_holiday_work', 'transfer_holiday_work']);
 const LEAVE_TYPES = new Set<AttendanceType>(['paid_leave', 'planned_paid_leave', 'am_leave', 'pm_leave', 'holiday', 'transfer_holiday']);
@@ -135,7 +134,6 @@ export async function buildMonthlyAttendancePdf(
   const plStart = plRemaining !== null ? plRemaining + plUsed : null;
 
   // ── ヘッダー ──────────────────────────────────────────────────────────────
-  p.txt(FORM_NO, 0, 14, 6.5, C.sub, 'right', right);
   p.txt(`${year}年${month}月 勤務表`, M.l, M.t + 18, 17, C.primary);
   let x = M.l;
   const metaY = M.t + 40;

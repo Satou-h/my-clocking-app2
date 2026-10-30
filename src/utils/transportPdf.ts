@@ -6,7 +6,6 @@ import { TRIP_TYPE_LABELS } from '../types/transport';
 import { getHolidayName } from './holidays';
 import { C, DOW_JA, createPainter, downloadPdf, loadFont } from './pdfKit';
 
-const FORM_NO = '様式1-3-26.1';
 const yen = (n: number) => `¥${n.toLocaleString('ja-JP')}`;
 
 export async function buildTransportPdf(
@@ -36,7 +35,6 @@ export async function buildTransportPdf(
   const dayOf = (date: string) => Number(date.slice(8, 10));
 
   // ── ヘッダー ──────────────────────────────────────────────────────────────
-  p.txt(FORM_NO, 0, 18, 6.5, C.sub, 'right', right);
   p.txt('小口交通費立替精算書', M.l, M.t + 26, 18, C.primary);
   let x = M.l;
   const metaY = M.t + 50;
@@ -48,7 +46,7 @@ export async function buildTransportPdf(
   meta('氏名', name, 11);
   // 申請日は会社様式にならって対象月の末日
   meta('申請日', `${year}/${month}/${lastDay}`, 9);
-  const stampX = p.stamps(['承認', '検印', '領収印'], right, M.t, 46, 54);
+  const stampX = p.stamps(['承認', '検印', '領収印', '本人印'], right, M.t, 46, 54);
   p.hline(M.l, stampX - 14, M.t + 58, C.primary, 1.2);
 
   // ── 集計（合計金額をいちばん大きく） ─────────────────────────────────────
