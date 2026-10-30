@@ -1,5 +1,6 @@
 // 勤務表・交通費PDF（pdf-lib）で共有するフォント読み込み・色・描画ヘルパー
 import { rgb, type PDFFont, type PDFPage, type RGB } from 'pdf-lib';
+import { savePdf } from './pdfOutput';
 
 // ── フォント（public/fonts の NotoSansJP-Regular を共有） ─────────────────────
 // ※ embedFont の subset:true は NotoSansJP で文字が欠けるので使わない
@@ -13,12 +14,7 @@ export async function loadFont(): Promise<ArrayBuffer> {
 }
 
 export function downloadPdf(bytes: Uint8Array, filename: string): void {
-  const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  savePdf(bytes, filename);
 }
 
 // ── 色 ────────────────────────────────────────────────────────────────────────

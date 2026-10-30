@@ -13,6 +13,7 @@ import { printMonthlyAttendancePDF } from '../utils/attendancePdf';
 import { printLeaveApplication, printLateEarlyApplication, printWorkReport } from '../utils/pdf';
 import { printTransportPDF } from '../utils/transportPdf';
 import { printSkillSheet, printWorkHistory } from '../utils/skillPdf';
+import { collectPdfs, deliverPdfs } from '../utils/pdfOutput';
 import { sortWorkHistory } from '../utils/workHistory';
 import { loadAllWeeks, loadSummary, loadName, hasContent } from '../utils/workReport';
 
@@ -21,10 +22,6 @@ interface Props {
   transportRecords: TransportRecord[];
   workSettings: WorkSettings;
   paidLeaveSettings: PaidLeaveSettings[];
-}
-
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export default function BulkDownloadTab({ records, transportRecords, workSettings, paidLeaveSettings }: Props) {
@@ -115,52 +112,50 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
 
     setDownloading(true);
     try {
-      await printMonthlyAttendancePDF(records, workSettings, filterYear, filterMonth, plRemaining, p.employeeId, p.lastName, reportName);
+      // すべてのPDFを作り終えてから、まとめてダウンロード（iPhone・iPad は共有シート）する
+      const files = await collectPdfs(async () => {
+        await printMonthlyAttendancePDF(records, workSettings, filterYear, filterMonth, plRemaining, p.employeeId, p.lastName, reportName);
 
-      await wait(600);
-      await printTransportPDF(transportRecords, filterYear, filterMonth, p.employeeId, p.lastName, reportName);
+        await printTransportPDF(transportRecords, filterYear, filterMonth, p.employeeId, p.lastName, reportName);
 
-      const prefix = `${filterYear}-${String(filterMonth).padStart(2, '0')}`;
+        const prefix = `${filterYear}-${String(filterMonth).padStart(2, '0')}`;
 
-      if (completeness.leaveApplication.required) {
-        const batches = leaveApplications.filter((b) => b.dateEntries.some((e) => e.date.startsWith(prefix)));
-        for (const batch of batches) {
-          await wait(600);
-          const entriesInMonth = batch.dateEntries.filter((e) => e.date.startsWith(prefix));
-          printLeaveApplication({
-            applicationDate: batch.applicationDate,
-            name: batch.name,
-            dateEntries: entriesInMonth.map((e) => ({ date: e.date, leaveLabel: LEAVE_LABELS[e.leaveType] })),
-            leaveDays: calcLeaveDays(entriesInMonth),
-            reason: batch.reason,
-          }, p.employeeId, p.lastName);
+        if (completeness.leaveApplication.required) {
+          const batches = leaveApplications.filter((b) => b.dateEntries.some((e) => e.date.startsWith(prefix)));
+          for (const batch of batches) {
+            const entriesInMonth = batch.dateEntries.filter((e) => e.date.startsWith(prefix));
+            await printLeaveApplication({
+              applicationDate: batch.applicationDate,
+              name: batch.name,
+              dateEntries: entriesInMonth.map((e) => ({ date: e.date, leaveLabel: LEAVE_LABELS[e.leaveType] })),
+              leaveDays: calcLeaveDays(entriesInMonth),
+              reason: batch.reason,
+            }, p.employeeId, p.lastName);
+          }
         }
-      }
 
-      if (completeness.lateEarlyApplication.required) {
-        const targets = lateEarlyApplications.filter((r) => r.targetDate.startsWith(prefix));
-        for (const rec of targets) {
-          await wait(600);
-          printLateEarlyApplication({
-            applicationDate: rec.applicationDate,
-            name: rec.name,
-            type: rec.type,
-            targetDate: rec.targetDate,
-            scheduledTime: rec.scheduledTime,
-            actualTime: rec.actualTime,
-            reason: rec.reason,
-          }, p.employeeId, p.lastName);
+        if (completeness.lateEarlyApplication.required) {
+          const targets = lateEarlyApplications.filter((r) => r.targetDate.startsWith(prefix));
+          for (const rec of targets) {
+            await printLateEarlyApplication({
+              applicationDate: rec.applicationDate,
+              name: rec.name,
+              type: rec.type,
+              targetDate: rec.targetDate,
+              scheduledTime: rec.scheduledTime,
+              actualTime: rec.actualTime,
+              reason: rec.reason,
+            }, p.employeeId, p.lastName);
+          }
         }
-      }
 
-      await wait(600);
-      printWorkReport(filterYear, filterMonth, reportName, reportWeeks, p.employeeId, p.lastName, loadSummary(filterYear, filterMonth));
+        await printWorkReport(filterYear, filterMonth, reportName, reportWeeks, p.employeeId, p.lastName, loadSummary(filterYear, filterMonth));
 
-      await wait(600);
-      await printSkillSheet({ ...skillProfile, name: skillName }, loadSkillEntries(), loadCertifications(), p.employeeId, p.lastName);
+        await printSkillSheet({ ...skillProfile, name: skillName }, loadSkillEntries(), loadCertifications(), p.employeeId, p.lastName);
 
-      await wait(600);
-      await printWorkHistory(skillName, sortWorkHistory(loadWorkHistory()), p.employeeId, p.lastName);
+        await printWorkHistory(skillName, sortWorkHistory(loadWorkHistory()), p.employeeId, p.lastName);
+      });
+      await deliverPdfs(files);
     } catch (err) {
       alert('PDF生成エラー: ' + (err as Error).message);
     } finally {

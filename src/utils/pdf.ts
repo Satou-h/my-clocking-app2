@@ -1,5 +1,6 @@
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import { savePdf } from './pdfOutput';
 import type { AttendanceRecord, WorkSettings } from '../types/attendance';
 import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
 import {
@@ -90,16 +91,10 @@ async function htmlToPdf(html: string, landscape: boolean, filename: string, use
         y += pH;
       }
     }
-    pdf.save(filename);
+    savePdf(pdf.output('blob'), filename);
   } finally {
     document.body.removeChild(wrapper);
   }
-}
-
-function openPrintWindow(html: string, landscape = false, filename = 'document.pdf', useNotoSansJp = false): void {
-  htmlToPdf(html, landscape, filename, useNotoSansJp).catch(err =>
-    alert('PDF生成エラー: ' + (err instanceof Error ? err.message : String(err)))
-  );
 }
 
 
@@ -125,7 +120,7 @@ export function printMonthlyAttendance(
   plRemaining: number | null = null,
   employeeId = '',
   lastName = '',
-) {
+): Promise<void> {
   const prefix = `${year}-${String(month).padStart(2, '0')}`;
   const filtered = records
     .filter((r) => r.date.startsWith(prefix))
@@ -444,7 +439,7 @@ export function printMonthlyAttendance(
 </body>
 </html>`;
 
-  openPrintWindow(html, false, buildFilename('勤務表', `${year}${String(month).padStart(2, '0')}`, employeeId, lastName) + '.pdf');
+  return htmlToPdf(html, false, buildFilename('勤務表', `${year}${String(month).padStart(2, '0')}`, employeeId, lastName) + '.pdf');
 }
 
 function fmtJpDate(d: string): string {
@@ -466,7 +461,7 @@ export interface LeaveApplicationData {
   reason: string;
 }
 
-export function printLeaveApplication(data: LeaveApplicationData, employeeId = '', lastName = '') {
+export function printLeaveApplication(data: LeaveApplicationData, employeeId = '', lastName = ''): Promise<void> {
   const { applicationDate, name, dateEntries, leaveDays, reason } = data;
   const yymmdd = applicationDate.replace(/-/g, '').slice(2);
   const sorted = [...dateEntries].sort((a, b) => a.date.localeCompare(b.date));
@@ -574,7 +569,7 @@ export function printLeaveApplication(data: LeaveApplicationData, employeeId = '
 </body>
 </html>`;
 
-  openPrintWindow(html, false, buildFilename('休暇申請書', yymmdd, employeeId, lastName) + '.pdf');
+  return htmlToPdf(html, false, buildFilename('休暇申請書', yymmdd, employeeId, lastName) + '.pdf');
 }
 
 export interface LateEarlyApplicationData {
@@ -587,7 +582,7 @@ export interface LateEarlyApplicationData {
   reason: string;
 }
 
-export function printLateEarlyApplication(data: LateEarlyApplicationData, employeeId = '', lastName = '') {
+export function printLateEarlyApplication(data: LateEarlyApplicationData, employeeId = '', lastName = ''): Promise<void> {
   const { applicationDate, name, type, targetDate, scheduledTime, actualTime, reason } = data;
   const yymmdd = applicationDate.replace(/-/g, '').slice(2);
 
@@ -696,7 +691,7 @@ export function printLateEarlyApplication(data: LateEarlyApplicationData, employ
 </body>
 </html>`;
 
-  openPrintWindow(html, false, buildFilename('遅早退申請書', yymmdd, employeeId, lastName) + '.pdf');
+  return htmlToPdf(html, false, buildFilename('遅早退申請書', yymmdd, employeeId, lastName) + '.pdf');
 }
 
 const WEEK_LABELS_PDF = ['第一週', '第二週', '第三週', '第四週', '第五週'];
@@ -720,7 +715,7 @@ export function printWorkReport(
   employeeId = '',
   lastName = '',
   monthlySummary = '',
-) {
+): Promise<void> {
   const nl2br = (s: string) => s.replace(/\n/g, '<br>').replace(/・/g, '・');
 
   const weekRows = weeks.map((w, i) => `
@@ -1042,5 +1037,5 @@ export function printWorkReport(
 </body>
 </html>`;
 
-  openPrintWindow(html, true, buildFilename('作業状況報告書', `${year}${String(month).padStart(2, '0')}`, employeeId, lastName) + '.pdf');
+  return htmlToPdf(html, true, buildFilename('作業状況報告書', `${year}${String(month).padStart(2, '0')}`, employeeId, lastName) + '.pdf');
 }

@@ -118,7 +118,8 @@ export default function WorkReportTab() {
       alert('「設定」で社員番号と苗字を入力してください。');
       return;
     }
-    printWorkReport(year, month, name, savedWeeks, employeeId, lastName, monthlySummary);
+    printWorkReport(year, month, name, savedWeeks, employeeId, lastName, monthlySummary)
+      .catch((err: Error) => alert('PDF生成エラー: ' + err.message));
   }
 
   const years = [currentYear - 1, currentYear, currentYear + 1];

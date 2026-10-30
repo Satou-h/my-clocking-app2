@@ -180,7 +180,7 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
       dateEntries: record.dateEntries.map((e) => ({ date: e.date, leaveLabel: LEAVE_LABELS[e.leaveType] })),
       leaveDays: calcLeaveDays(record.dateEntries),
       reason: record.reason,
-    }, employeeId, lastName);
+    }, employeeId, lastName).catch((err: Error) => alert('PDF生成エラー: ' + err.message));
   }
 
   function handlePrintLeave() {
@@ -286,7 +286,7 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
       scheduledTime: record.scheduledTime,
       actualTime: record.actualTime,
       reason: record.reason,
-    }, employeeId, lastName);
+    }, employeeId, lastName).catch((err: Error) => alert('PDF生成エラー: ' + err.message));
   }
 
   function handlePrintLateEarly() {
