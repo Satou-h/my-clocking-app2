@@ -10,7 +10,8 @@ import {
 } from '../utils/storage';
 import { checkMonthCompleteness, fmtDateShort, type DocCompleteness } from '../utils/completeness';
 import { printMonthlyAttendancePDF } from '../utils/attendancePdf';
-import { printTransportRecords, printLeaveApplication, printLateEarlyApplication, printWorkReport } from '../utils/pdf';
+import { printLeaveApplication, printLateEarlyApplication, printWorkReport } from '../utils/pdf';
+import { printTransportPDF } from '../utils/transportPdf';
 import { printSkillSheet, printWorkHistory } from '../utils/skillPdf';
 import { sortWorkHistory } from '../utils/workHistory';
 import { loadAllWeeks, loadSummary, loadName, hasContent } from '../utils/workReport';
@@ -117,7 +118,7 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
       await printMonthlyAttendancePDF(records, workSettings, filterYear, filterMonth, plRemaining, p.employeeId, p.lastName, reportName);
 
       await wait(600);
-      printTransportRecords(transportRecords, filterYear, filterMonth, p.employeeId, p.lastName, reportName);
+      await printTransportPDF(transportRecords, filterYear, filterMonth, p.employeeId, p.lastName, reportName);
 
       const prefix = `${filterYear}-${String(filterMonth).padStart(2, '0')}`;
 

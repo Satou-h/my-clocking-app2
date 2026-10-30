@@ -4,7 +4,7 @@ import { ATTENDANCE_TYPE_LABELS, DEFAULT_WORK_SETTINGS } from '../types/attendan
 import type { TransportRecord, TripType } from '../types/transport';
 import { TRIP_TYPE_LABELS } from '../types/transport';
 import { generateId, loadUserProfile } from '../utils/storage';
-import { printTransportRecords } from '../utils/pdf';
+import { printTransportPDF } from '../utils/transportPdf';
 import { getHolidayName } from '../utils/holidays';
 import { checkMonthCompleteness, formatCompletenessIssue } from '../utils/completeness';
 import { loadName, saveName } from '../utils/workReport';
@@ -255,7 +255,8 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
               alert(formatCompletenessIssue('交通費', completeness.transport));
               return;
             }
-            printTransportRecords(records, filterYear, filterMonth, p.employeeId, p.lastName, name);
+            printTransportPDF(records, filterYear, filterMonth, p.employeeId, p.lastName, name)
+              .catch((err: Error) => alert('PDF生成エラー: ' + err.message));
           }}
           title={`${filterYear}年${filterMonth}月をPDF出力`}
         >
