@@ -191,6 +191,34 @@ export function deleteLateEarlyApplication(id: string): void {
   saveLateEarlyApplications(loadLateEarlyApplications().filter((r) => r.id !== id));
 }
 
+// QR / カナコードで受け取った対象月の申請書類を取り込む
+// merge: 同じ日付の申請だけ上書きし、他は残す / replace: 対象月の日付の申請をすべて置き換える
+export function importApplications(
+  year: number, month: number,
+  data: { leave: LeaveApplicationRecord[]; lateEarly: LateEarlyApplicationRecord[] },
+  mode: 'merge' | 'replace',
+): void {
+  if (mode === 'replace') {
+    const prefix = `${year}-${String(month).padStart(2, '0')}`;
+    saveLeaveApplications(loadLeaveApplications()
+      .map((b) => ({ ...b, dateEntries: b.dateEntries.filter((e) => !e.date.startsWith(prefix)) }))
+      .filter((b) => b.dateEntries.length > 0));
+    saveLateEarlyApplications(loadLateEarlyApplications().filter((r) => !r.targetDate.startsWith(prefix)));
+  }
+  for (const b of data.leave) upsertLeaveApplication(b);
+  for (const r of data.lateEarly) upsertLateEarlyApplication(r);
+}
+
+// QR / カナコードで受け取ったスキル表（プロフィール・スキル・資格・職務経歴）で丸ごと置き換える
+export function importSkillSheet(data: {
+  profile: SkillSheetProfile; skills: SkillEntry[]; certifications: Certification[]; workHistory: WorkHistoryEntry[];
+}): void {
+  saveSkillProfile(data.profile);
+  saveSkillEntries(data.skills);
+  saveCertifications(data.certifications);
+  saveWorkHistory(data.workHistory);
+}
+
 // ── 有給残日数（月度ごと）──────────────────────────────────────────────────────
 
 const monthIndex = (year: number, month: number) => year * 12 + (month - 1);
