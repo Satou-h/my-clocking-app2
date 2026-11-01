@@ -17,7 +17,8 @@ export async function buildTransportPdf(
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
-  const font = await doc.embedFont(fontBytes);
+  // サブセット化は loadFont() で詰め直したフォントが前提
+  const font = await doc.embedFont(fontBytes, { subset: true });
   doc.setTitle(`${year}年${month}月 小口交通費立替精算書 ${name}`);
 
   const W = 595.28, H = 841.89; // A4 縦

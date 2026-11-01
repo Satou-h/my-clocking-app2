@@ -104,7 +104,8 @@ export async function buildMonthlyAttendancePdf(
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
-  const font = await doc.embedFont(fontBytes);
+  // サブセット化は loadFont() で詰め直したフォントが前提
+  const font = await doc.embedFont(fontBytes, { subset: true });
   doc.setTitle(`${year}年${month}月 勤務表 ${name}`);
 
   const W = 841.89, H = 595.28; // A4 横

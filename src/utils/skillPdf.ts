@@ -3,6 +3,7 @@ import fontkit from '@pdf-lib/fontkit';
 import type { SkillEntry, Certification, SkillSheetProfile, WorkHistoryEntry } from '../types/skill';
 import { fmtYearMonth } from './workHistory';
 import { savePdf } from './pdfOutput';
+import { loadFont } from './pdfKit';
 
 // ── Colors ────────────────────────────────────────────────────────────────────
 const BLACK  = rgb(0.1,  0.1,  0.1);
@@ -10,17 +11,6 @@ const MID    = rgb(0.33, 0.33, 0.33);
 const BORDER = rgb(0.53, 0.53, 0.53); // #888
 const GREEN  = rgb(0.776, 0.851, 0.627); // #c6d9a0
 const BLUE   = rgb(0.863, 0.902, 0.941); // #dce6f0
-
-// ── Font loading ──────────────────────────────────────────────────────────────
-let cachedFontBytes: ArrayBuffer | null = null;
-
-async function loadFont(): Promise<ArrayBuffer> {
-  if (cachedFontBytes) return cachedFontBytes;
-  const res = await fetch(import.meta.env.BASE_URL + 'fonts/NotoSansJP-Regular.ttf');
-  if (!res.ok) throw new Error('フォントの読み込みに失敗しました');
-  cachedFontBytes = await res.arrayBuffer();
-  return cachedFontBytes;
-}
 
 // ── Text helpers ──────────────────────────────────────────────────────────────
 
@@ -114,7 +104,7 @@ export async function printSkillSheet(
   const fontBytes = await loadFont();
   const pdfDoc = await PDFDocument.create();
   pdfDoc.registerFontkit(fontkit);
-  const font = await pdfDoc.embedFont(fontBytes);
+  const font = await pdfDoc.embedFont(fontBytes, { subset: true });
 
   const PW = 841.89; const PH = 595.28;
   const page = pdfDoc.addPage([PW, PH]);
@@ -289,7 +279,7 @@ export async function printWorkHistory(
   const fontBytes = await loadFont();
   const pdfDoc = await PDFDocument.create();
   pdfDoc.registerFontkit(fontkit);
-  const font = await pdfDoc.embedFont(fontBytes);
+  const font = await pdfDoc.embedFont(fontBytes, { subset: true });
 
   const PW = 841.89; const PH = 595.28;
   const page = pdfDoc.addPage([PW, PH]);

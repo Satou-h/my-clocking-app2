@@ -3,14 +3,58 @@ import { rgb, type PDFFont, type PDFPage, type RGB } from 'pdf-lib';
 import { savePdf } from './pdfOutput';
 
 // ── フォント（public/fonts の NotoSansJP-Regular を共有） ─────────────────────
-// ※ embedFont の subset:true は NotoSansJP で文字が欠けるので使わない
-let cachedFontBytes: ArrayBuffer | null = null;
-export async function loadFont(): Promise<ArrayBuffer> {
+// スキルシート・職務経歴書PDF（skillPdf.ts）もここから読み込む。
+// PDFには使う文字だけを埋め込む（embedFont の subset:true）。
+// NotoSansJP はバイト長が奇数のグリフを含み、fontkit は小さなサブセットを短い形式の loca
+// （オフセット÷2）で書き出すため、そのままだとグリフの位置がずれて文字が化ける。
+// 読み込み時に各グリフを偶数バイトに詰め直しておく（字形は変わらない）。
+let cachedFontBytes: Uint8Array | null = null;
+export async function loadFont(): Promise<Uint8Array> {
   if (cachedFontBytes) return cachedFontBytes;
   const res = await fetch(import.meta.env.BASE_URL + 'fonts/NotoSansJP-Regular.ttf');
   if (!res.ok) throw new Error('フォントの読み込みに失敗しました');
-  cachedFontBytes = await res.arrayBuffer();
+  cachedFontBytes = padGlyphs(new Uint8Array(await res.arrayBuffer()));
   return cachedFontBytes;
+}
+
+// TrueType の glyf の各グリフを偶数バイトに詰め直し、loca を書き直したフォントを返す
+function padGlyphs(src: Uint8Array): Uint8Array {
+  const dv = new DataView(src.buffer, src.byteOffset, src.byteLength);
+  const tables = Array.from({ length: dv.getUint16(4) }, (_, i) => {
+    const rec = 12 + i * 16;
+    return { rec, tag: String.fromCharCode(...src.subarray(rec, rec + 4)), offset: dv.getUint32(rec + 8), length: dv.getUint32(rec + 12) };
+  });
+  const table = (tag: string) => tables.find(t => t.tag === tag);
+  const head = table('head'), maxp = table('maxp'), loca = table('loca'), glyf = table('glyf');
+  // 短い形式の loca のフォントは元から偶数バイト
+  if (!head || !maxp || !loca || !glyf || dv.getInt16(head.offset + 50) !== 1) return src;
+
+  const numGlyphs = dv.getUint16(maxp.offset + 4);
+  const at = (i: number) => dv.getUint32(loca.offset + i * 4);
+  const offsets = [0];
+  for (let i = 0; i < numGlyphs; i++) offsets.push(offsets[i] + ((at(i + 1) - at(i) + 1) & ~1));
+  const glyfLen = offsets[numGlyphs];
+
+  // テーブルを元の並び順のまま 4バイト境界で詰めて書き直す（glyf だけ差し替え）
+  const align4 = (v: number) => (v + 3) & ~3;
+  const headerLen = 12 + tables.length * 16;
+  const out = new Uint8Array(tables.reduce((a, t) => a + align4(t === glyf ? glyfLen : t.length), headerLen));
+  const ov = new DataView(out.buffer);
+  out.set(src.subarray(0, headerLen));
+  let pos = headerLen;
+  for (const t of [...tables].sort((a, b) => a.offset - b.offset)) {
+    ov.setUint32(t.rec + 8, pos);
+    if (t === glyf) {
+      ov.setUint32(t.rec + 12, glyfLen);
+      for (let i = 0; i < numGlyphs; i++) out.set(src.subarray(glyf.offset + at(i), glyf.offset + at(i + 1)), pos + offsets[i]);
+      pos += align4(glyfLen);
+    } else {
+      out.set(src.subarray(t.offset, t.offset + t.length), pos);
+      if (t === loca) offsets.forEach((o, i) => ov.setUint32(pos + i * 4, o));
+      pos += align4(t.length);
+    }
+  }
+  return out;
 }
 
 export function downloadPdf(bytes: Uint8Array, filename: string): void {
