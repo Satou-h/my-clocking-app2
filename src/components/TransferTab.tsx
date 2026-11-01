@@ -14,6 +14,7 @@ import {
   importApplications, importSkillSheet, type UserProfile,
 } from '../utils/storage';
 import { WEEK_LABELS, loadAllWeeks, loadSummary, loadName, importWorkReport } from '../utils/workReport';
+import Icon from './Icon';
 
 interface Props {
   records: AttendanceRecord[];
@@ -52,8 +53,9 @@ type DocKey = keyof TransferDocs;
 const APPLY_ALL_DOCS: Record<DocKey, boolean> = { workReport: true, applications: true, skillSheet: true };
 
 // QR / カナコードで読み込んだ提出書類（作業報告書・申請書類・スキル表）の確認表示と取り込み選択
-function TransferDocsPreview({ docs, month, apply, onApplyChange }: {
-  docs: TransferDocs; month: number; apply: Record<DocKey, boolean>; onApplyChange: (v: Record<DocKey, boolean>) => void;
+function TransferDocsPreview({ docs, month, oldFormat, apply, onApplyChange }: {
+  docs: TransferDocs; month: number; oldFormat: boolean;
+  apply: Record<DocKey, boolean>; onApplyChange: (v: Record<DocKey, boolean>) => void;
 }) {
   const { workReport, applications, skillSheet } = docs;
   const toggle = (key: DocKey, label: string) => (
@@ -68,6 +70,15 @@ function TransferDocsPreview({ docs, month, apply, onApplyChange }: {
   ] : [];
   return (
     <>
+      {oldFormat && (
+        <div className="notice-banner my-8" role="status">
+          <Icon name="alert" />
+          <span>
+            このコードには申請書類・スキル表が含まれていません。送る側のアプリが古い版のままの可能性があります。
+            送る側でページを再読み込み（アプリを開き直し）してから、コードを作り直してください。
+          </span>
+        </div>
+      )}
       {workReport && (
         <div className="my-8">
           <ul className="bullet-list">
@@ -149,7 +160,7 @@ export default function TransferTab({
   const qrFileRef                        = useRef<HTMLInputElement>(null);
   const [qrImportAtt, setQrImportAtt]   = useState<AttendanceRecord[] | null>(null);
   const [qrImportTrp, setQrImportTrp]   = useState<TransportRecord[] | null>(null);
-  const [qrImportInfo, setQrImportInfo] = useState<{ year: number; month: number } | null>(null);
+  const [qrImportInfo, setQrImportInfo] = useState<{ year: number; month: number; oldFormat: boolean } | null>(null);
   const [qrImportMode, setQrImportMode] = useState<'merge' | 'replace'>('merge');
   const [qrImportMeta, setQrImportMeta] = useState<TransferMeta | undefined>();
   const [qrApplyMeta, setQrApplyMeta]   = useState(true);
@@ -162,7 +173,7 @@ export default function TransferTab({
   const [jumonInput, setJumonInput]         = useState('');
   const [jumonImportAtt, setJumonImportAtt] = useState<AttendanceRecord[] | null>(null);
   const [jumonImportTrp, setJumonImportTrp] = useState<TransportRecord[]>([]);
-  const [jumonImportInfo, setJumonImportInfo] = useState<{ year: number; month: number } | null>(null);
+  const [jumonImportInfo, setJumonImportInfo] = useState<{ year: number; month: number; oldFormat: boolean } | null>(null);
   const [jumonImportMode, setJumonImportMode] = useState<'merge' | 'replace'>('merge');
   const [jumonImportMeta, setJumonImportMeta] = useState<TransferMeta | undefined>();
   const [jumonApplyMeta, setJumonApplyMeta]   = useState(true);
@@ -195,7 +206,7 @@ export default function TransferTab({
     if (!result) { setQrError('QRコードのデータを解析できませんでした。'); return; }
     setQrImportAtt(result.att);
     setQrImportTrp(result.trp);
-    setQrImportInfo({ year: result.year, month: result.month });
+    setQrImportInfo({ year: result.year, month: result.month, oldFormat: result.oldFormat });
     setQrImportMeta(result.meta);
     setQrApplyMeta(true);
     setQrImportDocs(result.docs ?? {});
@@ -249,7 +260,7 @@ export default function TransferTab({
     if (!result) { setJumonError('カナコードのバージョンが不正です。'); return; }
     setJumonImportAtt(result.records);
     setJumonImportTrp(result.transportRecords);
-    setJumonImportInfo({ year: result.year, month: result.month });
+    setJumonImportInfo({ year: result.year, month: result.month, oldFormat: result.oldFormat });
     setJumonImportMeta(result.meta);
     setJumonApplyMeta(true);
     setJumonImportDocs(result.docs ?? {});
@@ -329,7 +340,10 @@ export default function TransferTab({
               <li>交通費レコード: {qrImportTrp?.length ?? 0}件</li>
             </ul>
             <TransferMetaPreview meta={qrImportMeta} month={qrImportInfo.month} apply={qrApplyMeta} onApplyChange={setQrApplyMeta} />
-            <TransferDocsPreview docs={qrImportDocs} month={qrImportInfo.month} apply={qrApplyDocs} onApplyChange={setQrApplyDocs} />
+            <TransferDocsPreview
+              docs={qrImportDocs} month={qrImportInfo.month} oldFormat={qrImportInfo.oldFormat}
+              apply={qrApplyDocs} onApplyChange={setQrApplyDocs}
+            />
             <div className="form-row">
               <label>取り込み方式</label>
               <select value={qrImportMode} onChange={e => setQrImportMode(e.target.value as 'merge' | 'replace')}>
@@ -403,7 +417,10 @@ export default function TransferTab({
               </tbody>
             </table>
             <TransferMetaPreview meta={jumonImportMeta} month={jumonImportInfo.month} apply={jumonApplyMeta} onApplyChange={setJumonApplyMeta} />
-            <TransferDocsPreview docs={jumonImportDocs} month={jumonImportInfo.month} apply={jumonApplyDocs} onApplyChange={setJumonApplyDocs} />
+            <TransferDocsPreview
+              docs={jumonImportDocs} month={jumonImportInfo.month} oldFormat={jumonImportInfo.oldFormat}
+              apply={jumonApplyDocs} onApplyChange={setJumonApplyDocs}
+            />
             <div className="form-row mt-8">
               <label>取り込み方式</label>
               <select value={jumonImportMode} onChange={e => setJumonImportMode(e.target.value as 'merge' | 'replace')}>

@@ -577,6 +577,8 @@ export function encodeMonth(
 export function decodeMonth(buf: Uint8Array): {
   records: AttendanceRecord[]; transportRecords: TransportRecord[]; year: number; month: number; meta?: TransferMeta;
   docs?: TransferDocs;
+  // 申請書類・スキル表を含まない旧形式のコード（送る側のアプリが古い版）
+  oldFormat: boolean;
 } | null {
   try {
     const ver = buf[0];
@@ -587,7 +589,7 @@ export function decodeMonth(buf: Uint8Array): {
     if (buf.length < 5 + count * 6) return null;
     const records: AttendanceRecord[] = [];
     for (let i = 0; i < count; i++) records.push(unpackRecord(buf, 5 + i * 6, year, month));
-    if (ver === 1) return { records, transportRecords: [], year, month };
+    if (ver === 1) return { records, transportRecords: [], year, month, oldFormat: true };
     const reader = new ByteReader(buf, 5 + count * 6);
     const meta = decodeMeta(reader, records);
     if (ver >= 3) decodeNotes(reader, records);
@@ -603,7 +605,7 @@ export function decodeMonth(buf: Uint8Array): {
     }
     if (ver >= 5) decodePaidLeave(reader, meta);
     const docs = ver >= 6 ? decodeDocs(reader, meta, ver >= 7) : undefined;
-    return { records, transportRecords, year, month, meta, docs };
+    return { records, transportRecords, year, month, meta, docs, oldFormat: ver < 7 };
   } catch { return null; }
 }
 
@@ -692,6 +694,8 @@ export function encodeQR(
 export function decodeQR(text: string): {
   att: AttendanceRecord[]; trp: TransportRecord[]; year: number; month: number; meta?: TransferMeta;
   docs?: TransferDocs;
+  // 申請書類・スキル表を含まない旧形式のコード（送る側のアプリが古い版）
+  oldFormat: boolean;
 } | null {
   // ── v2 バイナリ形式 ──
   if (text.startsWith(QR2_PREFIX)) {
@@ -710,7 +714,7 @@ export function decodeQR(text: string): {
       for (let i = 0; i < attCnt; i++) att.push(unpackRecord(buf, 7 + i * 6, year, month));
       const trp: TransportRecord[] = [];
       for (let i = 0; i < trpCnt; i++) trp.push(unpackTransport(buf, 7 + attCnt * 6 + i * 4, year, month));
-      if (ver === 2) return { att, trp, year, month };
+      if (ver === 2) return { att, trp, year, month, oldFormat: true };
       const reader = new ByteReader(buf, 7 + attCnt * 6 + trpCnt * 4);
       const meta = decodeMeta(reader, att);
       if (ver >= 4) {
@@ -720,7 +724,7 @@ export function decodeQR(text: string): {
       if (ver >= 5) decodeRouteTexts(reader, trp);
       if (ver >= 6) decodePaidLeave(reader, meta);
       const docs = ver >= 7 ? decodeDocs(reader, meta, ver >= 8) : undefined;
-      return { att, trp, year, month, meta, docs };
+      return { att, trp, year, month, meta, docs, oldFormat: ver < 8 };
     } catch { return null; }
   }
 
@@ -731,7 +735,7 @@ export function decodeQR(text: string): {
     if (p.v !== 1 || !p.att) return null;
     const att = (p.att ?? []).map(r => ({ ...r, id: generateId() }));
     const trp = (p.trp ?? []).map(r => ({ ...r, id: generateId() }));
-    return { att, trp, year: p.y, month: p.m };
+    return { att, trp, year: p.y, month: p.m, oldFormat: true };
   } catch { return null; }
 }
 
