@@ -52,6 +52,19 @@ function TransferMetaPreview({ meta, month, apply, onApplyChange }: {
 type DocKey = keyof TransferDocs;
 const APPLY_ALL_DOCS: Record<DocKey, boolean> = { workReport: true, applications: true, skillSheet: true };
 
+// エクスポートで含める内容（基準時間・社員番号などの付加情報は常に含める）
+type ExportKey = 'attendance' | 'transport' | DocKey;
+const EXPORT_ITEMS: { key: ExportKey; label: string }[] = [
+  { key: 'attendance', label: '勤怠' },
+  { key: 'transport', label: '交通費' },
+  { key: 'workReport', label: '作業報告書' },
+  { key: 'applications', label: '申請書類' },
+  { key: 'skillSheet', label: 'スキル表' },
+];
+const INCLUDE_ALL: Record<ExportKey, boolean> = {
+  attendance: true, transport: true, workReport: true, applications: true, skillSheet: true,
+};
+
 // QR / カナコードで読み込んだ提出書類（作業報告書・申請書類・スキル表）の確認表示と取り込み選択
 function TransferDocsPreview({ docs, month, oldFormat, apply, onApplyChange }: {
   docs: TransferDocs; month: number; oldFormat: boolean;
@@ -130,16 +143,16 @@ export default function TransferTab({
     paidLeaveDays: findPaidLeaveSetting(paidLeaveSettings, year, month)?.totalDays,
     name: loadName(),
   });
-  // 転送する提出書類（申請書類は対象月の日付を含むもの。スキル表は月に関係なく全体）
+  // 転送する提出書類（「含める内容」で選んだもののみ。申請書類は対象月の日付を含むもの。スキル表は月に関係なく全体）
   const docsForMonth = (year: number, month: number): TransferDocs => {
     const prefix = `${year}-${String(month).padStart(2, '0')}`;
     return {
-      workReport: { weeks: loadAllWeeks(year, month), summary: loadSummary(year, month) },
-      applications: {
+      workReport: include.workReport ? { weeks: loadAllWeeks(year, month), summary: loadSummary(year, month) } : undefined,
+      applications: include.applications ? {
         leave: loadLeaveApplications().filter((b) => b.dateEntries.some((e) => e.date.startsWith(prefix))),
         lateEarly: loadLateEarlyApplications().filter((r) => r.targetDate.startsWith(prefix)),
-      },
-      skillSheet: includeSkill ? {
+      } : undefined,
+      skillSheet: include.skillSheet ? {
         profile: loadSkillProfile(), skills: loadSkillEntries(),
         certifications: loadCertifications(), workHistory: loadWorkHistory(),
       } : undefined,
@@ -150,8 +163,8 @@ export default function TransferTab({
   const nowX = new Date();
   const [xferYear, setXferYear]   = useState(nowX.getFullYear());
   const [xferMonth, setXferMonth] = useState(nowX.getMonth() + 1);
-  // スキル表はデータ量が多くQRコードに収まらないことがあるため、含めるかを選べるようにする
-  const [includeSkill, setIncludeSkill] = useState(true);
+  // すべて含めるとQRコードに収まらないことがあるため、含める内容を選んで分けて転送できるようにする
+  const [include, setInclude] = useState(INCLUDE_ALL);
   // QR export
   const [qrDataUrl, setQrDataUrl]       = useState<string | null>(null);
   const [qrGenerating, setQrGenerating] = useState(false);
@@ -186,14 +199,15 @@ export default function TransferTab({
     setQrGenerating(true); setQrError('');
     try {
       const text = encodeQR(
-        records, transportRecords, xferYear, xferMonth, metaForMonth(xferYear, xferMonth), docsForMonth(xferYear, xferMonth),
+        include.attendance ? records : [], include.transport ? transportRecords : [],
+        xferYear, xferMonth, metaForMonth(xferYear, xferMonth), docsForMonth(xferYear, xferMonth),
       );
       const url  = await QRCode.toDataURL(text, { errorCorrectionLevel: 'L', margin: 2, width: 300 });
       setQrDataUrl(url);
     } catch (e) {
       const tooBig = /too big|amount of data/i.test(String(e));
       setQrError(tooBig
-        ? `データ量が多すぎてQRコードに収まりません。${includeSkill ? '「スキル表も含める」を外すか、' : ''}備考や作業報告書を短くするか、カナコードをご利用ください。`
+        ? 'データ量が多すぎてQRコードに収まりません。「含める内容」のチェックを減らして何回かに分けて転送するか、カナコードをご利用ください。'
         : 'QRコードの生成に失敗しました: ' + String(e));
     } finally {
       setQrGenerating(false);
@@ -247,7 +261,8 @@ export default function TransferTab({
   // ── カナコード ────────────────────────────────────────────────────────────
   function handleJumonGenerate() {
     const bytes = encodeMonth(
-      records, transportRecords, xferYear, xferMonth, metaForMonth(xferYear, xferMonth), docsForMonth(xferYear, xferMonth),
+      include.attendance ? records : [], include.transport ? transportRecords : [],
+      xferYear, xferMonth, metaForMonth(xferYear, xferMonth), docsForMonth(xferYear, xferMonth),
     );
     setJumonStr(formatJumon(bytesToJumon(bytes)));
     setJumonError('');
@@ -297,15 +312,26 @@ export default function TransferTab({
           {Array.from({length:12},(_,i)=>i+1).map(m => <option key={m} value={m}>{m}月</option>)}
         </select>
       </div>
-      <label className="range-toggle">
-        <input type="checkbox" checked={includeSkill}
-          onChange={e => { setIncludeSkill(e.target.checked); setQrDataUrl(null); setJumonStr(''); }} />
-        スキル表も含める（対象月に関係なく、スキル表・資格・職務経歴の全体を転送します）
-      </label>
+      <div className="form-row">
+        <label>含める内容</label>
+        <div className="radio-group">
+          {EXPORT_ITEMS.map(({ key, label }) => (
+            <label key={key}>
+              <input type="checkbox" checked={include[key]}
+                onChange={e => { setInclude({ ...include, [key]: e.target.checked }); setQrDataUrl(null); setJumonStr(''); }} />
+              {label}
+            </label>
+          ))}
+        </div>
+      </div>
+      <p className="hint">
+        基準時間・社員番号・苗字・氏名・有給残日数は常に含まれます。スキル表は対象月に関係なく、スキル・資格・職務経歴の全体を転送します。<br/>
+        QRコードとカナコードのどちらにも、ここで選んだ内容が含まれます。
+      </p>
 
       <div className="csv-section">
         <h4>エクスポート（QRコード生成）</h4>
-        <p className="hint">勤怠・交通費・作業報告書・申請書類・スキル表をQRコード画像に変換します。スマホでスキャンするか、スクリーンショットを保存してください。<br/>※ 勤怠・交通費の備考、交通費の行先・出発地・到着地も含まれます。データ量が多いとQRコードに収まらない場合があります。その場合は「スキル表も含める」を外すか、カナコードをご利用ください。</p>
+        <p className="hint">「含める内容」で選んだデータをQRコード画像に変換します。スマホでスキャンするか、スクリーンショットを保存してください。<br/>※ 勤怠・交通費の備考、交通費の行先・出発地・到着地も含まれます。データ量が多いとQRコードに収まらない場合があります。その場合は含める内容を減らして何回かに分けて転送するか、カナコードをご利用ください。</p>
         <button className="btn btn-secondary" onClick={handleQrGenerate} disabled={qrGenerating}>
           {qrGenerating ? '生成中…' : 'QRコードを生成'}
         </button>
@@ -398,7 +424,7 @@ export default function TransferTab({
         {jumonImportAtt && jumonImportInfo && (
           <div className="csv-preview">
             <strong>{jumonImportInfo.year}年{jumonImportInfo.month}月のデータを読み込みました（勤怠 {jumonImportAtt.length}件・交通費 {jumonImportTrp.length}件）</strong>
-            <table className="data-table preview-table mt-8">
+            {jumonImportAtt.length > 0 && <table className="data-table preview-table mt-8">
               <thead><tr><th>日付</th><th>種別</th><th>出勤</th><th>退勤</th><th>休憩</th><th>備考</th></tr></thead>
               <tbody>
                 {jumonImportAtt.slice(0, 8).map(r => (
@@ -415,7 +441,7 @@ export default function TransferTab({
                   <tr><td colSpan={6} className="td-more">…他 {jumonImportAtt.length - 8} 件</td></tr>
                 )}
               </tbody>
-            </table>
+            </table>}
             <TransferMetaPreview meta={jumonImportMeta} month={jumonImportInfo.month} apply={jumonApplyMeta} onApplyChange={setJumonApplyMeta} />
             <TransferDocsPreview
               docs={jumonImportDocs} month={jumonImportInfo.month} oldFormat={jumonImportInfo.oldFormat}
