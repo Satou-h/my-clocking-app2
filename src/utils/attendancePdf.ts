@@ -9,7 +9,7 @@ import {
 } from './storage';
 import { getHolidayName } from './holidays';
 import {
-  C, DOW_JA, createPainter, drawStatGroups, downloadPdf, hm, loadFont, quarterHours, shortTime, todayString,
+  C, DOW_JA, createPainter, drawStatGroups, downloadPdf, hm, hm10, loadFont, shortTime, todayString,
   type Stat,
 } from './pdfKit';
 
@@ -149,7 +149,7 @@ export async function buildMonthlyAttendancePdf(
 
   // ── 集計 ──────────────────────────────────────────────────────────────────
   const tone = (v: number, alert = false): Stat['tone'] => (v === 0 ? 'zero' : alert ? 'alert' : 'normal');
-  const hours = (min: number, alert = false): Stat => ({ label: '', value: quarterHours(min), unit: 'h', tone: tone(min, alert) });
+  const hours = (min: number, alert = false): Stat => ({ label: '', value: hm10(min), unit: '', tone: tone(min, alert) });
   const plStat = (label: string, v: number | null, zeroFaint = false): Stat =>
     v === null
       ? { label, value: '未設定', unit: '', tone: 'zero' }
@@ -166,7 +166,7 @@ export async function buildMonthlyAttendancePdf(
       { label: '取得', value: plUsed.toFixed(1), unit: '日', tone: tone(plUsed) },
       plStat('当月残', plRemaining),
     ] },
-    { title: '時間（0.25h単位）', stats: [
+    { title: '時間（10分単位）', stats: [
       { ...hours(total.bind), label: '勤務時間' },
       { ...hours(total.brk), label: '休憩時間' },
       { ...hours(total.actual), label: '実働時間' },
@@ -283,7 +283,7 @@ export async function buildMonthlyAttendancePdf(
     p.cell(hm(v), colX[i], bodyBottom, c.w, totalH, 7.8, v === 0 ? C.faint : colorOf(c.key));
   });
 
-  p.txt('上部の時間は15分単位で集計（明細・合計は 時:分）。空欄は 0:00。', M.l, bodyBottom + totalH + 10, 6.3, C.sub);
+  p.txt('時間は 時:分（上部の集計は10分単位で切り上げ）。空欄は 0:00。', M.l, bodyBottom + totalH + 10, 6.3, C.sub);
 
   return doc.save();
 }

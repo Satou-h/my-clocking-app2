@@ -46,8 +46,8 @@ export const DOW_JA = ['日', '月', '火', '水', '木', '金', '土'];
 export const hm = (min: number) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')}`;
 // "08:40" → "8:40"
 export const shortTime = (t: string) => t.replace(/^0(\d):/, '$1:');
-// 上部の集計は会社様式と同じ 0.25h（15分）単位。様式の値（178:40 → 178.75h）から切り上げとしている
-export const quarterHours = (min: number) => ((Math.ceil(min / 15) * 15) / 60).toFixed(2);
+// 上部の集計は明細と同じ 10分単位（切り上げ）の 時:分。178:35 → "178:40"
+export const hm10 = (min: number) => hm(Math.ceil(min / 10) * 10);
 
 export type Align = 'left' | 'center' | 'right';
 
@@ -142,7 +142,8 @@ export function drawStatGroups(p: Painter, groups: { title: string; stats: Stat[
       if (i > 0) p.vline(cx, y + 16, y + h - 6, C.line, 0.5);
       p.txt(s.label, cx, y + 22, 6.5, C.sub, 'center', statW);
       const vc = s.tone === 'zero' ? C.faint : s.tone === 'alert' ? C.over : C.ink;
-      const vSize = s.unit ? 11.5 : 9;
+      // 数値は大きく、「未設定」などの文言は小さく
+      const vSize = /\d/.test(s.value) ? 11.5 : 9;
       const vw = p.width(s.value, vSize);
       const uw = s.unit ? p.width(s.unit, 7) + 1.5 : 0;
       const vx = cx + (statW - vw - uw) / 2;
