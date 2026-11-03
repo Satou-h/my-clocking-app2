@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { loadUserProfile } from '../utils/storage';
 import { printWorkReport } from '../utils/pdf';
 import type { WeekReportData } from '../utils/pdf';
+import { checkWorkReport, formatCompletenessIssue } from '../utils/completeness';
 import {
   WEEK_LABELS, EMPTY_WEEK, loadAllWeeks, saveAllWeeks, loadSummary, saveSummary, loadName, saveName, hasContent,
   transferWeek, transferMonth, weekHasData, monthHasData,
@@ -116,6 +117,11 @@ export default function WorkReportTab() {
     const { employeeId, lastName } = loadUserProfile();
     if (!employeeId || !lastName) {
       alert('「設定」で社員番号と苗字を入力してください。');
+      return;
+    }
+    const doc = checkWorkReport(savedWeeks, name);
+    if (!doc.complete) {
+      alert(formatCompletenessIssue('作業報告書', doc));
       return;
     }
     printWorkReport(year, month, name, savedWeeks, employeeId, lastName, monthlySummary)

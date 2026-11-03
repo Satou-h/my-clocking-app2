@@ -9,7 +9,7 @@ import {
 import { calcMonthlySummary, isWorkType } from '../utils/summary';
 import { printMonthlyAttendancePDF } from '../utils/attendancePdf';
 import { getHolidayName } from '../utils/holidays';
-import { checkMonthCompleteness, formatCompletenessIssue } from '../utils/completeness';
+import { checkMonthCompleteness, withPaidLeaveCheck, formatCompletenessIssue } from '../utils/completeness';
 import { loadName, saveName } from '../utils/workReport';
 
 interface Props {
@@ -159,8 +159,9 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
             if (!p.employeeId || !p.lastName) { alert('「設定」で社員番号と苗字を入力してください。'); return; }
             if (!name.trim()) { alert('氏名を入力してください。'); return; }
             const completeness = checkMonthCompleteness(filterYear, filterMonth, records, [], [], [], workSettings);
-            if (!completeness.attendance.complete) {
-              alert(formatCompletenessIssue('勤務表', completeness.attendance));
+            const attendance = withPaidLeaveCheck(completeness.attendance, filterMonth, plRemaining);
+            if (!attendance.complete) {
+              alert(formatCompletenessIssue('勤務表', attendance));
               return;
             }
             printMonthlyAttendancePDF(records, workSettings, filterYear, filterMonth, plRemaining, p.employeeId, p.lastName, name)

@@ -8,7 +8,9 @@ import {
   loadSkillProfile, loadSkillEntries, loadCertifications, loadWorkHistory,
   calcSiteWorkMinutes, getWorkLocation, formatMinutes,
 } from '../utils/storage';
-import { checkMonthCompleteness, fmtDateShort, type DocCompleteness } from '../utils/completeness';
+import {
+  checkMonthCompleteness, withPaidLeaveCheck, checkWorkReport, checkSkillSheet, fmtDateShort, type DocCompleteness,
+} from '../utils/completeness';
 import { printMonthlyAttendancePDF } from '../utils/attendancePdf';
 import { printWorkReport } from '../utils/pdf';
 import { printLeaveApplication, printLateEarlyApplication } from '../utils/applicationPdf';
@@ -16,7 +18,7 @@ import { printTransportPDF } from '../utils/transportPdf';
 import { printSkillSheet, printWorkHistory } from '../utils/skillPdf';
 import { collectPdfs, deliverPdfs } from '../utils/pdfOutput';
 import { sortWorkHistory } from '../utils/workHistory';
-import { loadAllWeeks, loadSummary, loadName, hasContent } from '../utils/workReport';
+import { loadAllWeeks, loadSummary, loadName } from '../utils/workReport';
 
 interface Props {
   records: AttendanceRecord[];
@@ -45,35 +47,16 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
     leaveApplications, lateEarlyApplications, workSettings,
   );
 
-  // 勤務表: 対象月の有給残日数（月初の残日数）が設定されていること
   const plRemaining = calcPaidLeaveRemaining(records, paidLeaveSettings, filterYear, filterMonth);
-  const attendanceIssues = plRemaining === null
-    ? [...completeness.attendance.issues, `${filterMonth}月の有給残日数が設定されていません（勤怠一覧で月初の有給残日数を設定してください）`]
-    : completeness.attendance.issues;
-  const attendance: DocCompleteness = {
-    ...completeness.attendance,
-    complete: completeness.attendance.complete && plRemaining !== null,
-    issues: attendanceIssues,
-  };
+  const attendance = withPaidLeaveCheck(completeness.attendance, filterMonth, plRemaining);
 
-  // 作業報告書: 対象月のいずれかの週が入力済みで、氏名が入力されていること（氏名は勤務表・交通費にも印字する）
   const reportWeeks = loadAllWeeks(filterYear, filterMonth);
   const reportName = loadName();
-  const workReportIssues = [
-    ...(reportWeeks.some(hasContent) ? [] : ['作業報告書が入力されていません']),
-    ...(reportName.trim() ? [] : ['氏名が入力されていません（勤務表・交通費・作業報告書共通）']),
-  ];
-  const workReport: DocCompleteness = {
-    required: true, complete: workReportIssues.length === 0, missingDates: [], extraDates: [], issues: workReportIssues,
-  };
+  const workReport = checkWorkReport(reportWeeks, reportName);
 
-  // スキル表: 月に依存しない書類。氏名が入力されていること
   const skillProfile = loadSkillProfile();
   const skillName = skillProfile.name || loadUserProfile().lastName;
-  const skillIssues = skillName.trim() ? [] : ['スキル表の氏名が入力されていません'];
-  const skillSheet: DocCompleteness = {
-    required: true, complete: skillIssues.length === 0, missingDates: [], extraDates: [], issues: skillIssues,
-  };
+  const skillSheet = checkSkillSheet(skillName);
 
   // 月次総勤務時間を計算（検算に使用）
   const isWorkType = (t: string) =>

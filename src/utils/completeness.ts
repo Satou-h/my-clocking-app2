@@ -5,6 +5,8 @@ import type { LeaveApplicationRecord, LateEarlyApplicationRecord } from '../type
 import { LEAVE_LABELS } from '../types/application';
 import { isLateArrival, isEarlyDeparture } from './storage';
 import { getHolidayName } from './holidays';
+import type { WeekReportData } from './pdf';
+import { hasContent } from './workReport';
 
 const WORK_TYPES = new Set(['work', 'am_leave', 'pm_leave', 'scheduled_holiday_work', 'legal_holiday_work', 'transfer_holiday_work']);
 // 休暇申請書が必要な区分。計画有給は事前に会社側で計画されている休暇のため、
@@ -196,6 +198,33 @@ export function checkMonthCompleteness(
     allComplete:
       attendance.complete && transport.complete && leaveApplication.complete && lateEarlyApplication.complete,
   };
+}
+
+// 以下は一括ダウンロードと各画面の個別PDF出力で共通に使うチェック（どちらかだけにチェックが漏れないようにする）
+
+// 勤務表: 対象月の有給残日数（月初の残日数）が設定されていること
+export function withPaidLeaveCheck(doc: DocCompleteness, month: number, paidLeaveRemaining: number | null): DocCompleteness {
+  if (paidLeaveRemaining !== null) return doc;
+  return {
+    ...doc,
+    complete: false,
+    issues: [...doc.issues, `${month}月の有給残日数が設定されていません（勤怠一覧で月初の有給残日数を設定してください）`],
+  };
+}
+
+// 作業報告書: 対象月のいずれかの週が入力済みで、氏名が入力されていること（氏名は勤務表・交通費にも印字する）
+export function checkWorkReport(weeks: WeekReportData[], name: string): DocCompleteness {
+  const issues = [
+    ...(weeks.some(hasContent) ? [] : ['作業報告書が入力されていません']),
+    ...(name.trim() ? [] : ['氏名が入力されていません（勤務表・交通費・作業報告書共通）']),
+  ];
+  return { required: true, complete: issues.length === 0, missingDates: [], extraDates: [], issues };
+}
+
+// スキル表: 月に依存しない書類。氏名が入力されていること
+export function checkSkillSheet(name: string): DocCompleteness {
+  const issues = name.trim() ? [] : ['スキル表の氏名が入力されていません'];
+  return { required: true, complete: issues.length === 0, missingDates: [], extraDates: [], issues };
 }
 
 const DOW_JA_SHORT = ['日', '月', '火', '水', '木', '金', '土'];

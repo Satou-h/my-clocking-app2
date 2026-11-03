@@ -164,10 +164,15 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
   function printLeaveRecord(record: LeaveApplicationRecord) {
     const { employeeId, lastName } = loadUserProfile();
     if (!employeeId || !lastName) { alert('「設定」で社員番号と苗字を入力してください。'); return; }
-    const ym = deriveYearMonth(record.dateEntries[0]?.date ?? record.applicationDate);
-    if (ym) {
+    // 月をまたぐ申請（例: 10/31〜11/1）は、取得日を含むすべての月を確認する
+    const dates = record.dateEntries.length > 0 ? record.dateEntries.map((e) => e.date) : [record.applicationDate];
+    const allLeaveApps = loadLeaveApplications();
+    const allLateEarlyApps = loadLateEarlyApplications();
+    for (const ymStr of [...new Set(dates.map((d) => d.slice(0, 7)))].sort()) {
+      const ym = deriveYearMonth(ymStr);
+      if (!ym) continue;
       const completeness = checkMonthCompleteness(
-        ym.year, ym.month, records, [], loadLeaveApplications(), loadLateEarlyApplications(), workSettings,
+        ym.year, ym.month, records, [], allLeaveApps, allLateEarlyApps, workSettings,
       );
       if (!completeness.leaveApplication.complete) {
         alert(formatCompletenessIssue('休暇申請書', completeness.leaveApplication));
