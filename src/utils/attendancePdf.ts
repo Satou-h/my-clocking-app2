@@ -2,10 +2,10 @@
 import { PDFDocument } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import type { AttendanceRecord, AttendanceType, WorkSettings } from '../types/attendance';
-import { ATTENDANCE_TYPE_LABELS, WORK_LOCATION_LABELS } from '../types/attendance';
+import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
 import {
   calcWorkMinutes, calcOvertimeMinutes, calcLateNightMinutes, calcPaidLeaveUsed,
-  isLateArrival, isEarlyDeparture, getEffectiveBreak, getWorkLocation, timeToMins,
+  isLateArrival, isEarlyDeparture, getEffectiveBreak, getWorkLocation, timeToMins, withKishaNote,
 } from './storage';
 import { getHolidayName } from './holidays';
 import {
@@ -262,10 +262,11 @@ export async function buildMonthlyAttendancePdf(
         const v = r[c.key as MinKey];
         if (v) p.cell(hm(v), colX[i], y, c.w, rowH, fs, colorOf(c.key));
       });
-      const loc = getWorkLocation(r.rec!);
-      if (loc !== 'site') notes.push(WORK_LOCATION_LABELS[loc]);
     }
-    if (r.rec?.notes) notes.push(r.rec.notes);
+    // 帰社の定型文は入力画面で備考に入る。備考に無い古いデータだけ補い、二重には出さない
+    const loc = r.worked ? getWorkLocation(r.rec!) : 'site';
+    const note = loc !== 'site' ? withKishaNote(r.rec!.notes ?? '', loc) : r.rec?.notes;
+    if (note) notes.push(note);
     if (notes.length) {
       const ni = cols.length - 1;
       p.cell(p.fit(notes.join('　'), 7, cols[ni].w - 12), colX[ni], y, cols[ni].w, rowH, 7, C.ink, 'left', 6);

@@ -4,7 +4,7 @@ import { ATTENDANCE_TYPE_LABELS, WORK_LOCATION_LABELS } from '../types/attendanc
 import {
   generateId, calcWorkMinutes, calcOvertimeMinutes,
   calcLateNightMinutes, isLateArrival, isEarlyDeparture, formatMinutes, getEffectiveBreak,
-  getWorkLocation, calcSiteWorkMinutes, DEFAULT_KISHA_SWITCH_TIME,
+  getWorkLocation, calcSiteWorkMinutes, DEFAULT_KISHA_SWITCH_TIME, withKishaNote,
 } from '../utils/storage';
 import { getHolidayName } from '../utils/holidays';
 import TimeSelect from './TimeSelect';
@@ -20,13 +20,21 @@ interface Props {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+// 勤務区分（現場・帰社）を選べる種別。休暇・欠勤などは選べない
+const LOCATION_TYPES = new Set<AttendanceType>(['work', 'am_leave', 'pm_leave', 'scheduled_holiday_work', 'legal_holiday_work', 'transfer_holiday_work']);
+
 export default function AttendanceForm({ existingRecord, records, workSettings, onSave, onSaveMultiple, onCancel }: Props) {
   const [date, setDate] = useState(existingRecord?.date ?? today());
   const [type, setType] = useState<AttendanceType>(existingRecord?.type ?? 'work');
   const [clockIn, setClockIn] = useState(existingRecord?.clockIn ?? workSettings.standardStartTime);
   const [clockOut, setClockOut] = useState(existingRecord?.clockOut ?? workSettings.standardEndTime);
   const [breakMinutes, setBreakMinutes] = useState(String(existingRecord?.breakMinutes ?? 60));
-  const [notes, setNotes] = useState(existingRecord?.notes ?? '');
+  // 帰社の日は備考に定型文を入れて見せる（勤務表PDFの備考と同じ内容）
+  const [notes, setNotes] = useState(() => {
+    const n = existingRecord?.notes ?? '';
+    const loc = existingRecord ? getWorkLocation(existingRecord) : 'site';
+    return loc !== 'site' ? withKishaNote(n, loc) : n;
+  });
   const [error, setError] = useState('');
   const [useCustomTime, setUseCustomTime] = useState(
     !!(existingRecord?.customStartTime || existingRecord?.customEndTime)
@@ -66,14 +74,19 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
   const isTransferWork = type === 'transfer_holiday_work';
   const isHalfLeave = type === 'am_leave' || type === 'pm_leave';
   const canToggleNoTransport = needsTime && type !== 'absence';
-  const canSetLocation = needsTime && type !== 'absence';
+  const canSetLocation = LOCATION_TYPES.has(type);
   const isHalfKisha = workLocation === 'am_kisha' || workLocation === 'pm_kisha';
 
-  // 勤務区分を変えたら備考の定型文も合わせる（手入力した備考は上書きしない）
-  const KISHA_NOTES: Record<WorkLocation, string> = { site: '', kisha: '帰社日', am_kisha: '午前帰社', pm_kisha: '午後帰社' };
+  // 勤務区分を変えたら備考の先頭の定型文も差し替える（手入力した部分は残す）
   function handleWorkLocationChange(loc: WorkLocation) {
     setWorkLocation(loc);
-    if (!notes || Object.values(KISHA_NOTES).includes(notes)) setNotes(KISHA_NOTES[loc]);
+    setNotes(withKishaNote(notes, loc));
+  }
+
+  // 勤務区分を選べない種別にしたら定型文を外し、選べる種別に戻したら入れ直す
+  function handleTypeChange(t: AttendanceType) {
+    setType(t);
+    if (workLocation !== 'site') setNotes(withKishaNote(notes, LOCATION_TYPES.has(t) ? workLocation : 'site'));
   }
 
   const siteMins = canSetLocation && isHalfKisha && clockIn && clockOut
@@ -102,21 +115,21 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
   })();
 
   function fillStandard() {
-    setType('work');
+    handleTypeChange('work');
     setClockIn(workSettings.standardStartTime);
     setClockOut(workSettings.standardEndTime);
     setBreakMinutes('60');
   }
 
   function fillAmLeave() {
-    setType('am_leave');
+    handleTypeChange('am_leave');
     setClockIn('13:00');
     setClockOut(workSettings.standardEndTime);
     setBreakMinutes('0');
   }
 
   function fillPmLeave() {
-    setType('pm_leave');
+    handleTypeChange('pm_leave');
     setClockIn(workSettings.standardStartTime);
     setClockOut('12:00');
     setBreakMinutes('0');
@@ -277,7 +290,7 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
 
       <div className="form-row">
         <label>種別</label>
-        <select value={type} onChange={(e) => setType(e.target.value as AttendanceType)}>
+        <select value={type} onChange={(e) => handleTypeChange(e.target.value as AttendanceType)}>
           {(Object.entries(ATTENDANCE_TYPE_LABELS) as [AttendanceType, string][]).map(([v, l]) => (
             <option key={v} value={v}>{l}</option>
           ))}
