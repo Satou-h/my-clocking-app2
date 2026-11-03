@@ -258,7 +258,6 @@ export function printMonthlyAttendance(
   }
   .report-title { font-size: 13px; font-weight: 700; color: #2d6cdf; }
   .report-meta  { font-size: 8px; color: #636e72; margin-top: 2px; }
-  .print-date   { font-size: 8px; color: #999; }
 
   /* ── サマリー（1行テーブル） ── */
   .summary {
@@ -385,7 +384,6 @@ export function printMonthlyAttendance(
     <div class="report-title">${year}年${month}月　勤怠一覧</div>
     <div class="report-meta">基準: ${workSettings.standardStartTime}〜${workSettings.standardEndTime}　残業: 8h超過分　深夜: 22:00〜翌5:00</div>
   </div>
-  <div class="print-date">出力日: ${new Date().toLocaleDateString('ja-JP')}</div>
 </div>
 
 <table class="summary">

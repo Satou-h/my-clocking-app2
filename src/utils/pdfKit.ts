@@ -232,8 +232,3 @@ export function drawStatGroups(p: Painter, groups: { title: string; stats: Stat[
     gx += gw + gap;
   }
 }
-
-export function todayString(): string {
-  const d = new Date();
-  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
-}

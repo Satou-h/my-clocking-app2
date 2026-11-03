@@ -9,7 +9,7 @@ import {
 } from './storage';
 import { getHolidayName } from './holidays';
 import {
-  C, DOW_JA, createPainter, drawStatGroups, downloadPdf, hm, hm10, loadFont, shortTime, todayString,
+  C, DOW_JA, createPainter, drawStatGroups, downloadPdf, hm, hm10, loadFont, shortTime,
   type Stat,
 } from './pdfKit';
 
@@ -100,7 +100,6 @@ export async function buildMonthlyAttendancePdf(
   month: number,
   plRemaining: number | null,
   name: string,
-  issuedOn = todayString(),
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
@@ -144,7 +143,6 @@ export async function buildMonthlyAttendancePdf(
   };
   meta('氏名', name, 11);
   meta('基準時間', `${shortTime(workSettings.standardStartTime)} 〜 ${shortTime(workSettings.standardEndTime)}`, 8.5);
-  meta('出力日', issuedOn, 8.5);
   const stampX = p.stamps(['承認印', '確認印'], right, M.t - 2, 54, 54);
   p.hline(M.l, stampX - 16, M.t + 48, C.primary, 1.2);
 
