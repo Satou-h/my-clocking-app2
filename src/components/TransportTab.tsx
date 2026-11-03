@@ -105,7 +105,7 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
     if (!bulkForm.destination.trim()) e.destination = '行先を入力してください';
     if (!bulkForm.from.trim()) e.from = '出発地点を入力してください';
     if (!bulkForm.to.trim()) e.to = '到着地点を入力してください';
-    if (bulkForm.amount < 0) e.amount = '金額は0以上を入力してください';
+    if (bulkForm.amount <= 0) e.amount = '0円で登録することはできません';
     return e;
   }
 
@@ -142,7 +142,7 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
     if (!form.destination.trim()) e.destination = '行先を入力してください';
     if (!form.from.trim()) e.from = '出発地点を入力してください';
     if (!form.to.trim()) e.to = '到着地点を入力してください';
-    if (form.amount < 0) e.amount = '金額は0以上を入力してください';
+    if (form.amount <= 0) e.amount = '0円で登録することはできません';
     return e;
   }
 
