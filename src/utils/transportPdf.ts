@@ -165,5 +165,5 @@ export async function printTransportPDF(
 ): Promise<void> {
   const bytes = await buildTransportPdf(await loadFont(), records, year, month, name, loadSignature());
   const userPart = (employeeId || lastName) ? `_${employeeId}${lastName}` : '';
-  downloadPdf(bytes, `小口交通費${year}${String(month).padStart(2, '0')}${userPart}.pdf`);
+  downloadPdf(bytes, `02_小口交通費${year}${String(month).padStart(2, '0')}${userPart}.pdf`);
 }

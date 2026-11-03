@@ -302,5 +302,5 @@ export async function printMonthlyAttendancePDF(
 ): Promise<void> {
   const bytes = await buildMonthlyAttendancePdf(await loadFont(), records, workSettings, year, month, plRemaining, name);
   const userPart = (employeeId || lastName) ? `_${employeeId}${lastName}` : '';
-  downloadPdf(bytes, `勤務表${year}${String(month).padStart(2, '0')}${userPart}.pdf`);
+  downloadPdf(bytes, `01_勤務表${year}${String(month).padStart(2, '0')}${userPart}.pdf`);
 }

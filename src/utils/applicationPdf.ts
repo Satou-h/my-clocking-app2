@@ -155,7 +155,7 @@ export async function buildLateEarlyApplicationPdf(
   return doc.save();
 }
 
-// 申請日の yymmdd と社員番号・苗字でファイル名をつける（例: 休暇申請書261102_1234山田.pdf）
+// 申請日の yymmdd と社員番号・苗字でファイル名をつける（例: 03_休暇申請書261102_1234山田.pdf）
 function fileName(prefix: string, applicationDate: string, employeeId: string, lastName: string): string {
   const yymmdd = applicationDate.replace(/-/g, '').slice(2);
   const userPart = (employeeId || lastName) ? `_${employeeId}${lastName}` : '';
@@ -164,10 +164,10 @@ function fileName(prefix: string, applicationDate: string, employeeId: string, l
 
 export async function printLeaveApplication(data: LeaveApplicationData, employeeId = '', lastName = ''): Promise<void> {
   const bytes = await buildLeaveApplicationPdf(await loadFont(), data, loadSignature());
-  downloadPdf(bytes, fileName('休暇申請書', data.applicationDate, employeeId, lastName));
+  downloadPdf(bytes, fileName('03_休暇申請書', data.applicationDate, employeeId, lastName));
 }
 
 export async function printLateEarlyApplication(data: LateEarlyApplicationData, employeeId = '', lastName = ''): Promise<void> {
   const bytes = await buildLateEarlyApplicationPdf(await loadFont(), data, loadSignature());
-  downloadPdf(bytes, fileName('遅早退申請書', data.applicationDate, employeeId, lastName));
+  downloadPdf(bytes, fileName('04_遅早退申請書', data.applicationDate, employeeId, lastName));
 }

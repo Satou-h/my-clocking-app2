@@ -263,7 +263,7 @@ export async function printSkillSheet(
     size: 11, paddingH: 7, paddingTop: 6,
   });
 
-  savePdf(await pdfDoc.save(), buildFilename('スキルシート', employeeId, lastName));
+  savePdf(await pdfDoc.save(), buildFilename('20_スキルシート', employeeId, lastName));
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -376,5 +376,5 @@ export async function printWorkHistory(
   const footY   = Math.max(M + 2, Y - 10);
   page.drawText(footTxt, { x: cX + (cW - footW) / 2, y: footY, font, size: footSz, color: MID });
 
-  savePdf(await pdfDoc.save(), buildFilename('スキル一覧', employeeId, lastName));
+  savePdf(await pdfDoc.save(), buildFilename('21_スキル一覧', employeeId, lastName));
 }

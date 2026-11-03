@@ -490,7 +490,7 @@ export function printWorkReport(
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1200">
-<title>${buildFilename('作業状況報告書', `${year}${String(month).padStart(2, '0')}`, employeeId, lastName)}</title>
+<title>${buildFilename('10_作業状況報告書', `${year}${String(month).padStart(2, '0')}`, employeeId, lastName)}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -785,5 +785,5 @@ export function printWorkReport(
 </body>
 </html>`;
 
-  return htmlToPdf(html, true, buildFilename('作業状況報告書', `${year}${String(month).padStart(2, '0')}`, employeeId, lastName) + '.pdf');
+  return htmlToPdf(html, true, buildFilename('10_作業状況報告書', `${year}${String(month).padStart(2, '0')}`, employeeId, lastName) + '.pdf');
 }
