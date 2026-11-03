@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { printLeaveApplication, printLateEarlyApplication } from '../utils/pdf';
+import { printLeaveApplication, printLateEarlyApplication } from '../utils/applicationPdf';
 import {
   loadUserProfile, generateId, isLateArrival, isEarlyDeparture,
   loadLeaveApplications, upsertLeaveApplication, deleteLeaveApplication,

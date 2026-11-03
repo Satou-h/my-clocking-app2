@@ -1,4 +1,4 @@
-// 勤務表・交通費PDF（pdf-lib）で共有するフォント読み込み・色・描画ヘルパー
+// 勤務表・交通費・申請書PDF（pdf-lib）で共有するフォント読み込み・色・描画ヘルパー
 import { rgb, type PDFFont, type PDFPage, type RGB } from 'pdf-lib';
 import { savePdf } from './pdfOutput';
 
@@ -145,6 +145,22 @@ export function createPainter(page: PDFPage, font: PDFFont) {
     while (s.length && width(s + '…', size) > max) s = s.slice(0, -1);
     return s + '…';
   }
+  // 幅で折り返す（改行は保つ。句読点・閉じかっこは行頭に送らず前の行に残す）
+  function wrap(s: string, size: number, max: number) {
+    const lines: string[] = [];
+    for (const para of s.split(/\r?\n/)) {
+      let line = '';
+      for (const ch of para) {
+        if (line && width(line + ch, size) > max && !'、。，．）」』】'.includes(ch)) {
+          lines.push(line);
+          line = '';
+        }
+        line += ch;
+      }
+      lines.push(line);
+    }
+    return lines;
+  }
   // 押印欄（ラベル付きの枠を横に並べる）
   function stamps(labels: string[], right: number, y: number, w: number, h: number) {
     const x0 = right - w * labels.length;
@@ -158,7 +174,7 @@ export function createPainter(page: PDFPage, font: PDFFont) {
     return x0;
   }
 
-  return { width, txt, cell, rect, hline, vline, badge, fit, stamps };
+  return { width, txt, cell, rect, hline, vline, badge, fit, wrap, stamps };
 }
 
 export type Painter = ReturnType<typeof createPainter>;

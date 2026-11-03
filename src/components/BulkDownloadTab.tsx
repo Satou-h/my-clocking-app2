@@ -10,7 +10,8 @@ import {
 } from '../utils/storage';
 import { checkMonthCompleteness, fmtDateShort, type DocCompleteness } from '../utils/completeness';
 import { printMonthlyAttendancePDF } from '../utils/attendancePdf';
-import { printLeaveApplication, printLateEarlyApplication, printWorkReport } from '../utils/pdf';
+import { printWorkReport } from '../utils/pdf';
+import { printLeaveApplication, printLateEarlyApplication } from '../utils/applicationPdf';
 import { printTransportPDF } from '../utils/transportPdf';
 import { printSkillSheet, printWorkHistory } from '../utils/skillPdf';
 import { collectPdfs, deliverPdfs } from '../utils/pdfOutput';
