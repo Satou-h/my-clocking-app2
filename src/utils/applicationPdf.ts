@@ -1,9 +1,9 @@
-// 休暇申請書・遅刻早退申請書PDF（A4縦。ヘッダーは交通費精算書とそろえる）
+// 休暇申請書・遅刻早退申請書PDF（A4縦）
+// レイアウトは以前の HTML を画像にしていた版と同じ。文字は画像にせずそのまま描く
 import { PDFDocument, type PDFImage } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
-import { getHolidayName } from './holidays';
 import { loadSignature } from './storage';
-import { C, DOW_JA, createPainter, downloadPdf, loadFont, shortTime, type Painter } from './pdfKit';
+import { createPainter, downloadPdf, hex, loadFont, type Painter } from './pdfKit';
 
 export interface LeaveApplicationEntry {
   date: string;
@@ -29,18 +29,33 @@ export interface LateEarlyApplicationData {
 }
 
 const W = 595.28, H = 841.89; // A4 縦
-const M = { l: 36, r: 36, t: 30, b: 30 };
-const right = W - M.r;
-const LABEL_W = 96;
-const PAD = 12;
-const VALUE_X = M.l + LABEL_W + PAD;
-const VALUE_W = right - VALUE_X - PAD;
-const FS = 10.5;     // 記入欄の文字
-const ROW_H = 36;    // 1行の記入欄の高さ
-const LINE_H = 17;   // 2行目以降の行送り
+// 寸法は旧版（HTML を幅 900px で描いて A4 幅に縮めていた）の CSS の px で書き、ここで換算する
+const px = (v: number) => v * W / 900;
+const cssPt = (v: number) => px(v * 4 / 3); // CSS で pt 指定だった文字サイズ
 
-// "2026-11-02" → "2026/11/2"
-const slashDate = (d: string) => d.replace(/^(\d{4})-0?(\d+)-0?(\d+)$/, '$1/$2/$3');
+const LEFT = px(200.5), RIGHT = px(699.5); // 本文の左右端（幅 180mm・左右の余白 24mm を中央寄せ）
+
+const C = {
+  ink: hex('#1a1a2e'),
+  primary: hex('#2d6cdf'),
+  meta: hex('#444444'),
+  label: hex('#555555'),
+  thBg: hex('#f1f3f9'),
+  border: hex('#aaaabb'),
+};
+
+// 表
+const TABLE_TOP = px(261.75);
+const TH_W = (RIGHT - LEFT) * 0.26;
+const PAD_X = px(14), PAD_Y = px(10);
+const FS = cssPt(11);
+const LINE_H = px(22.25); // line-height: normal での行送り
+const BASE = px(7.2);     // 行の中央からベースラインまで
+const VALUE_X = LEFT + TH_W + PAD_X;
+const VALUE_W = RIGHT - VALUE_X - PAD_X;
+
+// "2026-10-23" → "2026年10月23日"
+const jpDate = (d: string) => d.replace(/^(\d{4})-0?(\d+)-0?(\d+)$/, '$1年$2月$3日');
 
 // signature: 本人欄に入れるサイン（PNG の data URL。空なら入れない）
 async function createDoc(fontBytes: ArrayBuffer | Uint8Array, title: string, signature: string) {
@@ -54,71 +69,52 @@ async function createDoc(fontBytes: ArrayBuffer | Uint8Array, title: string, sig
   return { doc, p, sign };
 }
 
-// 表題・氏名・申請日・押印欄。記入欄の上端を返す
-function drawHeader(p: Painter, title: string, name: string, applicationDate: string, sign?: PDFImage): number {
-  p.txt(title, M.l, M.t + 26, 18, C.primary);
-  let x = M.l;
-  const metaY = M.t + 50;
-  const meta = (label: string, value: string, size: number) => {
-    p.txt(label, x, metaY, 7, C.sub); x += p.width(label, 7) + 5;
-    p.txt(value, x, metaY, size, C.ink); x += p.width(value, size) + 18;
-  };
-  meta('氏名', name || '　'.repeat(7), 11); // 未入力なら手書きできるよう空けておく
-  meta('申請日', slashDate(applicationDate), 9);
-  const stampX = p.stamps(['承認', '確認', '本人'], right, M.t, 46, 54, sign);
-  p.hline(M.l, stampX - 14, M.t + 58, C.primary, 1.2);
-  return M.t + 76;
-}
+// 表題・氏名・押印欄・申請日
+// title の全角空白の所は字を置かずに間だけあける（表題を「休暇申請書」で検索できるように）
+function drawHeader(p: Painter, title: string, name: string, applicationDate: string, sign?: PDFImage) {
+  const size = cssPt(20), pitch = size + px(6); // 字間 6px
+  const chars = [...title];
+  const x0 = (LEFT + RIGHT - pitch * chars.length) / 2;
+  p.bold(() => chars.forEach((ch, i) => {
+    if (ch !== '　') p.txt(ch, x0 + pitch * i, px(106.6), size, C.ink);
+  }), C.ink, size * 0.04);
+  p.hline(LEFT, RIGHT, px(126.25), C.primary, px(2));
 
-// 「2026年11月4日（水）」。土日祝は曜日に色をつける
-function drawDate(p: Painter, date: string, x: number, base: number) {
-  if (!date) return;
-  const d = new Date(date + 'T00:00:00');
-  const s = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
-  const dow = d.getDay();
-  const color = getHolidayName(date) || dow === 0 ? C.sun : dow === 6 ? C.sat : C.ink;
-  p.txt(s, x, base, FS, C.ink);
-  p.txt(`（${DOW_JA[dow]}）`, x + p.width(s, FS), base, FS, color);
-}
-
-interface FormRow {
-  label: string;
-  lines: number;   // 内容の行数
-  minH?: number;
-  // base(i): i行目のベースライン、lh: 行送り
-  draw: (base: (i: number) => number, lh: number) => void;
-}
-
-// 左に項目名、右に内容の記入欄。行が多いときは行送りを詰めて1ページに収める
-function drawForm(p: Painter, top: number, rows: FormRow[]) {
-  const bottom = H - M.b;
-  const extra = rows.reduce((a, r) => a + r.lines - 1, 0);
-  const lh = extra ? Math.min(LINE_H, (bottom - top - ROW_H * rows.length) / extra) : LINE_H;
-  const heights: number[] = [];
-  rows.reduce((y, r) => {
-    const h = Math.max(ROW_H + (r.lines - 1) * lh, Math.min(r.minH ?? 0, bottom - y));
-    heights.push(h);
-    return y + h;
-  }, top);
-  const total = heights.reduce((a, h) => a + h, 0);
-
-  p.rect(M.l, top, LABEL_W, total, { fill: C.primarySoft });
-  let y = top;
-  rows.forEach((r, i) => {
-    if (i > 0) p.hline(M.l, right, y, C.lineStrong, 0.6);
-    const rowY = y;
-    const base = (n: number) => rowY + ROW_H / 2 + FS * 0.36 + n * lh;
-    p.txt(r.label, M.l + PAD, base(0), 8.5, C.primary);
-    r.draw(base, lh);
-    y += heights[i];
+  const metaSize = cssPt(10);
+  p.txt(`氏名: ${name || '　'.repeat(7)}`, RIGHT, px(162.6), metaSize, C.meta, 'right'); // 未入力なら手書きできるよう空けておく
+  // 承認・確認・本人の欄（幅 100px の下線を 20px 間隔で右に寄せる）
+  const boxW = px(100), gap = px(20);
+  ['承認', '確認', '本人'].forEach((label, i) => {
+    const x = RIGHT - boxW - (boxW + gap) * (2 - i);
+    p.txt(label, x, px(189.8), cssPt(8), C.label, 'center', boxW);
+    p.hline(x, x + boxW, px(236.5), C.label, px(1.5));
   });
-  p.vline(M.l + LABEL_W, top, top + total, C.lineStrong, 0.6);
-  p.rect(M.l, top, right - M.l, total, { stroke: C.lineStrong, bw: 0.7 });
+  if (sign) p.image(sign, RIGHT - boxW + px(4), px(198), boxW - px(8), px(36));
+  p.txt(`申請日: ${jpDate(applicationDate)}`, LEFT, px(232.8), metaSize, C.meta);
 }
 
-const text = (p: Painter, s: string) => (base: (i: number) => number) => p.txt(s, VALUE_X, base(0), FS, C.ink);
-const paragraph = (p: Painter, lines: string[]) => (base: (i: number) => number) =>
-  lines.forEach((l, i) => p.txt(l, VALUE_X, base(i), FS, C.ink));
+interface Row {
+  label: string;
+  lines: string[];
+  lineH?: number;
+}
+
+// 左に項目名（上下中央）、右に内容（上詰め）の表
+function drawTable(p: Painter, rows: Row[]) {
+  const divider = LEFT + TH_W;
+  let y = TABLE_TOP;
+  rows.forEach((r, i) => {
+    const lh = r.lineH ?? LINE_H;
+    const h = PAD_Y * 2 + lh * r.lines.length;
+    p.rect(LEFT, y, TH_W, h, { fill: C.thBg });
+    if (i > 0) p.hline(LEFT, RIGHT, y, C.border, px(1));
+    p.bold(() => p.txt(r.label, LEFT + PAD_X, y + h / 2 + BASE, FS, C.meta), C.meta, FS * 0.025);
+    r.lines.forEach((l, n) => p.txt(l, VALUE_X, y + PAD_Y + lh * (n + 0.5) + BASE, FS, C.ink));
+    y += h;
+  });
+  p.vline(divider, TABLE_TOP, y, C.border, px(1));
+  p.rect(LEFT, TABLE_TOP, RIGHT - LEFT, y - TABLE_TOP, { stroke: C.border, bw: px(1) });
+}
 
 export async function buildLeaveApplicationPdf(
   fontBytes: ArrayBuffer | Uint8Array,
@@ -126,22 +122,16 @@ export async function buildLeaveApplicationPdf(
   signature = '',
 ): Promise<Uint8Array> {
   const { applicationDate, name, dateEntries, leaveDays, reason } = data;
-  const { doc, p, sign } = await createDoc(fontBytes, `休暇申請書 ${slashDate(applicationDate)} ${name}`, signature);
-  const top = drawHeader(p, '休暇申請書', name, applicationDate, sign);
+  const { doc, p, sign } = await createDoc(fontBytes, `休暇申請書 ${jpDate(applicationDate)} ${name}`, signature);
+  drawHeader(p, '休　暇　申　請　書', name, applicationDate, sign);
 
-  const entries = [...dateEntries].sort((a, b) => a.date.localeCompare(b.date));
-  const reasonLines = p.wrap(reason, FS, VALUE_W);
-  drawForm(p, top, [
-    { label: '休暇日程', lines: Math.max(entries.length, 1), draw: (base, lh) => {
-      if (entries.length === 0) p.txt('-', VALUE_X, base(0), FS, C.faint);
-      entries.forEach((e, i) => {
-        drawDate(p, e.date, VALUE_X, base(i));
-        // 休暇の種類は日付の右にそろえてバッジで出す（文字の中心を日付に合わせる）
-        p.badge(e.leaveLabel, VALUE_X + 128, base(i) - FS * 0.36 - lh / 2, lh, 7.5, C.leaveSoft, C.leave, 44);
-      });
-    } },
-    { label: '取得日数', lines: 1, draw: text(p, `${leaveDays}日`) },
-    { label: '取得理由', lines: reasonLines.length, minH: 120, draw: paragraph(p, reasonLines) },
+  const schedule = [...dateEntries]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((e) => jpDate(e.date) + '　' + e.leaveLabel);
+  drawTable(p, [
+    { label: '休暇日程', lines: schedule.length ? schedule : ['-'], lineH: FS * 1.8 },
+    { label: '取得日数', lines: [`${leaveDays}日`] },
+    { label: '取得理由', lines: p.wrap(reason, FS, VALUE_W) },
   ]);
   return doc.save();
 }
@@ -152,16 +142,15 @@ export async function buildLateEarlyApplicationPdf(
   signature = '',
 ): Promise<Uint8Array> {
   const { applicationDate, name, type, targetDate, scheduledTime, actualTime, reason } = data;
-  const { doc, p, sign } = await createDoc(fontBytes, `遅刻・早退申請書 ${slashDate(applicationDate)} ${name}`, signature);
-  const top = drawHeader(p, '遅刻・早退申請書', name, applicationDate, sign);
+  const { doc, p, sign } = await createDoc(fontBytes, `遅刻・早退申請書 ${jpDate(applicationDate)} ${name}`, signature);
+  drawHeader(p, '遅刻・早退申請書', name, applicationDate, sign);
 
-  const reasonLines = p.wrap(reason, FS, VALUE_W);
-  drawForm(p, top, [
-    { label: '種別', lines: 1, draw: text(p, type) },
-    { label: '対象日', lines: 1, draw: (base) => drawDate(p, targetDate, VALUE_X, base(0)) },
-    { label: '本来の時刻', lines: 1, draw: text(p, shortTime(scheduledTime)) },
-    { label: '実際の時刻', lines: 1, draw: text(p, shortTime(actualTime)) },
-    { label: '理由', lines: reasonLines.length, minH: 120, draw: paragraph(p, reasonLines) },
+  drawTable(p, [
+    { label: '種別', lines: [type] },
+    { label: '対象日', lines: [jpDate(targetDate)] },
+    { label: '本来の時刻', lines: [scheduledTime] },
+    { label: '実際の時刻', lines: [actualTime] },
+    { label: '理由', lines: p.wrap(reason, FS, VALUE_W) },
   ]);
   return doc.save();
 }

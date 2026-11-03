@@ -1,5 +1,8 @@
 // 勤務表・交通費・申請書PDF（pdf-lib）で共有するフォント読み込み・色・描画ヘルパー
-import { rgb, type PDFFont, type PDFImage, type PDFPage, type RGB } from 'pdf-lib';
+import {
+  LineJoinStyle, TextRenderingMode, popGraphicsState, pushGraphicsState, rgb, setLineJoin, setLineWidth,
+  setStrokingColor, setTextRenderingMode, type PDFFont, type PDFImage, type PDFPage, type RGB,
+} from 'pdf-lib';
 import { savePdf } from './pdfOutput';
 
 // ── フォント（public/fonts の NotoSansJP-Regular を共有） ─────────────────────
@@ -62,7 +65,7 @@ export function downloadPdf(bytes: Uint8Array, filename: string): void {
 }
 
 // ── 色 ────────────────────────────────────────────────────────────────────────
-const hex = (h: string) =>
+export const hex = (h: string) =>
   rgb(parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255);
 
 export const C = {
@@ -105,6 +108,15 @@ export function createPainter(page: PDFPage, font: PDFFont) {
     const tw = width(s, size);
     const dx = align === 'center' ? x + (w - tw) / 2 : align === 'right' ? x + w - tw : x;
     page.drawText(s, { x: dx, y: H - yBase, size, font, color });
+  }
+  // draw() の中で描く文字を太字にする。同梱フォントは Regular だけなので、輪郭を太さ w の線でなぞって太らせる
+  function bold(draw: () => void, color: RGB, w: number) {
+    page.pushOperators(
+      pushGraphicsState(), setTextRenderingMode(TextRenderingMode.FillAndOutline),
+      setStrokingColor(color), setLineWidth(w), setLineJoin(LineJoinStyle.Round),
+    );
+    draw();
+    page.pushOperators(popGraphicsState());
   }
   // 枠 (x, y, w, h) の中で縦中央にそろえる
   function cell(s: string, x: number, y: number, w: number, h: number, size: number, color: RGB, align: Align = 'right', pad = 8) {
@@ -181,7 +193,7 @@ export function createPainter(page: PDFPage, font: PDFFont) {
     return x0;
   }
 
-  return { width, txt, cell, rect, hline, vline, badge, fit, wrap, image, stamps };
+  return { width, txt, bold, cell, rect, hline, vline, badge, fit, wrap, image, stamps };
 }
 
 export type Painter = ReturnType<typeof createPainter>;
