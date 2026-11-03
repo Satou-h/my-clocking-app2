@@ -240,7 +240,7 @@ export function checkMonthCompleteness(
   };
 }
 
-// 以下は一括ダウンロードで書類ごとに使うチェック（選んだ書類だけを出力するため、書類ごとに完結させる）
+// 以下はダウンロード画面で書類ごとに使うチェック（選んだ書類だけを出力するため、書類ごとに完結させる）
 
 // 勤務表: 対象月の有給残日数（月初の残日数）が設定されていること
 export function withPaidLeaveCheck(doc: DocCompleteness, month: number, paidLeaveRemaining: number | null): DocCompleteness {

@@ -1219,7 +1219,7 @@ hr {
   margin-top: 8px;
 }
 
-/* 書類一括ダウンロード */
+/* 書類ダウンロード */
 .bulk-tab { max-width: 640px; }
 .bulk-select-bar {
   display: flex;

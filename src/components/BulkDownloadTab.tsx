@@ -198,7 +198,7 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
 
   return (
     <div className="bulk-tab">
-      <h2>書類一括ダウンロード</h2>
+      <h2>ダウンロード</h2>
       <p className="hint">出力する書類にチェックを入れてください。選んだ書類の入力がすべて完了すると、まとめてダウンロードできます。</p>
 
       <div className="list-filter">

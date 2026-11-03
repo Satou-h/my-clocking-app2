@@ -46,7 +46,7 @@ const NAV_GROUPS: { id: NavGroupId; label: string; items: { key: Tab; label: str
       { key: 'report', label: '作業報告', icon: 'report', desc: '週ごとの作業内容と月のまとめ' },
       { key: 'documents', label: '申請書類', icon: 'form', desc: '休暇申請書・遅刻早退申請書' },
       { key: 'skill', label: 'スキル表', icon: 'user', desc: 'スキル・資格・職務経歴' },
-      { key: 'bulk', label: '一括ダウンロード', icon: 'download', desc: '提出書類を選んでPDF出力' },
+      { key: 'bulk', label: 'ダウンロード', icon: 'download', desc: '提出書類を選んでPDF出力' },
     ],
   },
   {

@@ -276,7 +276,7 @@ function decodeNotes(r: ByteReader, items: { notes?: string }[]) {
 }
 
 // ── 勤務区分ブロック ─────────────────────────────────────────────────────────
-// 帰社した時間は一括ダウンロードの現場勤務時間から除くため、現場以外の日の勤務区分を転送する
+// 帰社した時間はダウンロード画面の現場勤務時間から除くため、現場以外の日の勤務区分を転送する
 // [kisha_count:1] + kisha_count × [record_index:1][loc:2][reserved:3][switch:11]
 // loc: WORK_LOCATIONS の番号 / switch: 午前帰社・午後帰社の切替時刻（分、0x7FF = なし）
 const WORK_LOCATIONS: WorkLocation[] = ['site', 'kisha', 'am_kisha', 'pm_kisha'];

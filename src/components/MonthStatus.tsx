@@ -52,7 +52,7 @@ export default function MonthStatus({ year, month, records, workSettings, paidLe
           </div>
         ))}
         <button type="button" className="btn-link status-link" onClick={onOpenBulk}>
-          一括ダウンロードへ →
+          ダウンロードへ →
         </button>
       </section>
     </aside>
