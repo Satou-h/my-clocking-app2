@@ -23,9 +23,10 @@ import ApplicationDocumentsTab from './components/ApplicationDocumentsTab';
 import WorkReportTab from './components/WorkReportTab';
 import SkillTab from './components/SkillTab';
 import BulkDownloadTab from './components/BulkDownloadTab';
+import SignatureTab from './components/SignatureTab';
 import './App.css';
 
-type Tab = 'input' | 'list' | 'transfer' | 'transport' | 'settings' | 'documents' | 'report' | 'skill' | 'bulk'
+type Tab = 'input' | 'list' | 'transfer' | 'transport' | 'settings' | 'documents' | 'report' | 'skill' | 'bulk' | 'signature'
   // スマホの下タブ「提出」「その他」から開くメニュー画面
   | 'menu-submit' | 'menu-more';
 
@@ -50,8 +51,9 @@ const NAV_GROUPS: { id: NavGroupId; label: string; items: { key: Tab; label: str
   },
   {
     id: 'more', label: 'その他', items: [
+      { key: 'signature', label: 'サイン', icon: 'signature', desc: '本人・上長（確認・検印）のサインを登録' },
       { key: 'transfer', label: 'QR/カナコード', icon: 'qr', desc: '別の端末へデータを移す' },
-      { key: 'settings', label: '設定', icon: 'settings', desc: '社員情報・サイン・基準時間・テーマ・データ削除' },
+      { key: 'settings', label: '設定', icon: 'settings', desc: '社員情報・基準時間・テーマ・データ削除' },
     ],
   },
 ];
@@ -382,6 +384,9 @@ export default function App() {
             workSettings={workSettings}
             paidLeaveSettings={paidLeave}
           />
+        )}
+        {tab === 'signature' && (
+          <SignatureTab />
         )}
         {tab === 'transfer' && (
           <TransferTab

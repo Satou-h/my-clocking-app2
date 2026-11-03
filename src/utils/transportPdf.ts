@@ -5,7 +5,7 @@ import type { TransportRecord } from '../types/transport';
 import { TRIP_TYPE_LABELS } from '../types/transport';
 import { getHolidayName } from './holidays';
 import { loadSignature } from './storage';
-import { C, DOW_JA, createPainter, downloadPdf, loadFont } from './pdfKit';
+import { C, DOW_JA, createPainter, downloadPdf, loadFont, writeSignAreas } from './pdfKit';
 
 const yen = (n: number) => `¥${n.toLocaleString('ja-JP')}`;
 
@@ -50,7 +50,7 @@ export async function buildTransportPdf(
   // 申請日は会社様式にならって対象月の末日
   meta('申請日', `${year}/${month}/${lastDay}`, 9);
   const sign = signature ? await doc.embedPng(signature) : undefined;
-  const stampX = p.stamps(['承認', '検印', '領収印', '本人印'], right, M.t, 46, 54, sign);
+  const stampX = p.stamps(['承認', '検印', '領収印', '本人印'], right, M.t, 46, 54, { 本人印: sign });
   p.hline(M.l, stampX - 14, M.t + 58, C.primary, 1.2);
 
   // ── 集計（合計金額をいちばん大きく） ─────────────────────────────────────
@@ -152,6 +152,7 @@ export async function buildTransportPdf(
   p.cell(`${trips.length}件`, colX[ci('dest')], ty, 60, totalH, 8, C.sub, 'left', 8);
   p.cell(yen(total), colX[ci('amount')], ty, cols[ci('amount')].w, totalH, 9.5, C.primary);
 
+  writeSignAreas(doc, p.signAreas);
   return doc.save();
 }
 
@@ -163,7 +164,7 @@ export async function printTransportPDF(
   lastName = '',
   name = '',
 ): Promise<void> {
-  const bytes = await buildTransportPdf(await loadFont(), records, year, month, name, loadSignature());
+  const bytes = await buildTransportPdf(await loadFont(), records, year, month, name, loadSignature('self'));
   const userPart = (employeeId || lastName) ? `_${employeeId}${lastName}` : '';
   downloadPdf(bytes, `02_小口交通費${year}${String(month).padStart(2, '0')}${userPart}.pdf`);
 }

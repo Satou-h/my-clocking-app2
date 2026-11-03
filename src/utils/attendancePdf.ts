@@ -9,7 +9,7 @@ import {
 } from './storage';
 import { getHolidayName } from './holidays';
 import {
-  C, DOW_JA, createPainter, drawStatGroups, downloadPdf, hm, hm10, loadFont, shortTime,
+  C, DOW_JA, createPainter, drawStatGroups, downloadPdf, hm, hm10, loadFont, shortTime, writeSignAreas,
   type Stat,
 } from './pdfKit';
 
@@ -285,6 +285,7 @@ export async function buildMonthlyAttendancePdf(
 
   p.txt('時間は 時:分（上部の集計は10分単位で切り上げ）。空欄は 0:00。', M.l, bodyBottom + totalH + 10, 6.3, C.sub);
 
+  writeSignAreas(doc, p.signAreas);
   return doc.save();
 }
 

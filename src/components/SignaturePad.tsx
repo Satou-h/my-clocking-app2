@@ -1,36 +1,41 @@
 import { useEffect, useRef, useState } from 'react';
-import { loadSignature, saveSignature } from '../utils/storage';
 
 const INK = '#1d2433';
 const LINE_WIDTH = 4; // PDFの小さな欄に縮めても線がかすれない太さ
 const MAX_SIDE = 600; // 保存する画像の長辺（px）。PDFが重くならないよう縮める
 
+interface Props {
+  /** 確認や画像の説明に使う名前（例: 本人のサイン） */
+  label: string;
+  /** 登録済みのサイン（PNG の data URL。未登録は空文字） */
+  value: string;
+  /** 保存・削除したとき（削除は空文字） */
+  onChange: (dataUrl: string) => void;
+}
+
 /**
- * 申請書類・交通費PDFの本人欄に入れるサインの登録欄（設定画面）。
+ * PDFの押印欄に入れるサインの登録欄（サインタブ）。
  * 登録済みならプレビュー、「サインを書く」「書き直す」で手書き用の枠を開く。
  */
-export default function SignaturePad() {
-  const [saved, setSaved] = useState(loadSignature);
+export default function SignaturePad({ label, value: saved, onChange }: Props) {
   const [drawing, setDrawing] = useState(false);
 
   function handleSave(dataUrl: string) {
-    saveSignature(dataUrl);
-    setSaved(dataUrl);
+    onChange(dataUrl);
     setDrawing(false);
   }
 
   function handleDelete() {
-    if (!window.confirm('登録したサインを削除しますか？')) return;
-    saveSignature('');
-    setSaved('');
+    if (!window.confirm(`${label}を削除しますか？`)) return;
+    onChange('');
   }
 
-  if (drawing) return <SignatureCanvas onSave={handleSave} onCancel={() => setDrawing(false)} />;
+  if (drawing) return <SignatureCanvas label={label} onSave={handleSave} onCancel={() => setDrawing(false)} />;
 
   return (
     <div className="signature">
       {saved
-        ? <img className="signature-preview" src={saved} alt="登録済みのサイン" />
+        ? <img className="signature-preview" src={saved} alt={label} />
         : <p className="signature-empty">未登録</p>}
       <div className="btn-row">
         <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDrawing(true)}>
@@ -44,7 +49,7 @@ export default function SignaturePad() {
   );
 }
 
-function SignatureCanvas({ onSave, onCancel }: { onSave: (dataUrl: string) => void; onCancel: () => void }) {
+function SignatureCanvas({ label, onSave, onCancel }: { label: string; onSave: (dataUrl: string) => void; onCancel: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const last = useRef<{ x: number; y: number } | null>(null);
   const [empty, setEmpty] = useState(true);
@@ -111,7 +116,7 @@ function SignatureCanvas({ onSave, onCancel }: { onSave: (dataUrl: string) => vo
       <canvas
         ref={canvasRef}
         className="signature-pad"
-        aria-label="サインの記入欄"
+        aria-label={`${label}の記入欄`}
         onPointerDown={handleDown}
         onPointerMove={handleMove}
         onPointerUp={handleUp}

@@ -16,7 +16,7 @@ const CERTIFICATIONS_KEY = 'clocking_certifications';
 const WORK_HISTORY_KEY = 'clocking_work_history';
 const LEAVE_APPLICATIONS_KEY = 'clocking_leave_applications';
 const LATE_EARLY_APPLICATIONS_KEY = 'clocking_late_early_applications';
-const SIGNATURE_KEY = 'clocking_signature';
+const SIGNATURE_KEYS = { self: 'clocking_signature', manager: 'clocking_signature_manager' } as const;
 
 export interface UserProfile {
   employeeId: string;
@@ -36,18 +36,22 @@ export function saveUserProfile(profile: UserProfile): void {
   localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(profile));
 }
 
-// 申請書類・交通費PDFの本人欄に入れる手書きサイン（PNG の data URL。未登録は空文字）
-export function loadSignature(): string {
+// PDFの押印欄に入れる手書きサイン（PNG の data URL。未登録は空文字）
+// self: 本人。自分のPDFの本人・本人印の欄に入れる
+// manager: 上長。部下のPDFを読み込んで確認・確認印・検印の欄に入れる（自分のPDFには入れない）
+export type SignatureKind = keyof typeof SIGNATURE_KEYS;
+
+export function loadSignature(kind: SignatureKind): string {
   try {
-    return localStorage.getItem(SIGNATURE_KEY) ?? '';
+    return localStorage.getItem(SIGNATURE_KEYS[kind]) ?? '';
   } catch {
     return '';
   }
 }
 
-export function saveSignature(dataUrl: string): void {
-  if (dataUrl) localStorage.setItem(SIGNATURE_KEY, dataUrl);
-  else localStorage.removeItem(SIGNATURE_KEY);
+export function saveSignature(kind: SignatureKind, dataUrl: string): void {
+  if (dataUrl) localStorage.setItem(SIGNATURE_KEYS[kind], dataUrl);
+  else localStorage.removeItem(SIGNATURE_KEYS[kind]);
 }
 
 export function loadRecords(): AttendanceRecord[] {

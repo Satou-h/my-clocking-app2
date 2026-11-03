@@ -3,7 +3,6 @@ import type { WorkSettings } from '../types/attendance';
 import type { UserProfile } from '../utils/storage';
 import { loadTheme, saveTheme, type Theme } from '../utils/theme';
 import TimeSelect from './TimeSelect';
-import SignaturePad from './SignaturePad';
 
 interface Props {
   settings: WorkSettings;
@@ -58,10 +57,6 @@ export default function WorkSettingsForm({
           placeholder="例: 佐藤"
         />
       </div>
-
-      <h3>サイン</h3>
-      <p className="hint">休暇申請書・遅刻早退申請書の「本人」欄と、交通費精算書の「本人印」欄に入ります。</p>
-      <SignaturePad />
 
       <h3>勤務時間</h3>
       <p className="hint">この時間を基準に遅刻・早退・残業・深夜時間を計算します。</p>

@@ -1,9 +1,42 @@
 // 勤務表・交通費・申請書PDF（pdf-lib）で共有するフォント読み込み・色・描画ヘルパー
 import {
-  LineJoinStyle, TextRenderingMode, popGraphicsState, pushGraphicsState, rgb, setLineJoin, setLineWidth,
-  setStrokingColor, setTextRenderingMode, type PDFFont, type PDFImage, type PDFPage, type RGB,
+  LineJoinStyle, PDFHexString, PDFName, PDFString, TextRenderingMode, popGraphicsState, pushGraphicsState, rgb,
+  setLineJoin, setLineWidth, setStrokingColor, setTextRenderingMode,
+  type PDFDocument, type PDFFont, type PDFImage, type PDFPage, type RGB,
 } from 'pdf-lib';
 import { savePdf } from './pdfOutput';
+
+// ── 押印欄のサインを入れる範囲 ────────────────────────────────────────────────
+// 上長が部下のPDFを読み込んで検印するとき（stampPdf.ts）に使うため、各欄の範囲をPDFの中に書いておく。
+// レイアウトを変えても、そのPDFを作ったときの位置で検印できる。
+export interface SignArea { x: number; y: number; w: number; h: number } // PDF の座標（左下が原点）・1ページ目
+export type SignAreas = Record<string, SignArea>;
+
+const SIGN_AREAS_KEY = PDFName.of('ClockingSignAreas');
+
+export function writeSignAreas(doc: PDFDocument, areas: SignAreas): void {
+  doc.catalog.set(SIGN_AREAS_KEY, PDFHexString.fromText(JSON.stringify(areas)));
+}
+
+// このアプリで出力したPDFでなければ null
+export function readSignAreas(doc: PDFDocument): SignAreas | null {
+  const raw = doc.catalog.lookupMaybe(SIGN_AREAS_KEY, PDFString, PDFHexString);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw.decodeText()) as SignAreas;
+  } catch {
+    return null;
+  }
+}
+
+const round2 = (v: number) => Math.round(v * 100) / 100;
+
+// 画像を範囲の中に縦横比を保って中央に収める
+export function drawImageFit(page: PDFPage, img: PDFImage, { x, y, w, h }: SignArea): void {
+  const s = Math.min(w / img.width, h / img.height);
+  const iw = img.width * s, ih = img.height * s;
+  page.drawImage(img, { x: x + (w - iw) / 2, y: y + (h - ih) / 2, width: iw, height: ih });
+}
 
 // ── フォント（public/fonts の NotoSansJP-Regular を共有） ─────────────────────
 // スキルシート・職務経歴書PDF（skillPdf.ts）もここから読み込む。
@@ -173,14 +206,15 @@ export function createPainter(page: PDFPage, font: PDFFont) {
     }
     return lines;
   }
-  // 画像を枠 (x, y, w, h) の中に縦横比を保って中央に収める
-  function image(img: PDFImage, x: number, y: number, w: number, h: number) {
-    const s = Math.min(w / img.width, h / img.height);
-    const iw = img.width * s, ih = img.height * s;
-    page.drawImage(img, { x: x + (w - iw) / 2, y: H - y - (h + ih) / 2, width: iw, height: ih });
+  // 押印欄のサインを入れる範囲 (x, y, w, h) を覚えておく（writeSignAreas でPDFに書く）。sign があればそこに入れる
+  const signAreas: SignAreas = {};
+  function signArea(label: string, x: number, y: number, w: number, h: number, sign?: PDFImage) {
+    const area = { x: round2(x), y: round2(H - y - h), w: round2(w), h: round2(h) };
+    signAreas[label] = area;
+    if (sign) drawImageFit(page, sign, area);
   }
-  // 押印欄（ラベル付きの枠を横に並べる）。sign があれば最後の枠（本人欄）に入れる
-  function stamps(labels: string[], right: number, y: number, w: number, h: number, sign?: PDFImage) {
+  // 押印欄（ラベル付きの枠を横に並べる）。signs にラベルのサインがあればその枠に入れる
+  function stamps(labels: string[], right: number, y: number, w: number, h: number, signs: Record<string, PDFImage | undefined> = {}) {
     const x0 = right - w * labels.length;
     labels.forEach((label, i) => {
       const x = x0 + w * i;
@@ -188,12 +222,12 @@ export function createPainter(page: PDFPage, font: PDFFont) {
       rect(x, y, w, h, { stroke: C.lineStrong, bw: 0.6 });
       hline(x, x + w, y + 13, C.lineStrong, 0.6);
       cell(label, x, y, w, 13, 7, C.sub, 'center');
+      signArea(label, x + 3, y + 13 + 3, w - 6, h - 13 - 6, signs[label]);
     });
-    if (sign) image(sign, right - w + 3, y + 13 + 3, w - 6, h - 13 - 6);
     return x0;
   }
 
-  return { width, txt, bold, cell, rect, hline, vline, badge, fit, wrap, image, stamps };
+  return { width, txt, bold, cell, rect, hline, vline, badge, fit, wrap, signArea, stamps, signAreas };
 }
 
 export type Painter = ReturnType<typeof createPainter>;

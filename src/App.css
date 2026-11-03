@@ -454,7 +454,8 @@ a { color: var(--accent-text); }
 .app-doc-tab,
 .work-report-tab,
 .skill-tab,
-.bulk-tab {
+.bulk-tab,
+.signature-tab {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -826,7 +827,8 @@ h3 {
 /* Work settings */
 .work-settings-form { max-width: 600px; }
 
-/* サイン（components/SignaturePad.tsx） */
+/* サイン（components/SignatureTab.tsx・SignaturePad.tsx） */
+.signature-tab { max-width: 600px; }
 .signature .btn-row { margin-top: 10px; }
 .signature-pad,
 .signature-preview {
@@ -848,6 +850,38 @@ h3 {
   padding: 8px 12px;
 }
 .signature-empty { margin: 0; color: var(--text-faint); font-size: 13px; }
+.stamp-section {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.stamp-log {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+.stamp-log li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--success-border);
+  background: var(--success-soft);
+  color: var(--success-text);
+}
+.stamp-log li.is-error {
+  border-color: var(--danger-border);
+  background: var(--danger-soft);
+  color: var(--danger-text);
+}
+.stamp-log-file { font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
 .settings-info {
   background: var(--surface-2);
   border: 1px solid var(--border);
@@ -1919,6 +1953,7 @@ hr {
   .work-report-tab,
   .skill-tab,
   .bulk-tab,
+  .signature-tab,
   .status-card {
     padding: 16px;
   }

@@ -3,7 +3,7 @@
 import { PDFDocument, type PDFImage } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { loadSignature } from './storage';
-import { createPainter, downloadPdf, hex, loadFont, type Painter } from './pdfKit';
+import { createPainter, downloadPdf, hex, loadFont, writeSignAreas, type Painter } from './pdfKit';
 
 export interface LeaveApplicationEntry {
   date: string;
@@ -82,14 +82,14 @@ function drawHeader(p: Painter, title: string, name: string, applicationDate: st
 
   const metaSize = cssPt(10);
   p.txt(`氏名: ${name || '　'.repeat(7)}`, RIGHT, px(162.6), metaSize, C.meta, 'right'); // 未入力なら手書きできるよう空けておく
-  // 承認・確認・本人の欄（幅 100px の下線を 20px 間隔で右に寄せる）
+  // 承認・確認・本人の欄（幅 100px の下線を 20px 間隔で右に寄せる）。本人欄には自分のサインを入れる
   const boxW = px(100), gap = px(20);
   ['承認', '確認', '本人'].forEach((label, i) => {
     const x = RIGHT - boxW - (boxW + gap) * (2 - i);
     p.txt(label, x, px(189.8), cssPt(8), C.label, 'center', boxW);
     p.hline(x, x + boxW, px(236.5), C.label, px(1.5));
+    p.signArea(label, x + px(4), px(198), boxW - px(8), px(36), label === '本人' ? sign : undefined);
   });
-  if (sign) p.image(sign, RIGHT - boxW + px(4), px(198), boxW - px(8), px(36));
   p.txt(`申請日: ${jpDate(applicationDate)}`, LEFT, px(232.8), metaSize, C.meta);
 }
 
@@ -133,6 +133,7 @@ export async function buildLeaveApplicationPdf(
     { label: '取得日数', lines: [`${leaveDays}日`] },
     { label: '取得理由', lines: p.wrap(reason, FS, VALUE_W) },
   ]);
+  writeSignAreas(doc, p.signAreas);
   return doc.save();
 }
 
@@ -152,6 +153,7 @@ export async function buildLateEarlyApplicationPdf(
     { label: '実際の時刻', lines: [actualTime] },
     { label: '理由', lines: p.wrap(reason, FS, VALUE_W) },
   ]);
+  writeSignAreas(doc, p.signAreas);
   return doc.save();
 }
 
@@ -163,11 +165,11 @@ function fileName(prefix: string, applicationDate: string, employeeId: string, l
 }
 
 export async function printLeaveApplication(data: LeaveApplicationData, employeeId = '', lastName = ''): Promise<void> {
-  const bytes = await buildLeaveApplicationPdf(await loadFont(), data, loadSignature());
+  const bytes = await buildLeaveApplicationPdf(await loadFont(), data, loadSignature('self'));
   downloadPdf(bytes, fileName('03_休暇申請書', data.applicationDate, employeeId, lastName));
 }
 
 export async function printLateEarlyApplication(data: LateEarlyApplicationData, employeeId = '', lastName = ''): Promise<void> {
-  const bytes = await buildLateEarlyApplicationPdf(await loadFont(), data, loadSignature());
+  const bytes = await buildLateEarlyApplicationPdf(await loadFont(), data, loadSignature('self'));
   downloadPdf(bytes, fileName('04_遅早退申請書', data.applicationDate, employeeId, lastName));
 }
