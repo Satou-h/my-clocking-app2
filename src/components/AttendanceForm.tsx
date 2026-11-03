@@ -4,7 +4,7 @@ import { ATTENDANCE_TYPE_LABELS, WORK_LOCATION_LABELS } from '../types/attendanc
 import {
   generateId, calcWorkMinutes, calcOvertimeMinutes,
   calcLateNightMinutes, isLateArrival, isEarlyDeparture, formatMinutes, getEffectiveBreak,
-  getWorkLocation, calcSiteWorkMinutes, DEFAULT_KISHA_SWITCH_TIME, withKishaNote,
+  getWorkLocation, calcSiteWorkMinutes, DEFAULT_KISHA_SWITCH_TIME, withKishaNote, todayStr,
 } from '../utils/storage';
 import { getHolidayName } from '../utils/holidays';
 import TimeSelect from './TimeSelect';
@@ -18,7 +18,7 @@ interface Props {
   onCancel?: () => void;
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = todayStr;
 
 // 勤務区分（現場・帰社）を選べる種別。休暇・欠勤などは選べない
 const LOCATION_TYPES = new Set<AttendanceType>(['work', 'am_leave', 'pm_leave', 'scheduled_holiday_work', 'legal_holiday_work', 'transfer_holiday_work']);

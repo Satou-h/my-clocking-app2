@@ -1,7 +1,7 @@
 import type { AttendanceRecord, WorkSettings } from '../types/attendance';
 import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
 import type { TransportRecord } from '../types/transport';
-import type { LeaveApplicationRecord, LateEarlyApplicationRecord } from '../types/application';
+import type { LeaveType, LeaveApplicationRecord, LateEarlyApplicationRecord } from '../types/application';
 import { LEAVE_LABELS } from '../types/application';
 import { isLateArrival, isEarlyDeparture } from './storage';
 import { getHolidayName } from './holidays';
@@ -11,7 +11,7 @@ import { hasContent } from './workReport';
 const WORK_TYPES = new Set(['work', 'am_leave', 'pm_leave', 'scheduled_holiday_work', 'legal_holiday_work', 'transfer_holiday_work']);
 // 休暇申請書が必要な区分。計画有給は事前に会社側で計画されている休暇のため、
 // 都度の申請書は不要（LEAVE_TYPES に含めない）
-const LEAVE_TYPES = new Set(['paid_leave', 'am_leave', 'pm_leave', 'transfer_holiday']);
+export const LEAVE_TYPES = new Set(['paid_leave', 'am_leave', 'pm_leave', 'transfer_holiday']);
 // 終日通勤が発生しない区分（丸一日の休暇・休日・欠勤）
 const NO_COMMUTE_TYPES = new Set(['paid_leave', 'planned_paid_leave', 'holiday', 'absence', 'transfer_holiday']);
 
@@ -53,6 +53,63 @@ export function checkTransferHolidays(prefix: string, records: AttendanceRecord[
     }
   }
   return issues;
+}
+
+// 勤務表の実績（出退勤時刻）から見た遅刻・早退
+export interface LateEarlyOccurrence {
+  date: string;
+  type: '遅刻' | '早退';
+  scheduledTime: string;
+  actualTime: string;
+}
+
+// 出勤日の出退勤時刻を始業・終業時刻と比べて、遅刻・早退を日付順に返す
+export function findLateEarly(records: AttendanceRecord[], workSettings: WorkSettings): LateEarlyOccurrence[] {
+  return records
+    .filter((r) => r.type === 'work' && r.clockIn && r.clockOut)
+    .flatMap((r) => {
+      const refStart = r.customStartTime ?? workSettings.standardStartTime;
+      const refEnd = r.customEndTime ?? workSettings.standardEndTime;
+      const found: LateEarlyOccurrence[] = [];
+      if (isLateArrival(r.clockIn!, refStart)) {
+        found.push({ date: r.date, type: '遅刻', scheduledTime: refStart, actualTime: r.clockIn! });
+      }
+      if (isEarlyDeparture(r.clockOut!, refEnd, r.clockIn)) {
+        found.push({ date: r.date, type: '早退', scheduledTime: refEnd, actualTime: r.clockOut! });
+      }
+      return found;
+    })
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// 遅早退申請は日付と種別の組で見分ける（同じ日に遅刻と早退があれば、申請書はそれぞれ必要）
+export function lateEarlyKey(date: string, type: '遅刻' | '早退'): string {
+  return `${date}_${type}`;
+}
+
+// 休暇申請の1日分を勤務表と照合する（問題がなければ null）
+// ・勤務表が休暇以外（出勤・休日・計画有給など）または未登録 → 不要な申請
+// ・どちらも休暇だが区分が違う（例: 勤務表は午前休なのに申請は午後休）→ 区分の不一致
+export function checkLeaveEntry(e: { date: string; leaveType: LeaveType }, rec: AttendanceRecord | undefined): string | null {
+  const day = fmtDateShort(e.date);
+  if (!rec) {
+    return `${day}は勤務表に休暇の記録がありません。不要な申請の場合は休暇申請書から削除してください`;
+  }
+  if (rec.type === e.leaveType) return null;
+  if (rec.type === 'planned_paid_leave') {
+    return `${day}は計画有給のため休暇申請は不要です。休暇申請書から削除してください`;
+  }
+  if (!LEAVE_TYPES.has(rec.type)) {
+    return `${day}は勤務表が「${ATTENDANCE_TYPE_LABELS[rec.type]}」のため休暇申請は不要です。休暇申請書から削除してください`;
+  }
+  return `${day}の区分が一致しません（勤務表: ${ATTENDANCE_TYPE_LABELS[rec.type]}、休暇申請: ${LEAVE_LABELS[e.leaveType]}）`;
+}
+
+// 遅早退申請を勤務表の実績と照合する。実際には遅刻（早退）していない日の遅刻（早退）申請は不要
+// occurred: 勤務表で遅刻・早退があった日の lateEarlyKey
+export function checkLateEarlyApplication(a: LateEarlyApplicationRecord, occurred: Set<string>): string | null {
+  if (occurred.has(lateEarlyKey(a.targetDate, a.type))) return null;
+  return `${fmtDateShort(a.targetDate)}は勤務表上${a.type}していないため${a.type}申請は不要です。遅早退申請書から削除してください`;
 }
 
 export interface MonthCompleteness {
@@ -114,52 +171,35 @@ export function checkMonthCompleteness(
   const missingLeaveApp = leaveDates.filter((d) => !coveredLeaveDates.has(d));
 
   // 休暇申請書: 申請書の各日付を勤務表と照合する
-  // ・勤務表が休暇以外（出勤・休日・計画有給など）または未登録 → 不要な申請
-  // ・どちらも休暇だが区分が違う（例: 勤務表は午前休なのに申請は午後休）→ 区分の不一致
   const leaveTypeIssues = leaveApplications
     .flatMap((b) => b.dateEntries)
     .filter((e) => e.date.startsWith(prefix))
     .sort((a, b) => a.date.localeCompare(b.date))
-    .flatMap((e) => {
-      const rec = recordByDate.get(e.date);
-      const day = fmtDateShort(e.date);
-      if (!rec) {
-        return [`${day}は勤務表に休暇の記録がありません。不要な申請の場合は休暇申請書から削除してください`];
-      }
-      if (rec.type === e.leaveType) return [];
-      if (rec.type === 'planned_paid_leave') {
-        return [`${day}は計画有給のため休暇申請は不要です。休暇申請書から削除してください`];
-      }
-      if (!LEAVE_TYPES.has(rec.type)) {
-        return [`${day}は勤務表が「${ATTENDANCE_TYPE_LABELS[rec.type]}」のため休暇申請は不要です。休暇申請書から削除してください`];
-      }
-      return [`${day}の区分が一致しません（勤務表: ${ATTENDANCE_TYPE_LABELS[rec.type]}、休暇申請: ${LEAVE_LABELS[e.leaveType]}）`];
-    });
+    .flatMap((e) => checkLeaveEntry(e, recordByDate.get(e.date)) ?? []);
 
-  // 遅早退申請書: 遅刻・早退が発生した出勤日はすべて申請書が必要
-  const lateEarlyByDate = new Map<string, { late: boolean; early: boolean }>();
-  for (const r of monthRecords) {
-    if (r.type !== 'work' || !r.clockIn || !r.clockOut) continue;
-    const refStart = r.customStartTime ?? workSettings.standardStartTime;
-    const refEnd = r.customEndTime ?? workSettings.standardEndTime;
-    const late = isLateArrival(r.clockIn, refStart);
-    const early = isEarlyDeparture(r.clockOut, refEnd, r.clockIn);
-    if (late || early) lateEarlyByDate.set(r.date, { late, early });
-  }
-  const lateEarlyDates = [...lateEarlyByDate.keys()];
+  // 遅早退申請書: 遅刻・早退が発生した出勤日はすべて申請書が必要（同じ日に両方あれば2枚必要）
+  const lateEarly = findLateEarly(monthRecords, workSettings);
+  const occurred = new Set(lateEarly.map((o) => lateEarlyKey(o.date, o.type)));
   const monthLateEarlyApps = lateEarlyApplications
     .filter((a) => a.targetDate.startsWith(prefix))
     .sort((a, b) => a.targetDate.localeCompare(b.targetDate));
-  const coveredLateEarlyDates = new Set(monthLateEarlyApps.map((r) => r.targetDate));
-  const missingLateEarly = lateEarlyDates.filter((d) => !coveredLateEarlyDates.has(d));
+  const applied = new Set(monthLateEarlyApps.map((a) => lateEarlyKey(a.targetDate, a.type)));
+  const appliedDates = new Set(monthLateEarlyApps.map((a) => a.targetDate));
+  const unapplied = lateEarly.filter((o) => !applied.has(lateEarlyKey(o.date, o.type)));
+  // 申請が1枚もない日は未入力。片方だけ申請済みの日は、足りない方を不備として示す
+  const missingLateEarly = [...new Set(unapplied.filter((o) => !appliedDates.has(o.date)).map((o) => o.date))];
+  const partialLateEarlyIssues = unapplied
+    .filter((o) => appliedDates.has(o.date))
+    .map((o) => {
+      const both = lateEarly.filter((x) => x.date === o.date).length > 1;
+      return `${fmtDateShort(o.date)}の${o.type}申請書がありません${both ? '（遅刻と早退は別々に申請が必要です）' : ''}`;
+    });
 
   // 遅早退申請書: 実際には遅刻（早退）していない日の遅刻（早退）申請は不要
-  const lateEarlyIssues = monthLateEarlyApps.flatMap((a) => {
-    const actual = lateEarlyByDate.get(a.targetDate);
-    const happened = a.type === '遅刻' ? actual?.late : actual?.early;
-    if (happened) return [];
-    return [`${fmtDateShort(a.targetDate)}は勤務表上${a.type}していないため${a.type}申請は不要です。遅早退申請書から削除してください`];
-  });
+  const lateEarlyIssues = [
+    ...partialLateEarlyIssues,
+    ...monthLateEarlyApps.flatMap((a) => checkLateEarlyApplication(a, occurred) ?? []),
+  ];
 
   const attendance: DocCompleteness = {
     required: true,
@@ -183,7 +223,7 @@ export function checkMonthCompleteness(
     issues: leaveTypeIssues,
   };
   const lateEarlyApplication: DocCompleteness = {
-    required: lateEarlyDates.length > 0 || lateEarlyIssues.length > 0,
+    required: lateEarly.length > 0 || lateEarlyIssues.length > 0,
     complete: missingLateEarly.length === 0 && lateEarlyIssues.length === 0,
     missingDates: missingLateEarly,
     extraDates: [],

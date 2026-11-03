@@ -394,6 +394,12 @@ export function formatMinutes(minutes: number): string {
   return `${h}:${String(m).padStart(2, '0')}`;
 }
 
+// 今日の日付（YYYY-MM-DD）。toISOString() は世界標準時のため、日本時間の 0〜9 時は前日になってしまう
+export function todayStr(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }

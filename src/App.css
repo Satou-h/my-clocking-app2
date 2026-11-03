@@ -1373,8 +1373,84 @@ hr {
 .date-add-fields select { flex: none; width: auto; }
 .date-add-fields .btn { flex: none; }
 
+/* 申請書類: 表示する月・未申請の件数 */
+.app-doc-month { align-items: center; flex-wrap: wrap; }
+.app-doc-menu-count {
+  display: inline-block;
+  margin-left: 6px;
+  min-width: 18px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--warning-soft);
+  color: var(--warning-text);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* 申請書類: 勤務表の未申請の日・理由の候補（押して入力する小さなボタン） */
+.pending-list,
+.reason-presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.pending-list { flex: 1; }
+.pending-chip,
+.reason-preset {
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  padding: 5px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.pending-chip {
+  border-color: var(--warning-border);
+  background: var(--warning-soft);
+  color: var(--warning-text);
+}
+.reason-preset:hover { background: var(--surface-hover); }
+.pending-chip:hover { border-color: var(--warning); }
+.pending-chip.is-selected,
+.reason-preset.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+.reason-field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.form-row .reason-field textarea { flex: none; align-self: stretch; }
+
+/* 申請書類: 保存済みの一覧で勤務表と合っていない申請 */
+.app-issue {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--danger-text);
+}
+.app-issue svg { flex: none; margin-top: 2px; }
+.app-issue.is-soft { color: var(--warning-text); }
+.data-table tr.is-editing td { background: var(--accent-soft); }
+/* 日付やボタンは折り返さず、注意書きだけ折り返す */
+.app-doc-content .data-table td { white-space: nowrap; }
+.app-doc-content .data-table .app-issue { white-space: normal; }
+
 /* 休暇申請書: スマホでは1行に詰め込まず、遅早退申請書と同じく入力欄を全幅で並べる */
 @media (max-width: 768px) {
+  .pending-chip,
+  .reason-preset { min-height: 36px; }
   .leave-app-section { padding: 16px; }
   .date-entry { padding: 6px 8px 6px 12px; }
   .date-entry-label { min-width: 0; flex: none; }
@@ -1901,9 +1977,11 @@ hr {
     padding: 6px 10px;
   }
 
-  /* 申請書類タブ: サイドバーをタブ形式に */
+  /* 申請書類タブ: サイドバーをタブ形式に。
+     幅は画面に合わせる（flex-start のままだと保存済みの表の幅まで広がり、画面全体が縮小表示になる） */
   .app-doc-tab {
     flex-direction: column;
+    align-items: stretch;
     gap: 12px;
   }
   .app-doc-sidebar {
