@@ -9,9 +9,7 @@ import {
   generateId, loadUserProfile,
 } from '../utils/storage';
 import MultiLineInput from './MultiLineInput';
-import { printSkillSheet, printWorkHistory } from '../utils/skillPdf';
 import { normalizeYearMonth, fmtYearMonth, calcDurationLabel, sortWorkHistory } from '../utils/workHistory';
-import { checkSkillSheet, formatCompletenessIssue } from '../utils/completeness';
 
 const EMPTY_FORM = { category: '', skillName: '', experienceYears: '' };
 const EMPTY_CERT_FORM = { name: '', acquiredDate: '' };
@@ -151,30 +149,6 @@ export default function SkillTab() {
     setForm(EMPTY_FORM);
   }
 
-  // 一括ダウンロードと同じチェックを行う。氏名が空のときは一括ダウンロードと同じく苗字で出力する
-  function prepareSkillPrint() {
-    const { employeeId, lastName } = loadUserProfile();
-    if (!employeeId || !lastName) { alert('「設定」で社員番号と苗字を入力してください。'); return null; }
-    const name = profile.name || lastName;
-    const doc = checkSkillSheet(name);
-    if (!doc.complete) { alert(formatCompletenessIssue('スキル表', doc)); return null; }
-    return { employeeId, lastName, name };
-  }
-
-  function handlePrintSkillSheet() {
-    const p = prepareSkillPrint();
-    if (!p) return;
-    printSkillSheet({ ...profile, name: p.name }, entries, certifications, p.employeeId, p.lastName)
-      .catch((err: Error) => alert('PDF生成エラー: ' + err.message));
-  }
-
-  function handlePrintWorkHistory() {
-    const p = prepareSkillPrint();
-    if (!p) return;
-    printWorkHistory(p.name, sortedWorkHistory, p.employeeId, p.lastName)
-      .catch((err: Error) => alert('PDF生成エラー: ' + err.message));
-  }
-
   const sortedWorkHistory = sortWorkHistory(workHistory);
 
   const grouped = entries.reduce<Record<string, SkillEntry[]>>((acc, e) => {
@@ -189,12 +163,6 @@ export default function SkillTab() {
 
   return (
     <div className="skill-tab">
-
-      {/* ツールバー */}
-      <div className="skill-toolbar">
-        <button className="btn btn-pdf" onClick={handlePrintSkillSheet}>スキルシートPDF</button>
-        <button className="btn btn-pdf" onClick={handlePrintWorkHistory}>スキル一覧PDF</button>
-      </div>
 
       {/* 基本情報 */}
       <div className="skill-form-section">

@@ -3,13 +3,11 @@ import type { AttendanceRecord, WorkSettings, PaidLeaveSettings } from '../types
 import { ATTENDANCE_TYPE_LABELS, WORK_LOCATION_LABELS } from '../types/attendance';
 import {
   calcWorkMinutes, calcOvertimeMinutes, calcLateNightMinutes,
-  isLateArrival, isEarlyDeparture, formatMinutes, loadUserProfile, getEffectiveBreak,
+  isLateArrival, isEarlyDeparture, formatMinutes, getEffectiveBreak,
   calcPaidLeaveMonthStatus, findPaidLeaveSetting, getWorkLocation,
 } from '../utils/storage';
 import { calcMonthlySummary, isWorkType } from '../utils/summary';
-import { printMonthlyAttendancePDF } from '../utils/attendancePdf';
 import { getHolidayName } from '../utils/holidays';
-import { checkMonthCompleteness, withPaidLeaveCheck, formatCompletenessIssue } from '../utils/completeness';
 import { loadName, saveName } from '../utils/workReport';
 
 interface Props {
@@ -152,25 +150,6 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
           placeholder="氏名"
           aria-label="氏名"
         />
-        <button
-          className="btn btn-pdf"
-          onClick={() => {
-            const p = loadUserProfile();
-            if (!p.employeeId || !p.lastName) { alert('「設定」で社員番号と苗字を入力してください。'); return; }
-            if (!name.trim()) { alert('氏名を入力してください。'); return; }
-            const completeness = checkMonthCompleteness(filterYear, filterMonth, records, [], [], [], workSettings);
-            const attendance = withPaidLeaveCheck(completeness.attendance, filterMonth, plRemaining);
-            if (!attendance.complete) {
-              alert(formatCompletenessIssue('勤務表', attendance));
-              return;
-            }
-            printMonthlyAttendancePDF(records, workSettings, filterYear, filterMonth, plRemaining, p.employeeId, p.lastName, name)
-              .catch((err: Error) => alert('PDF生成エラー: ' + err.message));
-          }}
-          title={`${filterYear}年${filterMonth}月をPDF出力`}
-        >
-          PDF出力
-        </button>
       </div>
 
       <div className="monthly-summary">

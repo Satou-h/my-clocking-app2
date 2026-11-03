@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { printLeaveApplication, printLateEarlyApplication } from '../utils/applicationPdf';
 import {
-  loadUserProfile, generateId, isLateArrival, isEarlyDeparture,
+  generateId, isLateArrival, isEarlyDeparture,
   loadLeaveApplications, upsertLeaveApplication, deleteLeaveApplication,
   loadLateEarlyApplications, upsertLateEarlyApplication, deleteLateEarlyApplication,
 } from '../utils/storage';
@@ -9,7 +8,6 @@ import type { LeaveType, LeaveApplicationRecord, LateEarlyApplicationRecord } fr
 import { LEAVE_LABELS, calcLeaveDays } from '../types/application';
 import type { AttendanceRecord, WorkSettings } from '../types/attendance';
 import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
-import { checkMonthCompleteness, formatCompletenessIssue } from '../utils/completeness';
 
 interface Props {
   records: AttendanceRecord[];
@@ -45,11 +43,6 @@ function fmtDateJp(d: string): string {
 
 function today() {
   return new Date().toISOString().slice(0, 10);
-}
-
-function deriveYearMonth(dateStr: string): { year: number; month: number } | null {
-  const m = dateStr.match(/^(\d{4})-(\d{2})/);
-  return m ? { year: Number(m[1]), month: Number(m[2]) } : null;
 }
 
 function latestDate(entries: { date: string }[]): string {
@@ -161,43 +154,6 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
     resetLeaveForm();
   }
 
-  function printLeaveRecord(record: LeaveApplicationRecord) {
-    const { employeeId, lastName } = loadUserProfile();
-    if (!employeeId || !lastName) { alert('「設定」で社員番号と苗字を入力してください。'); return; }
-    // 月をまたぐ申請（例: 10/31〜11/1）は、取得日を含むすべての月を確認する
-    const dates = record.dateEntries.length > 0 ? record.dateEntries.map((e) => e.date) : [record.applicationDate];
-    const allLeaveApps = loadLeaveApplications();
-    const allLateEarlyApps = loadLateEarlyApplications();
-    for (const ymStr of [...new Set(dates.map((d) => d.slice(0, 7)))].sort()) {
-      const ym = deriveYearMonth(ymStr);
-      if (!ym) continue;
-      const completeness = checkMonthCompleteness(
-        ym.year, ym.month, records, [], allLeaveApps, allLateEarlyApps, workSettings,
-      );
-      if (!completeness.leaveApplication.complete) {
-        alert(formatCompletenessIssue('休暇申請書', completeness.leaveApplication));
-        return;
-      }
-    }
-    printLeaveApplication({
-      applicationDate: record.applicationDate,
-      name: record.name,
-      dateEntries: record.dateEntries.map((e) => ({ date: e.date, leaveLabel: LEAVE_LABELS[e.leaveType] })),
-      leaveDays: calcLeaveDays(record.dateEntries),
-      reason: record.reason,
-    }, employeeId, lastName).catch((err: Error) => alert('PDF生成エラー: ' + err.message));
-  }
-
-  function handlePrintLeave() {
-    if (dateEntries.length === 0) { alert('日付を1つ以上追加してください。'); return; }
-    const record = buildLeaveRecord(editingLeaveId ?? generateId());
-    const { employeeId, lastName } = loadUserProfile();
-    if (!employeeId || !lastName) { alert('「設定」で社員番号と苗字を入力してください。'); return; }
-    upsertLeaveApplication(record);
-    setLeaveApplications(loadLeaveApplications());
-    printLeaveRecord(record);
-  }
-
   function handleEditLeave(record: LeaveApplicationRecord) {
     setEditingLeaveId(record.id);
     setApplicationDate(record.applicationDate);
@@ -268,39 +224,6 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
     upsertLateEarlyApplication(buildLateEarlyRecord(editingLateEarlyId ?? generateId()));
     setLateEarlyApplications(loadLateEarlyApplications());
     resetLateEarlyForm();
-  }
-
-  function printLateEarlyRecord(record: LateEarlyApplicationRecord) {
-    const { employeeId, lastName } = loadUserProfile();
-    if (!employeeId || !lastName) { alert('「設定」で社員番号と苗字を入力してください。'); return; }
-    const ym = deriveYearMonth(record.targetDate);
-    if (ym) {
-      const completeness = checkMonthCompleteness(
-        ym.year, ym.month, records, [], loadLeaveApplications(), loadLateEarlyApplications(), workSettings,
-      );
-      if (!completeness.lateEarlyApplication.complete) {
-        alert(formatCompletenessIssue('遅早退申請書', completeness.lateEarlyApplication));
-        return;
-      }
-    }
-    printLateEarlyApplication({
-      applicationDate: record.applicationDate,
-      name: record.name,
-      type: record.type,
-      targetDate: record.targetDate,
-      scheduledTime: record.scheduledTime,
-      actualTime: record.actualTime,
-      reason: record.reason,
-    }, employeeId, lastName).catch((err: Error) => alert('PDF生成エラー: ' + err.message));
-  }
-
-  function handlePrintLateEarly() {
-    const record = buildLateEarlyRecord(editingLateEarlyId ?? generateId());
-    const { employeeId, lastName } = loadUserProfile();
-    if (!employeeId || !lastName) { alert('「設定」で社員番号と苗字を入力してください。'); return; }
-    upsertLateEarlyApplication(record);
-    setLateEarlyApplications(loadLateEarlyApplications());
-    printLateEarlyRecord(record);
   }
 
   function handleEditLateEarly(record: LateEarlyApplicationRecord) {
@@ -465,9 +388,6 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
               <button className="btn btn-primary" onClick={handleSaveLeave}>
                 {editingLeaveId ? '更新' : '保存'}
               </button>
-              <button className="btn btn-pdf" onClick={handlePrintLeave}>
-                PDF出力
-              </button>
             </div>
 
             <div className="leave-app-section">
@@ -494,7 +414,6 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
                           <td className="actions">
                             <button className="btn-icon btn-edit" onClick={() => handleEditLeave(b)}>編集</button>
                             <button className="btn-icon btn-delete" onClick={() => handleDeleteLeave(b.id)}>削除</button>
-                            <button className="btn-icon btn-pdf-icon" onClick={() => printLeaveRecord(b)}>PDF</button>
                           </td>
                         </tr>
                       ))}
@@ -603,9 +522,6 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
               <button className="btn btn-primary" onClick={handleSaveLateEarly}>
                 {editingLateEarlyId ? '更新' : '保存'}
               </button>
-              <button className="btn btn-pdf" onClick={handlePrintLateEarly}>
-                PDF出力
-              </button>
             </div>
 
             <div className="leave-app-section">
@@ -632,7 +548,6 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
                           <td className="actions">
                             <button className="btn-icon btn-edit" onClick={() => handleEditLateEarly(r)}>編集</button>
                             <button className="btn-icon btn-delete" onClick={() => handleDeleteLateEarly(r.id)}>削除</button>
-                            <button className="btn-icon btn-pdf-icon" onClick={() => printLateEarlyRecord(r)}>PDF</button>
                           </td>
                         </tr>
                       ))}

@@ -562,12 +562,6 @@ h3 {
   color: var(--text);
 }
 .btn-secondary:hover { background: var(--surface-hover); }
-.btn-pdf {
-  background: var(--surface);
-  border-color: var(--border-strong);
-  color: var(--text);
-}
-.btn-pdf:hover { background: var(--surface-hover); }
 .btn-sm { min-height: 32px; padding: 4px 14px; font-size: 13px; }
 
 /* Icon buttons */
@@ -585,8 +579,6 @@ h3 {
 .btn-edit:hover { background: var(--accent-soft-hover); }
 .btn-delete { background: var(--danger-soft); color: var(--danger-text); }
 .btn-delete:hover { background: var(--danger-border); }
-.btn-pdf-icon { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
-.btn-pdf-icon:hover { background: var(--surface-hover); }
 
 /* Table */
 .data-table {
@@ -1195,12 +1187,35 @@ hr {
 
 /* 書類一括ダウンロード */
 .bulk-tab { max-width: 640px; }
+.bulk-select-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 20px;
+}
+.bulk-select-count { font-size: 13px; color: var(--text-muted); }
 .bulk-checklist {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin: 20px 0;
+  margin: 10px 0 20px;
 }
+/* 書類の行は見出し全体を押すとチェックが切り替わる */
+.bulk-checklist .bulk-check-head { cursor: pointer; }
+.bulk-checklist .bulk-check-skip .bulk-check-head { cursor: default; }
+.bulk-check-select {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  flex-shrink: 0;
+  cursor: inherit;
+  accent-color: var(--accent);
+}
+/* チェックボックスの分だけ右にずらして、書類名の位置にそろえる */
+.bulk-checklist .bulk-missing-dates { margin-left: 60px; }
+/* 出力しない書類は薄く表示する */
+.bulk-check-unselected { opacity: 0.55; }
 .bulk-check-item {
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -1569,16 +1584,6 @@ hr {
   display: flex;
   flex-direction: column;
   gap: 20px;
-}
-.skill-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-  padding: 12px 16px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
 }
 /* 候補のドロップダウンが枠外にはみ出せるよう overflow は指定せず、角丸はタイトル側で付ける */
 .skill-form-section {
@@ -1983,11 +1988,6 @@ hr {
   }
   .skill-table {
     min-width: 500px;
-  }
-  .skill-toolbar {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
   }
 
   /* 作業報告プレビューテーブル */

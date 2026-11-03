@@ -9,7 +9,8 @@ import {
   calcSiteWorkMinutes, getWorkLocation, formatMinutes,
 } from '../utils/storage';
 import {
-  checkMonthCompleteness, withPaidLeaveCheck, checkWorkReport, checkSkillSheet, fmtDateShort, type DocCompleteness,
+  checkMonthCompleteness, withPaidLeaveCheck, withNameCheck, checkWorkReport, checkSkillSheet, fmtDateShort,
+  type DocCompleteness,
 } from '../utils/completeness';
 import { printMonthlyAttendancePDF } from '../utils/attendancePdf';
 import { printWorkReport } from '../utils/pdf';
@@ -27,6 +28,10 @@ interface Props {
   paidLeaveSettings: PaidLeaveSettings[];
 }
 
+// 出力する書類の単位（ダウンロードされるPDFの種類）
+const DOC_KEYS = ['attendance', 'transport', 'leave', 'lateEarly', 'workReport', 'skillSheet', 'workHistory'] as const;
+type DocKey = typeof DOC_KEYS[number];
+
 export default function BulkDownloadTab({ records, transportRecords, workSettings, paidLeaveSettings }: Props) {
   const now = new Date();
   const [filterYear, setFilterYear] = useState(now.getFullYear());
@@ -34,6 +39,7 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
   const [downloading, setDownloading] = useState(false);
   const [checkHours, setCheckHours] = useState('');
   const [checkMins,  setCheckMins]  = useState('');
+  const [selected, setSelected] = useState<Set<DocKey>>(() => new Set(DOC_KEYS));
 
   const currentYear = now.getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
@@ -47,11 +53,13 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
     leaveApplications, lateEarlyApplications, workSettings,
   );
 
+  const reportName = loadName();
+
   const plRemaining = calcPaidLeaveRemaining(records, paidLeaveSettings, filterYear, filterMonth);
-  const attendance = withPaidLeaveCheck(completeness.attendance, filterMonth, plRemaining);
+  const attendance = withNameCheck(withPaidLeaveCheck(completeness.attendance, filterMonth, plRemaining), reportName);
+  const transport = withNameCheck(completeness.transport, reportName);
 
   const reportWeeks = loadAllWeeks(filterYear, filterMonth);
-  const reportName = loadName();
   const workReport = checkWorkReport(reportWeeks, reportName);
 
   const skillProfile = loadSkillProfile();
@@ -87,27 +95,62 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
     : null;
   const checkPassed = checkEnteredMins === null || checkEnteredMins === totalWorkMins;
 
-  const allComplete = completeness.allComplete && attendance.complete && workReport.complete && skillSheet.complete && checkPassed;
+  const items: { key: DocKey; label: string; doc: DocCompleteness }[] = [
+    { key: 'attendance', label: '勤務表', doc: attendance },
+    { key: 'transport', label: '交通費', doc: transport },
+    { key: 'leave', label: '休暇申請書', doc: completeness.leaveApplication },
+    { key: 'lateEarly', label: '遅早退申請書', doc: completeness.lateEarlyApplication },
+    { key: 'workReport', label: '作業報告書', doc: workReport },
+    { key: 'skillSheet', label: 'スキルシート', doc: skillSheet },
+    { key: 'workHistory', label: 'スキル一覧', doc: skillSheet },
+  ];
 
-  async function handleBulkDownload() {
+  // 対象なし（その月に申請が不要）の書類は選べない
+  const selectableItems = items.filter((i) => i.doc.required);
+  const selectedItems = selectableItems.filter((i) => selected.has(i.key));
+  const allSelected = selectableItems.every((i) => selected.has(i.key));
+  const targets = new Set(selectedItems.map((i) => i.key));
+
+  // 検算は勤務表の確認なので、勤務表を出力するときだけ判定する
+  const verifyBlocks = targets.has('attendance') && !checkPassed;
+  const blockReason = selectedItems.length === 0 ? '出力する書類を選んでください'
+    : selectedItems.some((i) => !i.doc.complete) ? '選んだ書類に未入力または不要なデータがあるためダウンロードできません'
+    : verifyBlocks ? '現場の総勤務時間がシステム計算値と一致しないため、勤務表をダウンロードできません'
+    : '';
+
+  function toggle(key: DocKey) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    setSelected(allSelected ? new Set() : new Set(DOC_KEYS));
+  }
+
+  async function handleDownload() {
     const p = loadUserProfile();
     if (!p.employeeId || !p.lastName) { alert('「設定」で社員番号と苗字を入力してください。'); return; }
-    if (!allComplete) return;
+    if (blockReason) return;
 
     setDownloading(true);
     try {
-      // すべてのPDFを作り終えてから、まとめてダウンロード（iPhone・iPad は共有シート）する
+      // 選んだPDFを作り終えてから、まとめてダウンロード（iPhone・iPad は共有シート）する
       const files = await collectPdfs(async () => {
-        await printMonthlyAttendancePDF(records, workSettings, filterYear, filterMonth, plRemaining, p.employeeId, p.lastName, reportName);
+        if (targets.has('attendance')) {
+          await printMonthlyAttendancePDF(records, workSettings, filterYear, filterMonth, plRemaining, p.employeeId, p.lastName, reportName);
+        }
 
-        await printTransportPDF(transportRecords, filterYear, filterMonth, p.employeeId, p.lastName, reportName);
+        if (targets.has('transport')) {
+          await printTransportPDF(transportRecords, filterYear, filterMonth, p.employeeId, p.lastName, reportName);
+        }
 
-        const prefix = `${filterYear}-${String(filterMonth).padStart(2, '0')}`;
-
-        if (completeness.leaveApplication.required) {
-          const batches = leaveApplications.filter((b) => b.dateEntries.some((e) => e.date.startsWith(prefix)));
+        if (targets.has('leave')) {
+          const batches = leaveApplications.filter((b) => b.dateEntries.some((e) => e.date.startsWith(monthPrefix)));
           for (const batch of batches) {
-            const entriesInMonth = batch.dateEntries.filter((e) => e.date.startsWith(prefix));
+            const entriesInMonth = batch.dateEntries.filter((e) => e.date.startsWith(monthPrefix));
             await printLeaveApplication({
               applicationDate: batch.applicationDate,
               name: batch.name,
@@ -118,9 +161,9 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
           }
         }
 
-        if (completeness.lateEarlyApplication.required) {
-          const targets = lateEarlyApplications.filter((r) => r.targetDate.startsWith(prefix));
-          for (const rec of targets) {
+        if (targets.has('lateEarly')) {
+          const apps = lateEarlyApplications.filter((r) => r.targetDate.startsWith(monthPrefix));
+          for (const rec of apps) {
             await printLateEarlyApplication({
               applicationDate: rec.applicationDate,
               name: rec.name,
@@ -133,11 +176,17 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
           }
         }
 
-        await printWorkReport(filterYear, filterMonth, reportName, reportWeeks, p.employeeId, p.lastName, loadSummary(filterYear, filterMonth));
+        if (targets.has('workReport')) {
+          await printWorkReport(filterYear, filterMonth, reportName, reportWeeks, p.employeeId, p.lastName, loadSummary(filterYear, filterMonth));
+        }
 
-        await printSkillSheet({ ...skillProfile, name: skillName }, loadSkillEntries(), loadCertifications(), p.employeeId, p.lastName);
+        if (targets.has('skillSheet')) {
+          await printSkillSheet({ ...skillProfile, name: skillName }, loadSkillEntries(), loadCertifications(), p.employeeId, p.lastName);
+        }
 
-        await printWorkHistory(skillName, sortWorkHistory(loadWorkHistory()), p.employeeId, p.lastName);
+        if (targets.has('workHistory')) {
+          await printWorkHistory(skillName, sortWorkHistory(loadWorkHistory()), p.employeeId, p.lastName);
+        }
       });
       await deliverPdfs(files);
     } catch (err) {
@@ -147,19 +196,10 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
     }
   }
 
-  const items: { label: string; doc: DocCompleteness }[] = [
-    { label: '勤務表', doc: attendance },
-    { label: '交通費', doc: completeness.transport },
-    { label: '休暇申請書', doc: completeness.leaveApplication },
-    { label: '遅早退申請書', doc: completeness.lateEarlyApplication },
-    { label: '作業報告書', doc: workReport },
-    { label: 'スキル表（スキルシート・スキル一覧）', doc: skillSheet },
-  ];
-
   return (
     <div className="bulk-tab">
       <h2>書類一括ダウンロード</h2>
-      <p className="hint">対象月のすべての書類の入力が完了すると、一括でダウンロードできます。</p>
+      <p className="hint">出力する書類にチェックを入れてください。選んだ書類の入力がすべて完了すると、まとめてダウンロードできます。</p>
 
       <div className="list-filter">
         <select value={filterYear} onChange={(e) => setFilterYear(Number(e.target.value))}>
@@ -170,9 +210,17 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
         </select>
       </div>
 
+      <div className="bulk-select-bar">
+        <span className="bulk-select-count">{selectedItems.length}件を選択中</span>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={toggleAll}>
+          {allSelected ? 'すべて解除' : 'すべて選択'}
+        </button>
+      </div>
+
       <div className="bulk-checklist">
-        {items.map(({ label, doc }) => {
+        {items.map(({ key, label, doc }) => {
           const status = !doc.required ? 'skip' : doc.complete ? 'ok' : 'missing';
+          const checked = doc.required && selected.has(key);
           const hasMissing = doc.missingDates.length > 0;
           const hasExtra = doc.extraDates.length > 0;
           const statusLabel = status === 'ok' ? '入力完了'
@@ -182,14 +230,21 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
             : !hasMissing && doc.issues.length > 0 ? '不備あり'
             : '入力未完了';
           return (
-            <div key={label} className={`bulk-check-item bulk-check-${status}`}>
-              <div className="bulk-check-head">
+            <div key={key} className={`bulk-check-item bulk-check-${status}${checked ? '' : ' bulk-check-unselected'}`}>
+              <label className="bulk-check-head">
+                <input
+                  type="checkbox"
+                  className="bulk-check-select"
+                  checked={checked}
+                  disabled={!doc.required}
+                  onChange={() => toggle(key)}
+                />
                 <span className="bulk-check-icon">
                   {status === 'ok' ? '✓' : status === 'skip' ? '－' : '×'}
                 </span>
                 <span className="bulk-check-label">{label}</span>
                 <span className="bulk-check-status">{statusLabel}</span>
-              </div>
+              </label>
               {hasMissing && (
                 <div className="bulk-missing-dates">
                   未入力: {doc.missingDates.map(fmtDateShort).join('、')}
@@ -220,7 +275,7 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
         <div className="bulk-verify-body">
           <p className="hint mb-8">
             現場（客先）システムで確認した月間総勤務時間を入力してください。
-            システムの計算値と一致しない場合はダウンロードできません。未入力の場合はスキップされます。
+            システムの計算値と一致しない場合は勤務表をダウンロードできません。未入力の場合はスキップされます。
             ※ 勤務区分が帰社の日は、帰社した時間を計算から除外します（午前/午後帰社は切替時刻で按分）。
           </p>
           <div className="bulk-verify-row">
@@ -273,13 +328,13 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
       <div className="bulk-download-actions">
         <button
           className="btn btn-primary"
-          disabled={!allComplete || downloading}
-          onClick={handleBulkDownload}
+          disabled={!!blockReason || downloading}
+          onClick={handleDownload}
         >
-          {downloading ? 'ダウンロード中…' : 'すべての書類を一括ダウンロード'}
+          {downloading ? 'ダウンロード中…' : '選んだ書類をダウンロード'}
         </button>
-        {!allComplete && (
-          <span className="bulk-download-hint">未入力または不要なデータがあるためダウンロードできません</span>
+        {blockReason && (
+          <span className="bulk-download-hint">{blockReason}</span>
         )}
       </div>
     </div>

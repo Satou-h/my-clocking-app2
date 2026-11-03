@@ -200,7 +200,7 @@ export function checkMonthCompleteness(
   };
 }
 
-// 以下は一括ダウンロードと各画面の個別PDF出力で共通に使うチェック（どちらかだけにチェックが漏れないようにする）
+// 以下は一括ダウンロードで書類ごとに使うチェック（選んだ書類だけを出力するため、書類ごとに完結させる）
 
 // 勤務表: 対象月の有給残日数（月初の残日数）が設定されていること
 export function withPaidLeaveCheck(doc: DocCompleteness, month: number, paidLeaveRemaining: number | null): DocCompleteness {
@@ -212,13 +212,20 @@ export function withPaidLeaveCheck(doc: DocCompleteness, month: number, paidLeav
   };
 }
 
-// 作業報告書: 対象月のいずれかの週が入力済みで、氏名が入力されていること（氏名は勤務表・交通費にも印字する）
+// 勤務表・交通費・作業報告書: 共通の氏名が入力されていること（3つの書類に印字する）
+export function withNameCheck(doc: DocCompleteness, name: string): DocCompleteness {
+  if (name.trim()) return doc;
+  return {
+    ...doc,
+    complete: false,
+    issues: [...doc.issues, '氏名が入力されていません（勤務表・交通費・作業報告書共通）'],
+  };
+}
+
+// 作業報告書: 対象月のいずれかの週が入力済みで、氏名が入力されていること
 export function checkWorkReport(weeks: WeekReportData[], name: string): DocCompleteness {
-  const issues = [
-    ...(weeks.some(hasContent) ? [] : ['作業報告書が入力されていません']),
-    ...(name.trim() ? [] : ['氏名が入力されていません（勤務表・交通費・作業報告書共通）']),
-  ];
-  return { required: true, complete: issues.length === 0, missingDates: [], extraDates: [], issues };
+  const issues = weeks.some(hasContent) ? [] : ['作業報告書が入力されていません'];
+  return withNameCheck({ required: true, complete: issues.length === 0, missingDates: [], extraDates: [], issues }, name);
 }
 
 // スキル表: 月に依存しない書類。氏名が入力されていること
@@ -232,17 +239,4 @@ const DOW_JA_SHORT = ['日', '月', '火', '水', '木', '金', '土'];
 export function fmtDateShort(d: string): string {
   const dt = new Date(d + 'T00:00:00');
   return `${dt.getMonth() + 1}/${dt.getDate()}(${DOW_JA_SHORT[dt.getDay()]})`;
-}
-
-// 個別のPDF出力ボタン等で、入力未完了時にそのまま alert() に渡せるメッセージを組み立てる
-export function formatCompletenessIssue(label: string, doc: DocCompleteness): string {
-  const parts: string[] = [];
-  if (doc.missingDates.length > 0) {
-    parts.push(`未入力: ${doc.missingDates.map(fmtDateShort).join('、')}`);
-  }
-  if (doc.extraDates.length > 0) {
-    parts.push(`不要なデータ: ${doc.extraDates.map(fmtDateShort).join('、')}（在宅勤務・有給などのため交通費は不要です。削除してください）`);
-  }
-  parts.push(...doc.issues);
-  return `${label}の入力が完了していないため、PDFを出力できません。\n\n${parts.join('\n')}`;
 }

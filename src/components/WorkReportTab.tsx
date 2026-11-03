@@ -1,8 +1,5 @@
 import { useState, useEffect } from 'react';
-import { loadUserProfile } from '../utils/storage';
-import { printWorkReport } from '../utils/pdf';
 import type { WeekReportData } from '../utils/pdf';
-import { checkWorkReport, formatCompletenessIssue } from '../utils/completeness';
 import {
   WEEK_LABELS, EMPTY_WEEK, loadAllWeeks, saveAllWeeks, loadSummary, saveSummary, loadName, saveName, hasContent,
   transferWeek, transferMonth, weekHasData, monthHasData,
@@ -113,21 +110,6 @@ export default function WorkReportTab() {
     showReport(xferYear, xferMonth, isWeek ? xferWeek : 0);
   }
 
-  function handlePrint() {
-    const { employeeId, lastName } = loadUserProfile();
-    if (!employeeId || !lastName) {
-      alert('「設定」で社員番号と苗字を入力してください。');
-      return;
-    }
-    const doc = checkWorkReport(savedWeeks, name);
-    if (!doc.complete) {
-      alert(formatCompletenessIssue('作業報告書', doc));
-      return;
-    }
-    printWorkReport(year, month, name, savedWeeks, employeeId, lastName, monthlySummary)
-      .catch((err: Error) => alert('PDF生成エラー: ' + err.message));
-  }
-
   const years = [currentYear - 1, currentYear, currentYear + 1];
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
 
@@ -154,7 +136,6 @@ export default function WorkReportTab() {
             {months.map((m) => <option key={m} value={m}>{m}月</option>)}
           </select>
         </div>
-        <button className="btn btn-pdf" onClick={handlePrint}>PDF出力</button>
       </div>
 
       {/* 別の月・週への転記 */}

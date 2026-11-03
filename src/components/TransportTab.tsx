@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AttendanceRecord } from '../types/attendance';
-import { ATTENDANCE_TYPE_LABELS, DEFAULT_WORK_SETTINGS } from '../types/attendance';
+import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
 import type { TransportRecord, TripType } from '../types/transport';
 import { TRIP_TYPE_LABELS } from '../types/transport';
-import { generateId, loadUserProfile } from '../utils/storage';
-import { printTransportPDF } from '../utils/transportPdf';
+import { generateId } from '../utils/storage';
 import { getHolidayName } from '../utils/holidays';
-import { checkMonthCompleteness, formatCompletenessIssue } from '../utils/completeness';
 import { loadName, saveName } from '../utils/workReport';
 
 interface Props {
@@ -242,26 +240,6 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
             )}
           </>
         )}
-        <button
-          className="btn btn-pdf"
-          onClick={() => {
-            const p = loadUserProfile();
-            if (!p.employeeId || !p.lastName) { alert('「設定」で社員番号と苗字を入力してください。'); return; }
-            if (!name.trim()) { alert('氏名を入力してください。'); return; }
-            const completeness = checkMonthCompleteness(
-              filterYear, filterMonth, attendanceRecords, records, [], [], DEFAULT_WORK_SETTINGS,
-            );
-            if (!completeness.transport.complete) {
-              alert(formatCompletenessIssue('交通費', completeness.transport));
-              return;
-            }
-            printTransportPDF(records, filterYear, filterMonth, p.employeeId, p.lastName, name)
-              .catch((err: Error) => alert('PDF生成エラー: ' + err.message));
-          }}
-          title={`${filterYear}年${filterMonth}月をPDF出力`}
-        >
-          PDF出力
-        </button>
       </div>
 
       {/* 入力フォーム */}
