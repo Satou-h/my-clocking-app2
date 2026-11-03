@@ -51,7 +51,7 @@ const NAV_GROUPS: { id: NavGroupId; label: string; items: { key: Tab; label: str
   {
     id: 'more', label: 'その他', items: [
       { key: 'transfer', label: 'QR/カナコード', icon: 'qr', desc: '別の端末へデータを移す' },
-      { key: 'settings', label: '設定', icon: 'settings', desc: '社員情報・基準時間・テーマ・データ削除' },
+      { key: 'settings', label: '設定', icon: 'settings', desc: '社員情報・サイン・基準時間・テーマ・データ削除' },
     ],
   },
 ];

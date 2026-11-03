@@ -1,5 +1,5 @@
 // 勤務表・交通費・申請書PDF（pdf-lib）で共有するフォント読み込み・色・描画ヘルパー
-import { rgb, type PDFFont, type PDFPage, type RGB } from 'pdf-lib';
+import { rgb, type PDFFont, type PDFImage, type PDFPage, type RGB } from 'pdf-lib';
 import { savePdf } from './pdfOutput';
 
 // ── フォント（public/fonts の NotoSansJP-Regular を共有） ─────────────────────
@@ -161,8 +161,14 @@ export function createPainter(page: PDFPage, font: PDFFont) {
     }
     return lines;
   }
-  // 押印欄（ラベル付きの枠を横に並べる）
-  function stamps(labels: string[], right: number, y: number, w: number, h: number) {
+  // 画像を枠 (x, y, w, h) の中に縦横比を保って中央に収める
+  function image(img: PDFImage, x: number, y: number, w: number, h: number) {
+    const s = Math.min(w / img.width, h / img.height);
+    const iw = img.width * s, ih = img.height * s;
+    page.drawImage(img, { x: x + (w - iw) / 2, y: H - y - (h + ih) / 2, width: iw, height: ih });
+  }
+  // 押印欄（ラベル付きの枠を横に並べる）。sign があれば最後の枠（本人欄）に入れる
+  function stamps(labels: string[], right: number, y: number, w: number, h: number, sign?: PDFImage) {
     const x0 = right - w * labels.length;
     labels.forEach((label, i) => {
       const x = x0 + w * i;
@@ -171,10 +177,11 @@ export function createPainter(page: PDFPage, font: PDFFont) {
       hline(x, x + w, y + 13, C.lineStrong, 0.6);
       cell(label, x, y, w, 13, 7, C.sub, 'center');
     });
+    if (sign) image(sign, right - w + 3, y + 13 + 3, w - 6, h - 13 - 6);
     return x0;
   }
 
-  return { width, txt, cell, rect, hline, vline, badge, fit, wrap, stamps };
+  return { width, txt, cell, rect, hline, vline, badge, fit, wrap, image, stamps };
 }
 
 export type Painter = ReturnType<typeof createPainter>;

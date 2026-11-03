@@ -1,7 +1,8 @@
 // 休暇申請書・遅刻早退申請書PDF（A4縦。ヘッダーは交通費精算書とそろえる）
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, type PDFImage } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { getHolidayName } from './holidays';
+import { loadSignature } from './storage';
 import { C, DOW_JA, createPainter, downloadPdf, loadFont, shortTime, type Painter } from './pdfKit';
 
 export interface LeaveApplicationEntry {
@@ -41,18 +42,20 @@ const LINE_H = 17;   // 2行目以降の行送り
 // "2026-11-02" → "2026/11/2"
 const slashDate = (d: string) => d.replace(/^(\d{4})-0?(\d+)-0?(\d+)$/, '$1/$2/$3');
 
-async function createDoc(fontBytes: ArrayBuffer | Uint8Array, title: string) {
+// signature: 本人欄に入れるサイン（PNG の data URL。空なら入れない）
+async function createDoc(fontBytes: ArrayBuffer | Uint8Array, title: string, signature: string) {
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
   // サブセット化は loadFont() で詰め直したフォントが前提
   const font = await doc.embedFont(fontBytes, { subset: true });
   doc.setTitle(title);
   const p = createPainter(doc.addPage([W, H]), font);
-  return { doc, p };
+  const sign = signature ? await doc.embedPng(signature) : undefined;
+  return { doc, p, sign };
 }
 
 // 表題・氏名・申請日・押印欄。記入欄の上端を返す
-function drawHeader(p: Painter, title: string, name: string, applicationDate: string): number {
+function drawHeader(p: Painter, title: string, name: string, applicationDate: string, sign?: PDFImage): number {
   p.txt(title, M.l, M.t + 26, 18, C.primary);
   let x = M.l;
   const metaY = M.t + 50;
@@ -62,7 +65,7 @@ function drawHeader(p: Painter, title: string, name: string, applicationDate: st
   };
   meta('氏名', name || '　'.repeat(7), 11); // 未入力なら手書きできるよう空けておく
   meta('申請日', slashDate(applicationDate), 9);
-  const stampX = p.stamps(['承認', '確認', '本人'], right, M.t, 46, 54);
+  const stampX = p.stamps(['承認', '確認', '本人'], right, M.t, 46, 54, sign);
   p.hline(M.l, stampX - 14, M.t + 58, C.primary, 1.2);
   return M.t + 76;
 }
@@ -120,10 +123,11 @@ const paragraph = (p: Painter, lines: string[]) => (base: (i: number) => number)
 export async function buildLeaveApplicationPdf(
   fontBytes: ArrayBuffer | Uint8Array,
   data: LeaveApplicationData,
+  signature = '',
 ): Promise<Uint8Array> {
   const { applicationDate, name, dateEntries, leaveDays, reason } = data;
-  const { doc, p } = await createDoc(fontBytes, `休暇申請書 ${slashDate(applicationDate)} ${name}`);
-  const top = drawHeader(p, '休暇申請書', name, applicationDate);
+  const { doc, p, sign } = await createDoc(fontBytes, `休暇申請書 ${slashDate(applicationDate)} ${name}`, signature);
+  const top = drawHeader(p, '休暇申請書', name, applicationDate, sign);
 
   const entries = [...dateEntries].sort((a, b) => a.date.localeCompare(b.date));
   const reasonLines = p.wrap(reason, FS, VALUE_W);
@@ -145,10 +149,11 @@ export async function buildLeaveApplicationPdf(
 export async function buildLateEarlyApplicationPdf(
   fontBytes: ArrayBuffer | Uint8Array,
   data: LateEarlyApplicationData,
+  signature = '',
 ): Promise<Uint8Array> {
   const { applicationDate, name, type, targetDate, scheduledTime, actualTime, reason } = data;
-  const { doc, p } = await createDoc(fontBytes, `遅刻・早退申請書 ${slashDate(applicationDate)} ${name}`);
-  const top = drawHeader(p, '遅刻・早退申請書', name, applicationDate);
+  const { doc, p, sign } = await createDoc(fontBytes, `遅刻・早退申請書 ${slashDate(applicationDate)} ${name}`, signature);
+  const top = drawHeader(p, '遅刻・早退申請書', name, applicationDate, sign);
 
   const reasonLines = p.wrap(reason, FS, VALUE_W);
   drawForm(p, top, [
@@ -169,11 +174,11 @@ function fileName(prefix: string, applicationDate: string, employeeId: string, l
 }
 
 export async function printLeaveApplication(data: LeaveApplicationData, employeeId = '', lastName = ''): Promise<void> {
-  const bytes = await buildLeaveApplicationPdf(await loadFont(), data);
+  const bytes = await buildLeaveApplicationPdf(await loadFont(), data, loadSignature());
   downloadPdf(bytes, fileName('休暇申請書', data.applicationDate, employeeId, lastName));
 }
 
 export async function printLateEarlyApplication(data: LateEarlyApplicationData, employeeId = '', lastName = ''): Promise<void> {
-  const bytes = await buildLateEarlyApplicationPdf(await loadFont(), data);
+  const bytes = await buildLateEarlyApplicationPdf(await loadFont(), data, loadSignature());
   downloadPdf(bytes, fileName('遅早退申請書', data.applicationDate, employeeId, lastName));
 }

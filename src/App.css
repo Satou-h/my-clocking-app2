@@ -8,6 +8,7 @@
   --surface: #ffffff;
   --surface-2: #f6f8fb;
   --surface-hover: #edf1f7;
+  --paper: #ffffff; /* サイン欄など紙に見立てる部分。ダークモードでも白のまま */
   --input-bg: #ffffff;
   --border: #e3e7ef;
   --border-soft: #eef0f4;
@@ -832,6 +833,29 @@ h3 {
 
 /* Work settings */
 .work-settings-form { max-width: 600px; }
+
+/* サイン（components/SignaturePad.tsx） */
+.signature .btn-row { margin-top: 10px; }
+.signature-pad,
+.signature-preview {
+  display: block;
+  background: var(--paper);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+.signature-pad {
+  width: 100%;
+  max-width: 400px;
+  height: 180px;
+  touch-action: none; /* 書いている間に画面がスクロールしないように */
+  cursor: crosshair;
+}
+.signature-preview {
+  max-width: 240px;
+  max-height: 96px;
+  padding: 8px 12px;
+}
+.signature-empty { margin: 0; color: var(--text-faint); font-size: 13px; }
 .settings-info {
   background: var(--surface-2);
   border: 1px solid var(--border);

@@ -16,6 +16,7 @@ const CERTIFICATIONS_KEY = 'clocking_certifications';
 const WORK_HISTORY_KEY = 'clocking_work_history';
 const LEAVE_APPLICATIONS_KEY = 'clocking_leave_applications';
 const LATE_EARLY_APPLICATIONS_KEY = 'clocking_late_early_applications';
+const SIGNATURE_KEY = 'clocking_signature';
 
 export interface UserProfile {
   employeeId: string;
@@ -33,6 +34,20 @@ export function loadUserProfile(): UserProfile {
 
 export function saveUserProfile(profile: UserProfile): void {
   localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(profile));
+}
+
+// 申請書類・交通費PDFの本人欄に入れる手書きサイン（PNG の data URL。未登録は空文字）
+export function loadSignature(): string {
+  try {
+    return localStorage.getItem(SIGNATURE_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+export function saveSignature(dataUrl: string): void {
+  if (dataUrl) localStorage.setItem(SIGNATURE_KEY, dataUrl);
+  else localStorage.removeItem(SIGNATURE_KEY);
 }
 
 export function loadRecords(): AttendanceRecord[] {
