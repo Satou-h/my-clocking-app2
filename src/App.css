@@ -254,6 +254,29 @@ a { color: var(--accent-text); }
 }
 .header-user-unset { color: var(--warning-text); font-weight: 600; }
 
+/* クラウド保存の状態（ログイン中だけヘッダーに出す） */
+.header-cloud {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: none;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.header-cloud svg { flex: none; }
+.header-cloud + .header-user { margin-left: 0; }
+.cloud-tone-ok { color: var(--success-text); }
+.cloud-tone-busy { color: var(--accent-text); }
+.cloud-tone-warn { color: var(--warning-text); }
+.cloud-tone-error { color: var(--danger-text); }
+
 .time-select {
   display: inline-flex;
   align-items: center;
@@ -2424,4 +2447,185 @@ hr {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+/* ── クラウド保存（設定画面・初回の選択） ── */
+.cloud-panel {
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.cloud-panel h3:first-child { margin-top: 0; }
+.cloud-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.cloud-status svg { flex: none; margin-top: 2px; }
+.cloud-status div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cloud-status strong { font-size: 14px; overflow-wrap: anywhere; }
+.cloud-status span { color: var(--text-muted); font-size: 12px; overflow-wrap: anywhere; }
+.cloud-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0;
+}
+.cloud-message {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.cloud-message-error {
+  background: var(--danger-soft);
+  color: var(--danger-text);
+}
+.cloud-note { margin-bottom: 4px; }
+
+.cloud-choice {
+  padding: 28px 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.cloud-choice h2 { margin: 0 0 6px; font-size: 18px; }
+.cloud-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.cloud-choice-col {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.cloud-choice-col ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.cloud-choice .cloud-actions { margin-bottom: 0; }
+
+/* ── ログイン画面（ログインが済むまで、いつもの画面の代わりに出す） ── */
+.auth-screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 10vh 16px 32px;
+  background: var(--bg);
+}
+.auth-container { width: 100%; max-width: 400px; }
+.auth-container-wide { max-width: 640px; }
+.auth-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.auth-brand h1 { margin: 0; font-size: 20px; font-weight: 700; }
+.auth-card {
+  padding: 28px 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.auth-card h2 { margin: 0 0 6px; font-size: 18px; }
+.auth-lead {
+  margin: 0 0 20px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+.auth-form { max-width: 420px; }
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.auth-field label { font-size: 13px; font-weight: 600; color: var(--text-muted); }
+.auth-field input {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--input-bg);
+  color: var(--text);
+  /* 16px 未満だと iPhone で入力時に画面が拡大されるため */
+  font-size: 16px;
+}
+.auth-field input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.auth-hint { margin: 0 0 14px; color: var(--text-muted); font-size: 12px; line-height: 1.6; }
+.auth-field .auth-hint { margin: 0; }
+.auth-submit { width: 100%; min-height: 44px; }
+.auth-links {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.auth-links .btn-link { color: var(--accent-text); }
+.auth-email {
+  margin: 16px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.auth-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+  color: var(--text-muted);
+}
+.auth-loading p { margin: 0; }
+.auth-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--accent-soft);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: auth-spin 0.8s linear infinite;
+}
+@keyframes auth-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .auth-spinner { animation-duration: 2.4s; }
+}
+
+@media (max-width: 600px) {
+  .cloud-choice-grid { grid-template-columns: 1fr; }
+  .cloud-actions .btn { flex: 1 1 100%; }
+  .auth-screen { padding-top: 32px; }
+  .auth-card, .cloud-choice { padding: 22px 18px; }
+}
+@media (max-width: 420px) {
+  /* 狭い画面ではヘッダーの状態表示をアイコンだけにする */
+  .header-cloud { padding: 0 8px; }
+  .header-cloud-text { display: none; }
 }

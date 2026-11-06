@@ -4,6 +4,7 @@ import type { TransportRecord } from '../types/transport';
 import type { SkillEntry, Certification, SkillSheetProfile, WorkHistoryEntry } from '../types/skill';
 import { DEFAULT_SKILL_SHEET_PROFILE } from '../types/skill';
 import type { LeaveApplicationRecord, LateEarlyApplicationRecord } from '../types/application';
+import { trackedWrite, type CollectionId } from './syncHooks';
 
 const RECORDS_KEY = 'clocking_records';
 const PAID_LEAVE_KEY = 'clocking_paid_leave';
@@ -17,6 +18,11 @@ const WORK_HISTORY_KEY = 'clocking_work_history';
 const LEAVE_APPLICATIONS_KEY = 'clocking_leave_applications';
 const LATE_EARLY_APPLICATIONS_KEY = 'clocking_late_early_applications';
 const SIGNATURE_KEYS = { self: 'clocking_signature', manager: 'clocking_signature_manager' } as const;
+
+// ログイン中は、保存した内容をクラウド（Supabase）にも送るよう同期処理に知らせる
+function setTracked(collection: CollectionId, key: string, value: unknown): void {
+  trackedWrite(collection, () => localStorage.setItem(key, JSON.stringify(value)));
+}
 
 export interface UserProfile {
   employeeId: string;
@@ -33,7 +39,7 @@ export function loadUserProfile(): UserProfile {
 }
 
 export function saveUserProfile(profile: UserProfile): void {
-  localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(profile));
+  setTracked('profile', USER_PROFILE_KEY, profile);
 }
 
 // PDFの押印欄に入れる手書きサイン（PNG の data URL。未登録は空文字）
@@ -50,8 +56,10 @@ export function loadSignature(kind: SignatureKind): string {
 }
 
 export function saveSignature(kind: SignatureKind, dataUrl: string): void {
-  if (dataUrl) localStorage.setItem(SIGNATURE_KEYS[kind], dataUrl);
-  else localStorage.removeItem(SIGNATURE_KEYS[kind]);
+  trackedWrite('profile', () => {
+    if (dataUrl) localStorage.setItem(SIGNATURE_KEYS[kind], dataUrl);
+    else localStorage.removeItem(SIGNATURE_KEYS[kind]);
+  });
 }
 
 export function loadRecords(): AttendanceRecord[] {
@@ -67,7 +75,7 @@ export function loadRecords(): AttendanceRecord[] {
 }
 
 export function saveRecords(records: AttendanceRecord[]): void {
-  localStorage.setItem(RECORDS_KEY, JSON.stringify(records));
+  setTracked('attendance', RECORDS_KEY, records);
 }
 
 export function loadPaidLeaveSettings(): PaidLeaveSettings[] {
@@ -80,7 +88,7 @@ export function loadPaidLeaveSettings(): PaidLeaveSettings[] {
 }
 
 export function savePaidLeaveSettings(settings: PaidLeaveSettings[]): void {
-  localStorage.setItem(PAID_LEAVE_KEY, JSON.stringify(settings));
+  setTracked('paidLeave', PAID_LEAVE_KEY, settings);
 }
 
 export function loadWorkSettings(): WorkSettings {
@@ -93,7 +101,7 @@ export function loadWorkSettings(): WorkSettings {
 }
 
 export function saveWorkSettings(settings: WorkSettings): void {
-  localStorage.setItem(WORK_SETTINGS_KEY, JSON.stringify(settings));
+  setTracked('profile', WORK_SETTINGS_KEY, settings);
 }
 
 export function loadTransportRecords(): TransportRecord[] {
@@ -106,7 +114,7 @@ export function loadTransportRecords(): TransportRecord[] {
 }
 
 export function saveTransportRecords(records: TransportRecord[]): void {
-  localStorage.setItem(TRANSPORT_KEY, JSON.stringify(records));
+  setTracked('transport', TRANSPORT_KEY, records);
 }
 
 export function loadSkillEntries(): SkillEntry[] {
@@ -119,7 +127,7 @@ export function loadSkillEntries(): SkillEntry[] {
 }
 
 export function saveSkillEntries(entries: SkillEntry[]): void {
-  localStorage.setItem(SKILL_KEY, JSON.stringify(entries));
+  setTracked('skill', SKILL_KEY, entries);
 }
 
 export function loadSkillProfile(): SkillSheetProfile {
@@ -132,7 +140,7 @@ export function loadSkillProfile(): SkillSheetProfile {
 }
 
 export function saveSkillProfile(profile: SkillSheetProfile): void {
-  localStorage.setItem(SKILL_PROFILE_KEY, JSON.stringify(profile));
+  setTracked('skill', SKILL_PROFILE_KEY, profile);
 }
 
 export function loadCertifications(): Certification[] {
@@ -145,7 +153,7 @@ export function loadCertifications(): Certification[] {
 }
 
 export function saveCertifications(certs: Certification[]): void {
-  localStorage.setItem(CERTIFICATIONS_KEY, JSON.stringify(certs));
+  setTracked('skill', CERTIFICATIONS_KEY, certs);
 }
 
 export function loadWorkHistory(): WorkHistoryEntry[] {
@@ -158,7 +166,7 @@ export function loadWorkHistory(): WorkHistoryEntry[] {
 }
 
 export function saveWorkHistory(entries: WorkHistoryEntry[]): void {
-  localStorage.setItem(WORK_HISTORY_KEY, JSON.stringify(entries));
+  setTracked('skill', WORK_HISTORY_KEY, entries);
 }
 
 export function loadLeaveApplications(): LeaveApplicationRecord[] {
@@ -171,7 +179,7 @@ export function loadLeaveApplications(): LeaveApplicationRecord[] {
 }
 
 export function saveLeaveApplications(records: LeaveApplicationRecord[]): void {
-  localStorage.setItem(LEAVE_APPLICATIONS_KEY, JSON.stringify(records));
+  setTracked('leave', LEAVE_APPLICATIONS_KEY, records);
 }
 
 // 同じ日付を含む既存の申請（自分自身を除く）は上書きし、新しいバッチで置き換える
@@ -198,7 +206,7 @@ export function loadLateEarlyApplications(): LateEarlyApplicationRecord[] {
 }
 
 export function saveLateEarlyApplications(records: LateEarlyApplicationRecord[]): void {
-  localStorage.setItem(LATE_EARLY_APPLICATIONS_KEY, JSON.stringify(records));
+  setTracked('lateEarly', LATE_EARLY_APPLICATIONS_KEY, records);
 }
 
 export function upsertLateEarlyApplication(record: LateEarlyApplicationRecord): void {
@@ -404,6 +412,18 @@ export function todayStr(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+// クラウド（Supabase）の id 列と同じ UUID 形式で作る
 export function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  // randomUUID は https 以外（LAN の IP アドレスで開いた開発サーバーなど）では使えない
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const hex = [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function isUuid(id: string): boolean {
+  return UUID_RE.test(id);
 }

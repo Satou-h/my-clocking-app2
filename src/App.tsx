@@ -24,6 +24,7 @@ import WorkReportTab from './components/WorkReportTab';
 import SkillTab from './components/SkillTab';
 import BulkDownloadTab from './components/BulkDownloadTab';
 import SignatureTab from './components/SignatureTab';
+import { useCloudState, cloudStatus } from './utils/cloudSync';
 import './App.css';
 
 type Tab = 'input' | 'list' | 'transfer' | 'transport' | 'settings' | 'documents' | 'report' | 'skill' | 'bulk' | 'signature'
@@ -53,7 +54,7 @@ const NAV_GROUPS: { id: NavGroupId; label: string; items: { key: Tab; label: str
     id: 'more', label: 'その他', items: [
       { key: 'signature', label: 'サイン', icon: 'signature', desc: '本人・上長（確認・検印）のサインを登録' },
       { key: 'transfer', label: 'QR/カナコード', icon: 'qr', desc: '別の端末へデータを移す' },
-      { key: 'settings', label: '設定', icon: 'settings', desc: '社員情報・基準時間・テーマ・データ削除' },
+      { key: 'settings', label: '設定', icon: 'settings', desc: 'クラウド保存・社員情報・基準時間・テーマ・データ削除' },
     ],
   },
 ];
@@ -68,6 +69,21 @@ export default function App() {
   const [userProfile, setUserProfile] = useState(loadUserProfile);
   const [listYear, setListYear] = useState(new Date().getFullYear());
   const [listMonth, setListMonth] = useState(new Date().getMonth() + 1);
+  const cloud = useCloudState();
+  const cloudBadge = cloudStatus(cloud);
+
+  // クラウドからほかの端末の変更を取り込んだら、画面のデータを読み直す
+  // （各画面は開いたときに保存データを読むため、下の <main> の key で開き直す）
+  const [loadedVersion, setLoadedVersion] = useState(cloud.dataVersion);
+  if (loadedVersion !== cloud.dataVersion) {
+    setLoadedVersion(cloud.dataVersion);
+    setRecords(loadRecords());
+    setPaidLeave(loadPaidLeaveSettings());
+    setWorkSettings(loadWorkSettings());
+    setTransportRecords(loadTransportRecords());
+    setUserProfile(loadUserProfile());
+    setEditingRecord(undefined);
+  }
 
   function handleProfileChange(key: 'employeeId' | 'lastName', value: string) {
     const next = { ...userProfile, [key]: value };
@@ -282,6 +298,18 @@ export default function App() {
           <span className="app-logo"><Icon name="clock" size={16} /></span>
           <h1>勤怠管理</h1>
         </div>
+        {(cloud.phase !== 'signed-out' || cloud.sessionExpired) && (
+          <button
+            type="button"
+            className={`header-cloud cloud-tone-${cloudBadge.tone}`}
+            onClick={() => openTab('settings')}
+            title={cloudBadge.label}
+            aria-label={`クラウド保存: ${cloudBadge.label}`}
+          >
+            <Icon name="cloud" size={16} />
+            <span className="header-cloud-text">{cloudBadge.short}</span>
+          </button>
+        )}
         <button type="button" className="header-user" onClick={() => openTab('settings')} aria-label="社員情報の設定">
           {profileMissing
             ? <span className="header-user-unset">社員情報 未設定</span>
@@ -314,7 +342,17 @@ export default function App() {
           </div>
         </nav>
 
-      <main className="app-main">
+      <main className="app-main" key={cloud.dataVersion}>
+        {cloud.sessionExpired && tab !== 'settings' && (
+          <div className="notice-banner" role="status">
+            <Icon name="alert" />
+            <span>
+              ログインが切れています。この端末には保存されますが、ログインし直すまでクラウドには送られません
+              {cloud.pending > 0 && `（未送信 ${cloud.pending}件）`}
+            </span>
+            <button type="button" className="btn-link" onClick={() => openTab('settings')}>ログインする</button>
+          </div>
+        )}
         {profileMissing && tab !== 'settings' && (
           <div className="notice-banner" role="status">
             <Icon name="alert" />

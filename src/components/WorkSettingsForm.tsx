@@ -3,6 +3,7 @@ import type { WorkSettings } from '../types/attendance';
 import type { UserProfile } from '../utils/storage';
 import { loadTheme, saveTheme, type Theme } from '../utils/theme';
 import TimeSelect from './TimeSelect';
+import CloudSyncPanel from './CloudSyncPanel';
 
 interface Props {
   settings: WorkSettings;
@@ -34,6 +35,8 @@ export default function WorkSettingsForm({
   return (
     <div className="work-settings-form">
       <h2>設定</h2>
+
+      <CloudSyncPanel />
 
       <h3>社員情報</h3>
       <p className="hint">勤務表・交通費などのPDFに印字されます。</p>
@@ -134,7 +137,7 @@ export default function WorkSettingsForm({
 
       <div className="danger-zone">
         <h3>データ管理</h3>
-        <p className="hint">削除したデータは元に戻せません。</p>
+        <p className="hint">削除したデータは元に戻せません。ログイン中はクラウドからも削除されます。</p>
         <div className="danger-actions">
           <div className="danger-item">
             <div className="danger-desc">

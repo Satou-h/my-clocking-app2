@@ -57,7 +57,9 @@ export default function SignatureTab() {
   return (
     <div className="signature-tab">
       <h2>サイン</h2>
-      <p className="hint">サインはこの端末にだけ保存され、QR・カナコードでは移りません。</p>
+      <p className="hint">
+        サインはこの端末に保存されます。ログイン中はクラウドにも保存され、同じアカウントでログインした端末で使えます（QR・カナコードでは移りません）。
+      </p>
 
       <h3>本人のサイン</h3>
       <p className="hint">自分のPDFを出力するとき、休暇申請書・遅刻早退申請書の「本人」欄と、交通費精算書の「本人印」欄に自動で入ります。</p>
