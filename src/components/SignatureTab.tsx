@@ -58,7 +58,7 @@ export default function SignatureTab() {
     <div className="signature-tab">
       <h2>サイン</h2>
       <p className="hint">
-        サインはこの端末に保存されます。ログイン中はクラウドにも保存され、同じアカウントでログインした端末で使えます（QR・カナコードでは移りません）。
+        サインはクラウドに保存され、同じアカウントでログインした端末で使えます（QR・カナコードでは移りません）。
       </p>
 
       <h3>本人のサイン</h3>

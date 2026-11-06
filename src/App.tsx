@@ -71,6 +71,12 @@ export default function App() {
   const [listMonth, setListMonth] = useState(new Date().getMonth() + 1);
   const cloud = useCloudState();
   const cloudBadge = cloudStatus(cloud);
+  // データは端末に保存していないため、クラウドに送れていない変更はページを閉じると失われる
+  const unsavedWarning = cloud.pending > 0 && (cloud.phase === 'offline' || cloud.phase === 'error')
+    ? `クラウドに保存できていない変更が${cloud.pending}件あります`
+      + (cloud.phase === 'offline' ? '（通信が回復すると自動で保存します）' : '')
+      + '。保存できるまで、このページを閉じたり再読み込みしたりしないでください'
+    : null;
 
   // クラウドからほかの端末の変更を取り込んだら、画面のデータを読み直す
   // （各画面は開いたときに保存データを読むため、下の <main> の key で開き直す）
@@ -298,18 +304,16 @@ export default function App() {
           <span className="app-logo"><Icon name="clock" size={16} /></span>
           <h1>勤怠管理</h1>
         </div>
-        {(cloud.phase !== 'signed-out' || cloud.sessionExpired) && (
-          <button
-            type="button"
-            className={`header-cloud cloud-tone-${cloudBadge.tone}`}
-            onClick={() => openTab('settings')}
-            title={cloudBadge.label}
-            aria-label={`クラウド保存: ${cloudBadge.label}`}
-          >
-            <Icon name="cloud" size={16} />
-            <span className="header-cloud-text">{cloudBadge.short}</span>
-          </button>
-        )}
+        <button
+          type="button"
+          className={`header-cloud cloud-tone-${cloudBadge.tone}`}
+          onClick={() => openTab('settings')}
+          title={cloudBadge.label}
+          aria-label={`クラウド保存: ${cloudBadge.label}`}
+        >
+          <Icon name="cloud" size={16} />
+          <span className="header-cloud-text">{cloudBadge.short}</span>
+        </button>
         <button type="button" className="header-user" onClick={() => openTab('settings')} aria-label="社員情報の設定">
           {profileMissing
             ? <span className="header-user-unset">社員情報 未設定</span>
@@ -343,14 +347,11 @@ export default function App() {
         </nav>
 
       <main className="app-main" key={cloud.dataVersion}>
-        {cloud.sessionExpired && tab !== 'settings' && (
+        {unsavedWarning && tab !== 'settings' && (
           <div className="notice-banner" role="status">
             <Icon name="alert" />
-            <span>
-              ログインが切れています。この端末には保存されますが、ログインし直すまでクラウドには送られません
-              {cloud.pending > 0 && `（未送信 ${cloud.pending}件）`}
-            </span>
-            <button type="button" className="btn-link" onClick={() => openTab('settings')}>ログインする</button>
+            <span>{unsavedWarning}</span>
+            <button type="button" className="btn-link" onClick={() => openTab('settings')}>確認する</button>
           </div>
         )}
         {profileMissing && tab !== 'settings' && (

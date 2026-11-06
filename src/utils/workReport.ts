@@ -1,5 +1,6 @@
 import type { WeekReportData } from './pdf';
 import { trackedWrite } from './syncHooks';
+import { memoryStore } from './memoryStore';
 
 export const WEEK_LABELS = ['第一週', '第二週', '第三週', '第四週', '第五週'];
 
@@ -28,8 +29,8 @@ const WORK_REPORT_KEY_RE = /^clocking_work_report_(?:summary_)?(\d{4})_(\d{2})$/
 export function listWorkReportMonths(): { year: number; month: number }[] {
   const seen = new Set<string>();
   const months: { year: number; month: number }[] = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const m = WORK_REPORT_KEY_RE.exec(localStorage.key(i) ?? '');
+  for (const key of memoryStore.keys()) {
+    const m = WORK_REPORT_KEY_RE.exec(key);
     if (!m || seen.has(m[1] + m[2])) continue;
     seen.add(m[1] + m[2]);
     months.push({ year: Number(m[1]), month: Number(m[2]) });
@@ -39,8 +40,8 @@ export function listWorkReportMonths(): { year: number; month: number }[] {
 
 // 指定した月の作業報告書を消す（クラウド側で消えた月を反映するときに使う）
 export function removeWorkReport(year: number, month: number) {
-  localStorage.removeItem(workReportKey(year, month));
-  localStorage.removeItem(summaryKey(year, month));
+  memoryStore.removeItem(workReportKey(year, month));
+  memoryStore.removeItem(summaryKey(year, month));
 }
 
 function migrateWeek(w: Record<string, string>): WeekReportData {
@@ -58,7 +59,7 @@ function migrateWeek(w: Record<string, string>): WeekReportData {
 
 export function loadAllWeeks(year: number, month: number): WeekReportData[] {
   try {
-    const raw = localStorage.getItem(workReportKey(year, month));
+    const raw = memoryStore.getItem(workReportKey(year, month));
     if (!raw) return WEEK_LABELS.map(() => ({ ...EMPTY_WEEK }));
     const parsed = JSON.parse(raw);
     return (parsed as Record<string, string>[]).map(migrateWeek);
@@ -68,29 +69,29 @@ export function loadAllWeeks(year: number, month: number): WeekReportData[] {
 }
 
 export function saveAllWeeks(year: number, month: number, weeks: WeekReportData[]) {
-  trackedWrite('workReport', () => localStorage.setItem(workReportKey(year, month), JSON.stringify(weeks)));
+  trackedWrite('workReport', () => memoryStore.setItem(workReportKey(year, month), JSON.stringify(weeks)));
 }
 
 export function loadSummary(year: number, month: number): string {
-  return localStorage.getItem(summaryKey(year, month)) ?? '';
+  return memoryStore.getItem(summaryKey(year, month)) ?? '';
 }
 
 export function saveSummary(year: number, month: number, text: string) {
-  trackedWrite('workReport', () => localStorage.setItem(summaryKey(year, month), text));
+  trackedWrite('workReport', () => memoryStore.setItem(summaryKey(year, month), text));
 }
 
 export function loadName(): string {
   try {
-    const raw = localStorage.getItem('clocking_leave_app_settings');
+    const raw = memoryStore.getItem('clocking_leave_app_settings');
     return raw ? (JSON.parse(raw).name ?? '') : '';
   } catch { return ''; }
 }
 
 export function saveName(name: string) {
   try {
-    const raw = localStorage.getItem('clocking_leave_app_settings');
+    const raw = memoryStore.getItem('clocking_leave_app_settings');
     const settings = raw ? JSON.parse(raw) : {};
-    trackedWrite('profile', () => localStorage.setItem('clocking_leave_app_settings', JSON.stringify({ ...settings, name })));
+    trackedWrite('profile', () => memoryStore.setItem('clocking_leave_app_settings', JSON.stringify({ ...settings, name })));
   } catch { /* 保存に失敗しても入力は継続できるようにする */ }
 }
 

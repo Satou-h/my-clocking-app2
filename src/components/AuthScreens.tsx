@@ -138,11 +138,20 @@ export function LoginForm({ idPrefix }: { idPrefix: string }) {
 
 /** 起動時、ログインしていないときに最初に出す画面 */
 export function LoginScreen() {
+  const cloud = useCloudState();
   return (
     <AuthLayout>
       <div className="auth-card">
         <h2>ログイン</h2>
-        <p className="auth-lead">パソコンとスマホで同じアカウントにログインすると、同じデータを使えます。</p>
+        <p className="auth-lead">
+          データはクラウドに保存します。パソコンとスマホで同じアカウントにログインすると、同じデータを使えます。
+        </p>
+        {cloud.pending > 0 && (
+          <p className="cloud-message cloud-message-error" role="alert">
+            ログインが切れたため、クラウドに保存できていない変更が{cloud.pending}件あります。
+            このページを閉じずに、同じアカウントでログインし直すと保存します。
+          </p>
+        )}
         <LoginForm idPrefix="login" />
       </div>
     </AuthLayout>
@@ -173,7 +182,7 @@ function countText(c: DataCounts): string[] {
   ];
 }
 
-/** ログインした端末で、クラウドとこの端末の両方にデータがあったときの選択 */
+/** ログインした端末に以前の版で保存したデータが残っていて、クラウドにもデータがあったときの選択 */
 function CloudChoice() {
   const cloud = useCloudState();
   const [busy, setBusy] = useState(false);
@@ -182,8 +191,8 @@ function CloudChoice() {
 
   async function choose(source: 'local' | 'cloud') {
     const message = source === 'cloud'
-      ? 'この端末のデータを、クラウドのデータに置き換えます。\nこの端末にしかないデータは消え、元に戻せません。よろしいですか？'
-      : 'クラウドのデータを、この端末のデータで上書きします。\nクラウドにしかないデータは消え、元に戻せません。よろしいですか？';
+      ? 'クラウドのデータを使い、この端末に残っているデータは消します。\nこの端末にしかないデータは消え、元に戻せません。よろしいですか？'
+      : 'クラウドのデータを、この端末に残っているデータで上書きします。\nクラウドにしかないデータは消え、元に戻せません。よろしいですか？';
     if (!window.confirm(message)) return;
     setBusy(true);
     try {
@@ -196,10 +205,13 @@ function CloudChoice() {
   return (
     <section className="cloud-choice" aria-labelledby="cloud-choice-title">
       <h2 id="cloud-choice-title">どちらのデータを使いますか？</h2>
-      <p className="auth-lead">クラウドとこの端末の両方にデータがあります。</p>
+      <p className="auth-lead">
+        この端末に、以前の版で保存したデータが残っています。データはクラウドだけに保存するようになったため、
+        クラウドのデータとどちらを使うか選んでください。選んだあと、この端末のデータは消します。
+      </p>
       <div className="cloud-choice-grid">
         <div className="cloud-choice-col">
-          <strong>この端末</strong>
+          <strong>この端末に残っているデータ</strong>
           <ul>{countText(local).map((l) => <li key={l}>{l}</li>)}</ul>
         </div>
         <div className="cloud-choice-col">
@@ -217,7 +229,7 @@ function CloudChoice() {
           クラウドのデータを使う
         </button>
         <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => choose('local')}>
-          この端末のデータを使う
+          この端末のデータでクラウドを上書きする
         </button>
         <button type="button" className="btn btn-secondary" disabled={busy} onClick={signOutWithAlert}>
           ログアウト
@@ -227,7 +239,7 @@ function CloudChoice() {
   );
 }
 
-/** ログイン直後: クラウドのデータの確認・どちらのデータを使うかの選択 */
+/** ログイン直後: クラウドからの読み込み・どちらのデータを使うかの選択 */
 export function SetupScreen() {
   const cloud = useCloudState();
   if (cloud.phase === 'needs-choice') {
@@ -248,6 +260,7 @@ export function SetupScreen() {
             <p className="cloud-message cloud-message-error" role="alert">
               {cloud.error ?? '通信状態を確認して、やり直してください。'}
             </p>
+            <p className="auth-hint">データはクラウドだけに保存しているため、接続できるまで使えません。</p>
             <div className="cloud-actions">
               <button type="button" className="btn btn-primary" onClick={() => { void syncNow(); }}>やり直す</button>
               <button type="button" className="btn btn-secondary" onClick={signOutWithAlert}>ログアウト</button>
@@ -256,7 +269,7 @@ export function SetupScreen() {
         ) : (
           <div className="auth-loading" role="status">
             <span className="auth-spinner" aria-hidden="true" />
-            <p>クラウドのデータを確認しています…</p>
+            <p>クラウドからデータを読み込んでいます…</p>
           </div>
         )}
       </div>

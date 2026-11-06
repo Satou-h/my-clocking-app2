@@ -1,8 +1,8 @@
 /**
- * syncHooks.ts — localStorage への保存をクラウド同期（cloudSync.ts）に知らせる仕組み
+ * syncHooks.ts — データの保存を、データベースへ送る処理（cloudSync.ts）に知らせる仕組み
  *
  * 保存処理（storage.ts / workReport.ts）は同期処理に依存させず、ここを通して書き込む。
- * ログインしていないときは何もせず、そのまま書き込む。
+ * データベースから読み込む前（ログイン前）は何もせず、そのまま書き込む。
  */
 
 // 同期の単位（Supabase のテーブルに対応）

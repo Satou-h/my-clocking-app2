@@ -137,7 +137,7 @@ export default function WorkSettingsForm({
 
       <div className="danger-zone">
         <h3>データ管理</h3>
-        <p className="hint">削除したデータは元に戻せません。ログイン中はクラウドからも削除されます。</p>
+        <p className="hint">削除したデータはクラウドから削除され、元に戻せません。</p>
         <div className="danger-actions">
           <div className="danger-item">
             <div className="danger-desc">

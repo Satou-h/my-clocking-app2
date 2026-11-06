@@ -5,7 +5,10 @@ import type { SkillEntry, Certification, SkillSheetProfile, WorkHistoryEntry } f
 import { DEFAULT_SKILL_SHEET_PROFILE } from '../types/skill';
 import type { LeaveApplicationRecord, LateEarlyApplicationRecord } from '../types/application';
 import { trackedWrite, type CollectionId } from './syncHooks';
+import { memoryStore } from './memoryStore';
 
+// データはメモリ上（memoryStore）に持ち、データベースとの読み書きは cloudSync.ts が行う。
+// キー名は以前の版が localStorage に保存していたときと同じ（端末に残った以前のデータをそのまま読み込めるように）
 const RECORDS_KEY = 'clocking_records';
 const PAID_LEAVE_KEY = 'clocking_paid_leave';
 const WORK_SETTINGS_KEY = 'clocking_work_settings';
@@ -19,9 +22,9 @@ const LEAVE_APPLICATIONS_KEY = 'clocking_leave_applications';
 const LATE_EARLY_APPLICATIONS_KEY = 'clocking_late_early_applications';
 const SIGNATURE_KEYS = { self: 'clocking_signature', manager: 'clocking_signature_manager' } as const;
 
-// ログイン中は、保存した内容をクラウド（Supabase）にも送るよう同期処理に知らせる
+// 保存した内容をデータベース（Supabase）へ送るよう同期処理に知らせる
 function setTracked(collection: CollectionId, key: string, value: unknown): void {
-  trackedWrite(collection, () => localStorage.setItem(key, JSON.stringify(value)));
+  trackedWrite(collection, () => memoryStore.setItem(key, JSON.stringify(value)));
 }
 
 export interface UserProfile {
@@ -31,7 +34,7 @@ export interface UserProfile {
 
 export function loadUserProfile(): UserProfile {
   try {
-    const raw = localStorage.getItem(USER_PROFILE_KEY);
+    const raw = memoryStore.getItem(USER_PROFILE_KEY);
     return raw ? JSON.parse(raw) : { employeeId: '', lastName: '' };
   } catch {
     return { employeeId: '', lastName: '' };
@@ -49,7 +52,7 @@ export type SignatureKind = keyof typeof SIGNATURE_KEYS;
 
 export function loadSignature(kind: SignatureKind): string {
   try {
-    return localStorage.getItem(SIGNATURE_KEYS[kind]) ?? '';
+    return memoryStore.getItem(SIGNATURE_KEYS[kind]) ?? '';
   } catch {
     return '';
   }
@@ -57,14 +60,14 @@ export function loadSignature(kind: SignatureKind): string {
 
 export function saveSignature(kind: SignatureKind, dataUrl: string): void {
   trackedWrite('profile', () => {
-    if (dataUrl) localStorage.setItem(SIGNATURE_KEYS[kind], dataUrl);
-    else localStorage.removeItem(SIGNATURE_KEYS[kind]);
+    if (dataUrl) memoryStore.setItem(SIGNATURE_KEYS[kind], dataUrl);
+    else memoryStore.removeItem(SIGNATURE_KEYS[kind]);
   });
 }
 
 export function loadRecords(): AttendanceRecord[] {
   try {
-    const raw = localStorage.getItem(RECORDS_KEY);
+    const raw = memoryStore.getItem(RECORDS_KEY);
     if (!raw) return [];
     // 旧フィールド名 isRemote（在宅勤務のみを表していた頃の名残）から移行
     const parsed = JSON.parse(raw) as (AttendanceRecord & { isRemote?: boolean })[];
@@ -80,7 +83,7 @@ export function saveRecords(records: AttendanceRecord[]): void {
 
 export function loadPaidLeaveSettings(): PaidLeaveSettings[] {
   try {
-    const raw = localStorage.getItem(PAID_LEAVE_KEY);
+    const raw = memoryStore.getItem(PAID_LEAVE_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -93,7 +96,7 @@ export function savePaidLeaveSettings(settings: PaidLeaveSettings[]): void {
 
 export function loadWorkSettings(): WorkSettings {
   try {
-    const raw = localStorage.getItem(WORK_SETTINGS_KEY);
+    const raw = memoryStore.getItem(WORK_SETTINGS_KEY);
     return raw ? { ...DEFAULT_WORK_SETTINGS, ...JSON.parse(raw) } : DEFAULT_WORK_SETTINGS;
   } catch {
     return DEFAULT_WORK_SETTINGS;
@@ -106,7 +109,7 @@ export function saveWorkSettings(settings: WorkSettings): void {
 
 export function loadTransportRecords(): TransportRecord[] {
   try {
-    const raw = localStorage.getItem(TRANSPORT_KEY);
+    const raw = memoryStore.getItem(TRANSPORT_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -119,7 +122,7 @@ export function saveTransportRecords(records: TransportRecord[]): void {
 
 export function loadSkillEntries(): SkillEntry[] {
   try {
-    const raw = localStorage.getItem(SKILL_KEY);
+    const raw = memoryStore.getItem(SKILL_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -132,7 +135,7 @@ export function saveSkillEntries(entries: SkillEntry[]): void {
 
 export function loadSkillProfile(): SkillSheetProfile {
   try {
-    const raw = localStorage.getItem(SKILL_PROFILE_KEY);
+    const raw = memoryStore.getItem(SKILL_PROFILE_KEY);
     return raw ? { ...DEFAULT_SKILL_SHEET_PROFILE, ...JSON.parse(raw) } : DEFAULT_SKILL_SHEET_PROFILE;
   } catch {
     return DEFAULT_SKILL_SHEET_PROFILE;
@@ -145,7 +148,7 @@ export function saveSkillProfile(profile: SkillSheetProfile): void {
 
 export function loadCertifications(): Certification[] {
   try {
-    const raw = localStorage.getItem(CERTIFICATIONS_KEY);
+    const raw = memoryStore.getItem(CERTIFICATIONS_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -158,7 +161,7 @@ export function saveCertifications(certs: Certification[]): void {
 
 export function loadWorkHistory(): WorkHistoryEntry[] {
   try {
-    const raw = localStorage.getItem(WORK_HISTORY_KEY);
+    const raw = memoryStore.getItem(WORK_HISTORY_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -171,7 +174,7 @@ export function saveWorkHistory(entries: WorkHistoryEntry[]): void {
 
 export function loadLeaveApplications(): LeaveApplicationRecord[] {
   try {
-    const raw = localStorage.getItem(LEAVE_APPLICATIONS_KEY);
+    const raw = memoryStore.getItem(LEAVE_APPLICATIONS_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -198,7 +201,7 @@ export function deleteLeaveApplication(id: string): void {
 
 export function loadLateEarlyApplications(): LateEarlyApplicationRecord[] {
   try {
-    const raw = localStorage.getItem(LATE_EARLY_APPLICATIONS_KEY);
+    const raw = memoryStore.getItem(LATE_EARLY_APPLICATIONS_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];

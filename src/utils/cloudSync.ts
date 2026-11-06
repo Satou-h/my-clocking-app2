@@ -1,15 +1,19 @@
 /**
- * cloudSync.ts — この端末のデータ（localStorage）とクラウド（Supabase）の同期
+ * cloudSync.ts — データベース（Supabase）とのデータの読み書き
  *
- * ・画面はこれまでどおり localStorage を読み書きする（通信できないときもそのまま使える）
- * ・ログイン中は、保存のたびに変わった行を「送信待ち」に積み、少し待ってまとめてクラウドへ送る
- *   （送信待ちは localStorage に残すため、送る前に閉じても次に開いたときに送る）
- * ・起動時・ログイン時・画面に戻ったときは、送信待ちを送ってからクラウドの内容を取り込む
- *   （送れなかった行はこの端末の内容を残す）
- * ・初めてログインした端末では、クラウドとこの端末のどちらのデータを使うかを決めてから同期を始める
+ * ・データの正はデータベース。端末（ブラウザ）にはデータを保存しない
+ * ・ログインしたら、そのユーザーのデータをすべてデータベースから読み込み、メモリ上（memoryStore）に置く。
+ *   読み込み終えるまではいつもの画面を出さない（通信できないときは使えない）
+ * ・画面はメモリ上のデータを読み書きする。保存のたびに変わった行を「送信待ち」に積み、すぐにデータベースへ送る
+ *   （送信待ちもメモリ上だけ。送れていない変更があるうちにページを閉じようとしたら確認する）
+ * ・画面に戻ったとき・通信が回復したときは、送信待ちを送ってからほかの端末の変更を読み込む
+ *   （送れなかった行はメモリ上の内容を残す）
+ * ・以前の版はデータを端末（localStorage）に保存していた。端末に残っているデータは、ログインしたときに
+ *   データベースへ移してから端末から消す
  */
 import { useSyncExternalStore } from 'react';
 import { supabase } from './supabase';
+import { memoryStore } from './memoryStore';
 import { setWriteTracker, withoutTracking, type CollectionId } from './syncHooks';
 import {
   loadRecords, saveRecords, loadTransportRecords, saveTransportRecords,
@@ -35,10 +39,10 @@ import { DEFAULT_SKILL_SHEET_PROFILE } from '../types/skill';
 // ── 同期の状態（画面表示用）────────────────────────────────────────────────────
 
 export type CloudPhase =
-  | 'signed-out'    // ログインしていない（この端末だけに保存）
-  | 'checking'      // ログイン直後、クラウドのデータを確認中
-  | 'needs-choice'  // クラウドとこの端末の両方にデータがあり、どちらを使うか選ぶ必要がある
-  | 'syncing'
+  | 'signed-out'    // ログインしていない
+  | 'checking'      // ログイン直後、データベースのデータを読み込み中
+  | 'needs-choice'  // データベースと、端末に残っている以前のデータの両方があり、どちらを使うか選ぶ必要がある
+  | 'syncing'       // データベースへ送信中・読み込み中
   | 'synced'
   | 'offline'
   | 'error';
@@ -58,33 +62,26 @@ export interface CloudState {
   email: string | null;
   // 起動後、ログインしているかどうかを確かめ終えたか
   authReady: boolean;
-  // この端末のデータがログイン中（または最後にログインしていた）ユーザーと同期済みか
-  linked: boolean;
-  // 同期していた端末で、ログインが切れている（ログインし直すと送信待ちを送る）
-  sessionExpired: boolean;
+  // ログイン中のユーザーのデータをデータベースから読み込み終えたか（終えるまではいつもの画面を出さない）
+  loaded: boolean;
   // パスワード再設定メールのリンクから開いた（新しいパスワードを決めてもらう）
   passwordRecovery: boolean;
   // 確認メール・再設定メールのリンクが期限切れなどで使えなかったときの説明
   linkError: string | null;
-  // クラウドにまだ送れていない変更の件数
+  // データベースにまだ送れていない変更の件数（メモリ上にしかないため、ページを閉じると失われる）
   pending: number;
   lastSyncedAt: number | null;
   error: string | null;
   choice: { local: DataCounts; cloud: DataCounts } | null;
-  // クラウドから取り込んでこの端末のデータが変わるたびに増える（画面の読み直しに使う）
+  // データベースから読み込んでメモリ上のデータが変わるたびに増える（画面の読み直しに使う）
   dataVersion: number;
 }
 
-const QUEUE_KEY = 'clocking_sync_queue';
-// この端末のデータを同期しているユーザーの ID（ログアウトすると消す）
-const SYNC_USER_KEY = 'clocking_sync_user';
-
 let state: CloudState = {
-  phase: localStorage.getItem(SYNC_USER_KEY) ? 'syncing' : 'signed-out',
+  phase: 'signed-out',
   email: null,
   authReady: false,
-  linked: !!localStorage.getItem(SYNC_USER_KEY),
-  sessionExpired: false,
+  loaded: false,
   passwordRecovery: false,
   linkError: null,
   pending: 0,
@@ -115,16 +112,15 @@ export function useCloudState(): CloudState {
 
 // 起動時に出す画面
 // loading: ログイン状態を確認中 / login: ログイン画面 / reset: 新しいパスワードの設定
-// setup: ログイン直後、クラウドのデータの確認・どちらのデータを使うかの選択 / app: いつもの画面
+// setup: ログイン直後、データベースからの読み込み・どちらのデータを使うかの選択 / app: いつもの画面
 export type AppGate = 'loading' | 'login' | 'reset' | 'setup' | 'app';
 
 export function appGate(s: CloudState): AppGate {
   if (s.passwordRecovery && s.email) return 'reset';
-  // 同期済みの端末は、ログイン状態の確認（通信できないと時間がかかる）を待たずにいつもの画面を出す
-  if (!s.authReady) return s.linked ? 'app' : 'loading';
-  // ログインが切れても、同期していた端末はそのまま使える（ログインし直すまで変更は送信待ちに残る）
-  if (s.phase === 'signed-out') return s.sessionExpired ? 'app' : 'login';
-  return s.linked ? 'app' : 'setup';
+  if (!s.authReady) return 'loading';
+  if (s.phase === 'signed-out') return 'login';
+  // データは端末に保存していないため、データベースから読み込み終えるまではいつもの画面を出さない
+  return s.loaded ? 'app' : 'setup';
 }
 
 export type CloudTone = 'ok' | 'busy' | 'warn' | 'error';
@@ -133,25 +129,25 @@ export type CloudTone = 'ok' | 'busy' | 'warn' | 'error';
 export function cloudStatus(s: CloudState): { tone: CloudTone; short: string; label: string } {
   switch (s.phase) {
     case 'signed-out':
-      return s.sessionExpired
-        ? { tone: 'warn', short: 'ログイン切れ', label: 'ログインが切れています' }
-        : { tone: 'warn', short: '未ログイン', label: 'ログインしていません' };
+      return { tone: 'warn', short: '未ログイン', label: 'ログインしていません' };
     case 'checking':
-      return { tone: 'busy', short: '確認中', label: 'クラウドのデータを確認しています…' };
+      return { tone: 'busy', short: '読み込み中', label: 'クラウドのデータを読み込んでいます…' };
     case 'needs-choice':
       return { tone: 'warn', short: '要確認', label: 'どちらのデータを使うか選んでください' };
     case 'syncing':
-      return { tone: 'busy', short: '同期中', label: 'クラウドと同期しています…' };
+      return { tone: 'busy', short: '保存中', label: 'クラウドと通信しています…' };
     case 'offline':
       return {
         tone: 'warn', short: 'オフライン',
-        label: s.pending > 0 ? `オフラインです（未送信 ${s.pending}件。つながったら送ります）` : 'オフラインです',
+        label: s.pending > 0
+          ? `オフラインです（未保存 ${s.pending}件。つながったら保存します）`
+          : 'オフラインです',
       };
     case 'error':
-      return { tone: 'error', short: '同期エラー', label: s.error ?? 'クラウドと同期できませんでした' };
+      return { tone: 'error', short: '保存エラー', label: s.error ?? 'クラウドに保存できませんでした' };
     case 'synced':
       return s.pending > 0
-        ? { tone: 'busy', short: `送信待ち${s.pending}件`, label: `クラウドへの送信待ちが ${s.pending}件あります` }
+        ? { tone: 'busy', short: `保存待ち${s.pending}件`, label: `クラウドへの保存待ちが ${s.pending}件あります` }
         : { tone: 'ok', short: '保存済み', label: 'クラウドに保存済みです' };
   }
 }
@@ -525,24 +521,83 @@ function sameRows(c: Collection, a: Row[], b: Row[]): boolean {
 
 // ── 送信待ち ─────────────────────────────────────────────────────────────────
 // コレクションごとに「キー → 変更番号」を持つ。送信中に同じ行がまた変わったときは番号が変わるので、送信待ちに残る
+// 端末には保存せずメモリ上だけに持つ
 
 type Queue = Partial<Record<CollectionId, Record<string, number>>>;
 let seq = Date.now();
+let queue: Queue = {};
 
+// 送信中に同じ行がまた変わったかを比べられるよう、コピーを返す
 function loadQueue(): Queue {
-  try {
-    const raw = localStorage.getItem(QUEUE_KEY);
-    const q = raw ? JSON.parse(raw) : {};
-    return q && typeof q === 'object' ? q as Queue : {};
-  } catch {
-    return {};
-  }
+  return Object.fromEntries(Object.entries(queue).map(([id, m]) => [id, { ...m }])) as Queue;
 }
 
 function saveQueue(q: Queue) {
-  const clean = Object.fromEntries(Object.entries(q).filter(([, m]) => m && Object.keys(m).length > 0));
-  if (Object.keys(clean).length > 0) localStorage.setItem(QUEUE_KEY, JSON.stringify(clean));
-  else localStorage.removeItem(QUEUE_KEY);
+  queue = Object.fromEntries(Object.entries(q).filter(([, m]) => m && Object.keys(m).length > 0)) as Queue;
+}
+
+// ── 以前の版が端末（localStorage）に保存したデータ ────────────────────────────
+// データのキーはすべて clocking_ で始まる（表示テーマとログイン状態は別のキーで、消さない）
+
+const LEGACY_PREFIX = 'clocking_';
+// 以前の版の送信待ちと、端末のデータを同期していたユーザーの ID
+const LEGACY_QUEUE_KEY = 'clocking_sync_queue';
+const LEGACY_SYNC_USER_KEY = 'clocking_sync_user';
+
+function legacyKeys(): string[] {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k?.startsWith(LEGACY_PREFIX)) keys.push(k);
+    }
+    return keys;
+  } catch {
+    return []; // 端末に保存できない設定のブラウザ
+  }
+}
+
+function legacyItem(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function clearLegacyData() {
+  for (const k of legacyKeys()) {
+    try { localStorage.removeItem(k); } catch { /* 消せなくても使える */ }
+  }
+}
+
+// 端末に残っている以前のデータをメモリ上に読み込む（メモリ上は空にしてから呼ぶ）
+// synced: このユーザーと同期していた（送れていなかった変更だけを送る）
+// unsynced: どのユーザーとも同期していない（データベースのデータとどちらを使うか決める）
+// none: 移すデータはない
+function loadLegacyData(userId: string): 'synced' | 'unsynced' | 'none' {
+  const dataKeys = legacyKeys().filter((k) => k !== LEGACY_QUEUE_KEY && k !== LEGACY_SYNC_USER_KEY);
+  const syncUser = legacyItem(LEGACY_SYNC_USER_KEY);
+  const legacyQueue = legacyItem(LEGACY_QUEUE_KEY);
+  if (dataKeys.length === 0) {
+    clearLegacyData();
+    return 'none';
+  }
+  if (syncUser && syncUser !== userId) {
+    // 別のユーザーのデータ。送れていない変更がなければそのユーザーのデータベースに保存済みなので消し、
+    // 送れていない変更があればそのユーザーがログインしたときに送れるよう残しておく
+    if (!legacyQueue) clearLegacyData();
+    return 'none';
+  }
+  for (const k of dataKeys) memoryStore.setItem(k, legacyItem(k) ?? '');
+  if (!syncUser) return 'unsynced';
+  try {
+    const q = legacyQueue ? JSON.parse(legacyQueue) : {};
+    saveQueue(q && typeof q === 'object' ? q as Queue : {});
+  } catch {
+    saveQueue({});
+  }
+  return 'synced';
 }
 
 function pendingCount(q: Queue = loadQueue()): number {
@@ -805,6 +860,12 @@ function summarize(rowsOf: (c: Collection) => Row[]): DataCounts {
 
 // ログイン中のユーザー（ログイン状態が変わったときにすぐ更新する）
 let uid: string | null = null;
+// メモリ上のデータ・送信待ちが誰のものか（ログインが切れても、同じユーザーでログインし直したら送信待ちを送る）
+let dataOwner: string | null = null;
+// データベースへ送ってよいか（端末に残っていた以前のデータとどちらを使うか決めるまでは送らない）
+let syncEnabled = false;
+// 端末に残っていた以前のデータを、送信待ちがなくなったら端末から消す
+let legacyPending = false;
 let chain: Promise<unknown> = Promise.resolve();
 
 // 送信・取り込みは同時に走らせず、順番に行う
@@ -820,7 +881,7 @@ function errorText(e: unknown): string {
 
 async function runSync(pullAfter: boolean): Promise<void> {
   const me = uid;
-  if (!me || localStorage.getItem(SYNC_USER_KEY) !== me) return;
+  if (!me || dataOwner !== me || !syncEnabled) return;
   setState({ phase: 'syncing' });
   try {
     normalizeIds();
@@ -828,9 +889,16 @@ async function runSync(pullAfter: boolean): Promise<void> {
     if (pullAfter) {
       const server = await fetchServer(me);
       if (uid !== me) return; // 取得中にログアウトした
-      if (applyServer(server)) setState({ dataVersion: state.dataVersion + 1 });
+      const changed = applyServer(server);
+      // 読み込み終えたら、いつもの画面を出す
+      setState({ loaded: true, dataVersion: changed ? state.dataVersion + 1 : state.dataVersion });
     }
     if (uid !== me) return;
+    // 端末に残っていた以前のデータは、すべてデータベースへ送れたら端末から消す
+    if (legacyPending && pendingCount() === 0) {
+      clearLegacyData();
+      legacyPending = false;
+    }
     setState({
       phase: errors.length > 0 ? 'error' : 'synced',
       error: errors.length > 0 ? `保存できないデータがあります（${errors[0]}）` : null,
@@ -847,48 +915,72 @@ async function runSync(pullAfter: boolean): Promise<void> {
 let pushTimer: ReturnType<typeof setTimeout> | undefined;
 
 // 入力が続いている間は送らず、止まってから少し待ってまとめて送る
+// （送信待ちは端末に残らないため、待ち時間は短くする）
 function schedulePush() {
   clearTimeout(pushTimer);
-  pushTimer = setTimeout(() => { void exclusive(() => runSync(false)); }, 1500);
+  pushTimer = setTimeout(() => { void exclusive(() => runSync(false)); }, 500);
 }
 
-// 送信待ちを送ってから、クラウドの内容を取り込む
+// 送信待ちをすぐに送る（ほかのアプリに切り替えたときなど）
+function pushNow() {
+  if (!uid || !syncEnabled || pendingCount() === 0) return;
+  clearTimeout(pushTimer);
+  void exclusive(() => runSync(false));
+}
+
+// 送信待ちを送ってから、データベースの内容を読み込む
 export function syncNow(): Promise<void> {
   clearTimeout(pushTimer);
   const me = uid;
-  // ログイン直後の確認に失敗していた場合は、確認からやり直す
-  if (me && localStorage.getItem(SYNC_USER_KEY) !== me) return exclusive(() => startSession(me, state.email));
+  // ログイン直後の読み込みに失敗していた場合は、読み込みからやり直す
+  if (me && !state.loaded && state.phase !== 'needs-choice') return exclusive(() => startSession(me, state.email));
   return exclusive(() => runSync(true));
 }
 
 let lastAutoSync = 0;
 function autoSync() {
-  if (!uid || localStorage.getItem(SYNC_USER_KEY) !== uid) return;
+  if (!uid || !state.loaded) return;
   if (Date.now() - lastAutoSync < 5000) return;
   lastAutoSync = Date.now();
   void syncNow();
 }
 
+// メモリ上のデータと送信待ちを空にする
+function resetData() {
+  clearTimeout(pushTimer);
+  memoryStore.clear();
+  saveQueue({});
+  dataOwner = null;
+  syncEnabled = false;
+  legacyPending = false;
+}
+
 async function startSession(userId: string, email: string | null) {
   if (uid !== userId) return;
-  setState({ email, sessionExpired: false, error: null, choice: null });
-  if (localStorage.getItem(SYNC_USER_KEY) === userId) {
-    setWriteTracker(track);
-    setState({ linked: true });
+  setState({ email, error: null, choice: null, phase: 'checking' });
+  if (dataOwner !== userId) {
+    // 別のユーザーのデータが残っていれば消してから読み込む
+    resetData();
+    dataOwner = userId;
+    const legacy = loadLegacyData(userId);
+    legacyPending = legacy !== 'none';
+    syncEnabled = legacy !== 'unsynced';
+  }
+  setWriteTracker(track);
+  if (syncEnabled) {
+    // 送信待ち（以前の版で送れていなかった変更・ログインが切れる前の変更）を送ってから読み込む
     await runSync(true);
     return;
   }
-  // この端末で初めてログインした（または別のユーザーで同期していた）:
-  // どちらのデータを使うか決まるまでは同期しない。別のユーザーの送信待ちは捨てる（この端末のデータは残る）
-  clearSyncData();
-  setState({ phase: 'checking' });
+  // 端末に、どのユーザーとも同期していない以前のデータが残っている:
+  // どちらのデータを使うか決まるまではデータベースへ送らない
   try {
     const server = await fetchServer(userId);
     if (uid !== userId) return;
     const local = summarize((c) => c.read());
     const cloud = summarize((c) => server[c.id]);
-    if (!cloud.any) await beginSync('local', server);
-    else if (!local.any) await beginSync('cloud', server);
+    if (!local.any) await beginSync('cloud', server);
+    else if (!cloud.any) await beginSync('local', server);
     else setState({ phase: 'needs-choice', choice: { local, cloud } });
   } catch (e) {
     if (uid !== userId) return;
@@ -900,7 +992,7 @@ async function beginSync(source: 'local' | 'cloud', server: ServerData) {
   const me = uid;
   if (!me) return;
   if (source === 'local') {
-    // この端末のデータをすべて送り、クラウドにしかない行は消す
+    // 端末に残っていたデータをすべて送り、データベースにしかない行は消す
     withoutTracking(normalizeIds);
     const q: Queue = {};
     for (const c of COLLECTIONS) {
@@ -909,17 +1001,19 @@ async function beginSync(source: 'local' | 'cloud', server: ServerData) {
     }
     saveQueue(q);
   } else {
+    // 端末に残っていたデータは使わずに消し、データベースのデータを読み込む
+    memoryStore.clear();
     saveQueue({});
-    if (applyServer(server)) setState({ dataVersion: state.dataVersion + 1 });
+    clearLegacyData();
+    legacyPending = false;
   }
-  localStorage.setItem(SYNC_USER_KEY, me);
-  setWriteTracker(track);
-  // ここでいつもの画面に切り替わる（クラウドのデータを使う場合は、取り込み済みのデータで開く）
-  setState({ choice: null, pending: pendingCount(), linked: true });
-  await runSync(source === 'local');
+  syncEnabled = true;
+  setState({ choice: null, pending: pendingCount() });
+  // 読み込み終えたところでいつもの画面に切り替わる
+  await runSync(true);
 }
 
-// クラウドとこの端末の両方にデータがあったときに、どちらを使うか決める
+// データベースと、端末に残っていた以前のデータの両方があったときに、どちらを使うか決める
 export function chooseInitialData(source: 'local' | 'cloud'): Promise<void> {
   return exclusive(async () => {
     const me = uid;
@@ -936,24 +1030,14 @@ export function chooseInitialData(source: 'local' | 'cloud'): Promise<void> {
   });
 }
 
-// 同期の記録（同期しているユーザー・送信待ち）を消す。この端末のデータは残す
-function clearSyncData() {
-  clearTimeout(pushTimer);
-  setWriteTracker(null);
-  localStorage.removeItem(SYNC_USER_KEY);
-  saveQueue({});
-  setState({ linked: false });
-}
-
-// ログインしていない状態になった（ログアウト・ログインの期限切れ・通信できずにログイン状態を確かめられない）
-// 同期していた端末では、ログインし直したときに送れるよう、その間の変更も送信待ちに積み続ける
+// ログインしていない状態になった（ログアウト・ログインの期限切れ）。ログイン画面に戻る
+// ログインが切れた場合は、同じユーザーでログインし直したときに送れるよう、メモリ上の送信待ちを残しておく
 function onNoSession() {
   uid = null;
   clearTimeout(pushTimer);
-  const linked = !!localStorage.getItem(SYNC_USER_KEY);
   setState({
     phase: 'signed-out', email: null, error: null, choice: null, passwordRecovery: false,
-    linked, sessionExpired: linked, pending: pendingCount(), authReady: true,
+    loaded: false, pending: pendingCount(), authReady: true,
   });
 }
 
@@ -973,8 +1057,7 @@ let initialized = false;
 export function initCloudSync() {
   if (initialized) return;
   initialized = true;
-  if (localStorage.getItem(SYNC_USER_KEY)) setWriteTracker(track);
-  setState({ pending: pendingCount(), linkError: readLinkError() });
+  setState({ linkError: readLinkError() });
   supabase.auth.onAuthStateChange((event, session) => {
     const user = session?.user ?? null;
     if (event === 'PASSWORD_RECOVERY') setState({ passwordRecovery: true });
@@ -982,12 +1065,8 @@ export function initCloudSync() {
       if (user.id === uid) return; // トークンの更新など
       uid = user.id;
       const email = user.email ?? null;
-      const linked = localStorage.getItem(SYNC_USER_KEY) === user.id;
       // ログイン画面が一瞬出ないよう、ここで状態を決めておく
-      setState({
-        authReady: true, email, linked, sessionExpired: false, linkError: null,
-        phase: linked ? 'syncing' : 'checking',
-      });
+      setState({ authReady: true, email, loaded: false, linkError: null, phase: 'checking' });
       // この中で Supabase を呼ぶと処理が止まることがあるため、後で行う
       setTimeout(() => { void exclusive(() => startSession(user.id, email)); }, 0);
     } else if (!signingOut) {
@@ -996,9 +1075,17 @@ export function initCloudSync() {
     }
   });
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') autoSync();
+    // ほかのアプリに切り替えたら送信待ちをすぐ送り、戻ってきたらほかの端末の変更を読み込む
+    if (document.visibilityState === 'hidden') pushNow();
+    else autoSync();
   });
   window.addEventListener('online', autoSync);
+  // データベースに送れていない変更は端末に残らないため、ページを閉じる・再読み込みする前に確認する
+  window.addEventListener('beforeunload', (e) => {
+    if (pendingCount() === 0) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
 }
 
 // ── ログイン・登録 ───────────────────────────────────────────────────────────
@@ -1068,8 +1155,9 @@ export async function signOut(): Promise<string | null> {
   } finally {
     signingOut = false;
   }
-  // 次にログインしたときは、どちらのデータを使うかをもう一度確認する
-  clearSyncData();
+  // メモリ上のデータを消す（データはデータベースにあり、次にログインしたときに読み込む）
+  setWriteTracker(null);
+  resetData();
   onNoSession();
   return null;
 }
