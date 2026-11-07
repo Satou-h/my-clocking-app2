@@ -7,6 +7,7 @@ import { generateId } from '../utils/storage';
 import { getHolidayName } from '../utils/holidays';
 import { loadName, saveName } from '../utils/workReport';
 import SubmittedNotice from './SubmittedNotice';
+import { useCloudState } from '../utils/cloudSync';
 
 interface Props {
   records: TransportRecord[];
@@ -37,6 +38,8 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
   const [dateTo, setDateTo] = useState('');
   const [skipWeekends, setSkipWeekends] = useState(false);
   const [name, setName] = useState(loadName);
+  // 上長・管理者が部下のデータを開いている間は、氏名（本人の社員情報）を変更できない
+  const viewing = useCloudState().viewing;
 
   // 氏名は作業報告書・勤務表と共通で保存する
   function handleNameChange(value: string) {
@@ -230,6 +233,8 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
           type="text"
           value={name}
           onChange={(e) => handleNameChange(e.target.value)}
+          readOnly={!!viewing}
+          title={viewing ? '氏名は本人だけが変更できます' : undefined}
           placeholder="氏名"
           aria-label="氏名"
         />

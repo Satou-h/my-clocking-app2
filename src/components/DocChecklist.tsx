@@ -16,13 +16,15 @@ interface ChecklistProps {
   // 提出画面: 提出状況（未提出・提出済み・承認済み・差し戻し）を出す
   showSubmission?: boolean;
   onWithdraw?: (key: DocKey) => void;
+  // 見るだけ（チェックボックスを出さない。上長・管理者が部下の提出状況を見るとき）
+  readOnly?: boolean;
   busy?: boolean;
 }
 
 // ダウンロード・提出する書類の一覧（チェックを入れて選ぶ。入力状況と不足している日を出す）
-export function DocChecklist({ rows, selected, onToggle, showSubmission = false, onWithdraw, busy = false }: ChecklistProps) {
+export function DocChecklist({ rows, selected, onToggle, showSubmission = false, onWithdraw, readOnly = false, busy = false }: ChecklistProps) {
   return (
-    <div className="bulk-checklist">
+    <div className={`bulk-checklist${readOnly ? ' bulk-checklist-readonly' : ''}`}>
       {rows.map(({ key, label, doc, submission }) => {
         // 提出済み・承認済みの書類は、取り下げるまで選べない
         const locked = showSubmission && isLockedStatus(submission?.status);
@@ -36,7 +38,7 @@ export function DocChecklist({ rows, selected, onToggle, showSubmission = false,
         const icon = locked ? '済' : inputStatus === 'ok' ? '✓' : inputStatus === 'skip' ? '－' : '×';
         const rejected = showSubmission && submission?.status === 'rejected';
         return (
-          <div key={key} className={`bulk-check-item bulk-check-${status}${checked || locked ? '' : ' bulk-check-unselected'}`}>
+          <div key={key} className={`bulk-check-item bulk-check-${status}${checked || locked || readOnly ? '' : ' bulk-check-unselected'}`}>
             <label className="bulk-check-head">
               <input
                 type="checkbox"
@@ -62,6 +64,12 @@ export function DocChecklist({ rows, selected, onToggle, showSubmission = false,
                   {fmtSubmittedAt(submission!.submittedAt)}に提出
                   {submission!.status === 'approved' && submission!.reviewedAt && `・${fmtSubmittedAt(submission!.reviewedAt)}に承認`}
                 </span>
+                {submission!.modifiedAt && (
+                  <span className="bulk-modified">
+                    {fmtSubmittedAt(submission!.modifiedAt)}に
+                    {submission!.modifiedByName ? `${submission!.modifiedByName}さん` : '上長・管理者'}が修正
+                  </span>
+                )}
                 {submission!.status === 'submitted' && onWithdraw && (
                   <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => onWithdraw(key)}>
                     取り下げ

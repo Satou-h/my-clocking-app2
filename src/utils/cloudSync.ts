@@ -18,8 +18,8 @@ import { supabase } from './supabase';
 import { memoryStore } from './memoryStore';
 import { setWriteTracker, withoutTracking, type CollectionId } from './syncHooks';
 import {
-  clearSubmissions, isDocLocked, parseSubmission, periodLabel, setSubmissions, setSubmissionsError,
-  type Submission,
+  clearSubmissions, findSubmission, getSubmissionState, isDocLocked, parseSubmission, periodLabel,
+  setSubmissions, setSubmissionsError, type Submission,
 } from './submissions';
 import type { DocKey } from '../types/document';
 import {
@@ -82,6 +82,8 @@ export interface CloudState {
   choice: { local: DataCounts; cloud: DataCounts } | null;
   // データベースから読み込んでメモリ上のデータが変わるたびに増える（画面の読み直しに使う）
   dataVersion: number;
+  // 上長・管理者として開いている部下（自分のデータを開いているときは null）
+  viewing: ViewingMember | null;
 }
 
 let state: CloudState = {
@@ -96,6 +98,7 @@ let state: CloudState = {
   error: null,
   choice: null,
   dataVersion: 0,
+  viewing: null,
 };
 const listeners = new Set<() => void>();
 
@@ -651,34 +654,57 @@ function periodsOfRow(c: Collection, row: Row): { doc: DocKey; year: number; mon
   }
 }
 
-function lockedLabels(c: Collection, row: Row | undefined): string[] {
+// 行を変更できない理由（変更できるときは空）
+// ・自分のデータ: 提出済み・承認済みの書類に含まれる行は変更できない
+// ・上長・管理者として部下のデータを開いているとき: 提出済み（承認前）の書類に含まれる行だけ変更できる
+//   （データベースの書き込み制限と同じ判定）
+function blockedLabels(c: Collection, row: Row | undefined): string[] {
   if (!row) return [];
-  return periodsOfRow(c, row)
-    .filter((p) => isDocLocked(p.doc, p.year, p.month))
-    .map((p) => periodLabel(p.doc, p.year, p.month));
+  const periods = periodsOfRow(c, row);
+  if (!viewAs) {
+    return periods
+      .filter((p) => isDocLocked(p.doc, p.year, p.month))
+      .map((p) => periodLabel(p.doc, p.year, p.month));
+  }
+  const { items } = getSubmissionState();
+  if (c.id === 'profile') return ['社員情報・氏名・サイン（本人だけが変更できます）'];
+  if (c.id === 'skill') {
+    const submitted = items.some((s) => (s.doc === 'skillSheet' || s.doc === 'workHistory') && s.status === 'submitted');
+    return submitted ? [] : ['スキル表（未提出）'];
+  }
+  if (periods.length === 0) return [c.label];
+  const statuses = periods.map((p) => findSubmission(items, p.doc, p.year, p.month)?.status);
+  if (statuses.includes('submitted') && !statuses.includes('approved')) return [];
+  return periods.map((p, i) => `${periodLabel(p.doc, p.year, p.month)}（${statuses[i] === 'approved' ? '承認済み' : '未提出'}）`);
 }
 
 let blockedNotice: Set<string> | null = null;
+let lastBlockedAlert = { text: '', at: 0 };
 
 // 1回の操作で何度も保存されることがあるため、取り消した書類はまとめて1回だけ知らせる
 function notifyBlocked(labels: string[]) {
   if (!blockedNotice) {
     blockedNotice = new Set();
     setTimeout(() => {
-      const list = [...(blockedNotice ?? [])];
+      const list = [...(blockedNotice ?? [])].map((l) => `・${l}`).join('\n');
       blockedNotice = null;
       // 各画面が持っているデータを、取り消したあとの内容で読み直す
       setState({ dataVersion: state.dataVersion + 1 });
-      alert(
-        `次の書類は提出済みのため、変更を取り消しました。\n\n${list.map((l) => `・${l}`).join('\n')}\n\n`
-        + '変更するには「提出」画面で提出を取り下げてください（承認済みの書類は変更できません）。',
-      );
+      const text = viewAs
+        ? `次のデータは修正できないため、変更を取り消しました。\n\n${list}\n\n`
+          + '上長・管理者が修正できるのは、提出済み（承認前）の書類だけです。'
+        : `次の書類は提出済みのため、変更を取り消しました。\n\n${list}\n\n`
+          + '変更するには「提出」画面で提出を取り下げてください（承認済みの書類は変更できません）。';
+      // 入力のたびに保存される欄で、同じ知らせが続けて出ないようにする
+      if (text === lastBlockedAlert.text && Date.now() - lastBlockedAlert.at < 5000) return;
+      lastBlockedAlert = { text, at: Date.now() };
+      alert(text);
     }, 0);
   }
   labels.forEach((l) => blockedNotice?.add(l));
 }
 
-// 保存の前後で内容が変わった行を送信待ちに積む。提出済みの書類に含まれる行は、変更を取り消す
+// 保存の前後で内容が変わった行を送信待ちに積む。変更できない行（提出済みの書類など）は、変更を取り消す
 function track(id: CollectionId, write: () => void) {
   const c = BY_ID[id];
   let before: Map<string, Row> | null = null;
@@ -697,13 +723,13 @@ function track(id: CollectionId, write: () => void) {
     const blocked = new Set<string>();
     const labels = new Set<string>();
     for (const k of changed) {
-      const ls = [...lockedLabels(c, before.get(k)), ...lockedLabels(c, after.get(k))];
+      const ls = [...blockedLabels(c, before.get(k)), ...blockedLabels(c, after.get(k))];
       if (ls.length === 0) continue;
       blocked.add(k);
       ls.forEach((l) => labels.add(l));
     }
     if (blocked.size > 0) {
-      // 提出済みの行だけ保存前の内容に戻し、ほかの行の変更は残す
+      // 変更できない行だけ保存前の内容に戻し、ほかの行の変更は残す
       const next: Row[] = [];
       for (const [k, r] of after) {
         if (!blocked.has(k)) next.push(r);
@@ -812,24 +838,38 @@ function submissionErrorText(e: DbError): string {
   return e.message;
 }
 
-// 自分の提出状況を読み込む。読み込めなくてもデータの同期は続ける（失敗は提出画面に表示する）
-async function refreshSubmissions(me: string): Promise<void> {
+const SUBMISSION_COLUMNS = 'year,month,doc,status,submitted_at,reviewed_at,review_comment';
+// 上長・管理者が修正した記録（この列がないデータベースでは、記録なしとして読む）
+const MODIFIED_COLUMNS = ',modified_at,modified_by_name';
+
+type SubmissionResult = { items: Submission[]; error: null } | { items: null; error: string };
+
+// target の提出状況を読み込む
+async function loadSubmissions(target: string): Promise<SubmissionResult> {
   try {
-    // 上長は部下の提出状況も読めるため、必ず自分の行だけに絞る
-    const { data, error } = await supabase.from('monthly_submissions')
-      .select('year,month,doc,status,submitted_at,reviewed_at,review_comment')
-      .eq('user_id', me);
-    if (uid !== me) return;
-    if (error) {
-      setSubmissionsError(submissionErrorText(error));
-      return;
-    }
-    setSubmissions(((data ?? []) as Row[])
+    const query = (columns: string) =>
+      // 上長は部下の提出状況も読めるため、必ず target の行だけに絞る
+      supabase.from('monthly_submissions').select(columns).eq('user_id', target);
+    let { data, error } = await query(SUBMISSION_COLUMNS + MODIFIED_COLUMNS);
+    if (error?.code === '42703') ({ data, error } = await query(SUBMISSION_COLUMNS));
+    if (error) return { items: null, error: submissionErrorText(error) };
+    const items = ((data ?? []) as unknown as Row[])
       .map(parseSubmission)
-      .filter((s): s is Submission => s !== null));
+      .filter((s): s is Submission => s !== null);
+    return { items, error: null };
   } catch (e) {
-    if (uid === me) setSubmissionsError(errorText(e));
+    return { items: null, error: errorText(e) };
   }
+}
+
+// 開いているデータ（自分か、上長・管理者として開いた部下）の提出状況を読み込む
+// 読み込めなくてもデータの同期は続ける（失敗は提出画面に表示する）
+async function refreshSubmissions(target: string): Promise<void> {
+  const me = uid;
+  const r = await loadSubmissions(target);
+  if (uid !== me || (viewAs ?? uid) !== target) return; // 読み込み中にログアウト・切り替えをした
+  if (r.error !== null) setSubmissionsError(r.error);
+  else setSubmissions(r.items);
 }
 
 // 選んだ書類を提出する。できなかったときは理由を返す
@@ -839,6 +879,7 @@ export function submitDocuments(year: number, month: number, docs: DocKey[]): Pr
   return exclusive(async () => {
     const me = uid;
     if (!me || !state.loaded) return 'ログインしてください';
+    if (viewAs) return '提出は本人だけができます';
     const version = state.dataVersion;
     await runSync(true);
     if (uid !== me) return 'ログインし直してください';
@@ -861,6 +902,7 @@ export async function withdrawDocuments(year: number, month: number, docs: DocKe
   const result = await exclusive(async () => {
     const me = uid;
     if (!me || !state.loaded) return 'ログインしてください';
+    if (viewAs) return '取り下げは本人だけができます';
     const { error } = await supabase.rpc('withdraw_documents', { p_year: year, p_month: month, p_docs: docs });
     await refreshSubmissions(me);
     return error ? submissionErrorText(error) : null;
@@ -1012,6 +1054,9 @@ let dataOwner: string | null = null;
 let syncEnabled = false;
 // 端末に残っていた以前のデータを、送信待ちがなくなったら端末から消す
 let legacyPending = false;
+// 上長・管理者として開いている部下の ID（自分のデータを開いているときは null）
+// メモリ上のデータ・送信待ち・提出状況はこの人のもの。読み書きはこの人の行に対して行う
+let viewAs: string | null = null;
 let chain: Promise<unknown> = Promise.resolve();
 
 // 送信・取り込みは同時に走らせず、順番に行う
@@ -1028,12 +1073,17 @@ function errorText(e: unknown): string {
 async function runSync(pullAfter: boolean): Promise<void> {
   const me = uid;
   if (!me || dataOwner !== me || !syncEnabled) return;
+  // 開いているデータの持ち主（部下のデータを開いているときは部下）
+  const target = viewAs ?? me;
   setState({ phase: 'syncing' });
   try {
     normalizeIds();
-    const errors = await flushQueue(me);
+    const hadPending = pendingCount() > 0;
+    const errors = await flushQueue(target);
+    // 部下の書類を修正したら、修正の記録（データベースで付く）を提出画面に出すため、提出状況を読み直す
+    if (viewAs && hadPending && !pullAfter) await refreshSubmissions(target);
     if (pullAfter) {
-      const [server] = await Promise.all([fetchServer(me), refreshSubmissions(me)]);
+      const [server] = await Promise.all([fetchServer(target), refreshSubmissions(target)]);
       if (uid !== me) return; // 取得中にログアウトした
       const changed = applyServer(server);
       // 読み込み終えたら、いつもの画面を出す
@@ -1100,6 +1150,77 @@ function resetData() {
   dataOwner = null;
   syncEnabled = false;
   legacyPending = false;
+  viewAs = null;
+  setState({ viewing: null });
+}
+
+// ── 上長・管理者が部下のデータを開く ─────────────────────────────────────────
+// 開いている間は、部下のデータをメモリ上に読み込み、いつもの画面で読み書きする。
+// 修正できるのは部下の提出済み（承認前）の書類だけ（track() とデータベースの両方で制限する）
+
+export interface ViewingMember {
+  userId: string;
+  name: string;
+}
+
+// target のデータをデータベースから読み込み、メモリ上のデータと入れ替える（viewing が null なら自分のデータ）
+async function switchData(target: string, viewing: ViewingMember | null): Promise<string | null> {
+  const me = uid;
+  if (!me) return 'ログインしてください';
+  try {
+    const [server, subs] = await Promise.all([fetchServer(target), loadSubmissions(target)]);
+    if (uid !== me) return 'ログインし直してください';
+    // 読み込み終えてから一度に入れ替える（途中で画面から保存されても、別の人のデータに混ざらないように）
+    clearTimeout(pushTimer);
+    memoryStore.clear();
+    saveQueue({});
+    viewAs = viewing ? target : null;
+    applyServer(server);
+    if (subs.error !== null) {
+      clearSubmissions();
+      setSubmissionsError(subs.error);
+    } else {
+      setSubmissions(subs.items);
+    }
+    setState({
+      viewing, dataVersion: state.dataVersion + 1,
+      phase: 'synced', error: null, pending: 0, lastSyncedAt: Date.now(),
+    });
+    return null;
+  } catch (e) {
+    return errorText(e);
+  }
+}
+
+// 部下のデータを開く。できなかったときは理由を返す
+export function openMemberData(member: ViewingMember): Promise<string | null> {
+  clearTimeout(pushTimer);
+  return exclusive(async () => {
+    const me = uid;
+    if (!me || !state.loaded) return 'ログインしてください';
+    if (member.userId === me) return '自分のデータは、いつもの画面で変更してください';
+    // 送れていない変更を送ってから切り替える（送信待ちは開いているデータの持ち主の行に送るため）
+    await runSync(false);
+    if (pendingCount() > 0) {
+      return 'クラウドに保存できていない変更があるため、切り替えられません。通信状態を確認してから、もう一度お試しください';
+    }
+    return switchData(member.userId, member);
+  });
+}
+
+// 自分のデータに戻る。保存できていない修正があるときは戻らずに理由を返す（discard なら捨てて戻る）
+export function closeMemberData(discard = false): Promise<string | null> {
+  clearTimeout(pushTimer);
+  return exclusive(async () => {
+    const me = uid;
+    if (!me) return 'ログインしてください';
+    if (!viewAs) return null;
+    if (!discard) {
+      await runSync(false);
+      if (pendingCount() > 0) return `クラウドに保存できていない修正が${pendingCount()}件あります`;
+    }
+    return switchData(me, null);
+  });
 }
 
 async function startSession(userId: string, email: string | null) {

@@ -9,6 +9,7 @@ import {
   generateId, loadUserProfile,
 } from '../utils/storage';
 import MultiLineInput from './MultiLineInput';
+import SubmittedNotice from './SubmittedNotice';
 import { normalizeYearMonth, fmtYearMonth, calcDurationLabel, sortWorkHistory } from '../utils/workHistory';
 
 const EMPTY_FORM = { category: '', skillName: '', experienceYears: '' };
@@ -163,6 +164,7 @@ export default function SkillTab() {
 
   return (
     <div className="skill-tab">
+      <SubmittedNotice docs={['skillSheet', 'workHistory']} />
 
       {/* 基本情報 */}
       <div className="skill-form-section">

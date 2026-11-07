@@ -5,7 +5,7 @@ import { DOC_KEYS, DOC_LABELS, type DocKey } from '../types/document';
 import { loadUserProfile } from '../utils/storage';
 import { buildMonthDocs, useWorkTimeCheck } from '../utils/monthDocs';
 import { findSubmission, isLockedStatus, useSubmissions } from '../utils/submissions';
-import { submitDocuments, syncNow, withdrawDocuments } from '../utils/cloudSync';
+import { submitDocuments, syncNow, useCloudState, withdrawDocuments } from '../utils/cloudSync';
 import { DocChecklist, WorkTimeVerify, type DocChecklistRow } from './DocChecklist';
 
 interface Props {
@@ -13,13 +13,18 @@ interface Props {
   transportRecords: TransportRecord[];
   workSettings: WorkSettings;
   paidLeaveSettings: PaidLeaveSettings[];
+  // 最初に表示する年月（部下の提出画面から開いたときなど）
+  initialYear?: number;
+  initialMonth?: number;
 }
 
 // 書類を選んで提出する画面。入力チェックはダウンロード画面と同じ
-export default function SubmitTab({ records, transportRecords, workSettings, paidLeaveSettings }: Props) {
+// 上長・管理者が部下のデータを開いているときは、部下の提出状況を見るだけ（提出・取り下げは本人だけ）
+export default function SubmitTab({ records, transportRecords, workSettings, paidLeaveSettings, initialYear, initialMonth }: Props) {
   const now = new Date();
-  const [filterYear, setFilterYear] = useState(now.getFullYear());
-  const [filterMonth, setFilterMonth] = useState(now.getMonth() + 1);
+  const [filterYear, setFilterYear] = useState(initialYear ?? now.getFullYear());
+  const [filterMonth, setFilterMonth] = useState(initialMonth ?? now.getMonth() + 1);
+  const viewing = useCloudState().viewing;
   const [selected, setSelected] = useState<Set<DocKey>>(() => new Set(DOC_KEYS));
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -114,11 +119,18 @@ export default function SubmitTab({ records, transportRecords, workSettings, pai
 
   return (
     <div className="bulk-tab">
-      <h2>提出</h2>
-      <p className="hint">
-        提出する書類にチェックを入れてください。選んだ書類の入力がすべて完了すると提出できます（入力のチェックはダウンロードと同じです）。
-        提出した書類は、取り下げるまで変更できません。
-      </p>
+      <h2>{viewing ? `提出（${viewing.name}さん）` : '提出'}</h2>
+      {viewing ? (
+        <p className="hint">
+          {viewing.name}さんの提出状況です。提出済み（承認前）の書類は、勤怠一覧・交通費・申請書類・作業報告・スキル表の画面で修正できます。
+          提出・取り下げは本人だけができます。
+        </p>
+      ) : (
+        <p className="hint">
+          提出する書類にチェックを入れてください。選んだ書類の入力がすべて完了すると提出できます（入力のチェックはダウンロードと同じです）。
+          提出した書類は、取り下げるまで変更できません。
+        </p>
+      )}
 
       <div className="list-filter">
         <select value={filterYear} onChange={(e) => changeMonth(Number(e.target.value), filterMonth)}>
@@ -143,37 +155,44 @@ export default function SubmitTab({ records, transportRecords, workSettings, pai
         </div>
       )}
 
-      <div className="bulk-select-bar">
-        <span className="bulk-select-count">{selectedRows.length}件を選択中</span>
-        <button type="button" className="btn btn-secondary btn-sm" onClick={toggleAll} disabled={selectableRows.length === 0}>
-          {allSelected && selectableRows.length > 0 ? 'すべて解除' : 'すべて選択'}
-        </button>
-      </div>
+      {!viewing && (
+        <div className="bulk-select-bar">
+          <span className="bulk-select-count">{selectedRows.length}件を選択中</span>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={toggleAll} disabled={selectableRows.length === 0}>
+            {allSelected && selectableRows.length > 0 ? 'すべて解除' : 'すべて選択'}
+          </button>
+        </div>
+      )}
 
       <DocChecklist
         rows={rows}
         selected={selected}
         onToggle={toggle}
         showSubmission={!statusUnavailable}
-        onWithdraw={handleWithdraw}
+        onWithdraw={viewing ? undefined : handleWithdraw}
+        readOnly={!!viewing}
         busy={busy}
       />
 
-      {/* ── 検算 ── */}
-      <WorkTimeVerify check={verify} totalWorkMins={totalWorkMins} kishaSummary={kishaSummary} action="提出" />
+      {!viewing && (
+        <>
+          {/* ── 検算 ── */}
+          <WorkTimeVerify check={verify} totalWorkMins={totalWorkMins} kishaSummary={kishaSummary} action="提出" />
 
-      <div className="bulk-download-actions">
-        <button
-          className="btn btn-primary"
-          disabled={!!blockReason || busy}
-          onClick={handleSubmit}
-        >
-          {busy ? '処理中…' : '選んだ書類を提出'}
-        </button>
-        {blockReason && (
-          <span className="bulk-download-hint">{blockReason}</span>
-        )}
-      </div>
+          <div className="bulk-download-actions">
+            <button
+              className="btn btn-primary"
+              disabled={!!blockReason || busy}
+              onClick={handleSubmit}
+            >
+              {busy ? '処理中…' : '選んだ書類を提出'}
+            </button>
+            {blockReason && (
+              <span className="bulk-download-hint">{blockReason}</span>
+            )}
+          </div>
+        </>
+      )}
       {message && <p className="submit-message" role="status">{message}</p>}
     </div>
   );

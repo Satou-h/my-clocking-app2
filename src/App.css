@@ -1432,6 +1432,61 @@ hr {
   border-color: var(--accent-border);
   color: var(--accent-text);
 }
+/* 上長・管理者の修正の記録 */
+.bulk-modified { color: var(--warning-text); font-weight: 600; }
+/* 見るだけの一覧（チェックボックスを出さない） */
+.bulk-checklist-readonly .bulk-check-select { display: none; }
+.bulk-checklist-readonly .bulk-check-head { cursor: default; }
+.bulk-checklist.bulk-checklist-readonly .bulk-missing-dates,
+.bulk-checklist-readonly .bulk-submission-row { margin-left: 32px; }
+
+/* 上長・管理者が部下のデータを開いている間の案内 */
+.notice-viewing {
+  background: var(--purple-bg);
+  border-color: var(--purple-fg);
+  color: var(--purple-fg);
+  position: sticky;
+  top: 8px;
+  z-index: 5;
+}
+.header-viewing { cursor: default; color: var(--purple-fg); font-weight: 600; }
+.header-viewing .header-avatar { background: var(--purple-bg); color: var(--purple-fg); }
+
+/* 部下の提出 */
+.review-reload { margin-left: auto; align-self: center; }
+.review-list { display: flex; flex-direction: column; gap: 10px; }
+.review-member {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  background: var(--surface-2);
+}
+.review-member-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+.review-member-name { font-weight: 700; }
+.review-member-id { font-size: 12px; color: var(--text-muted); }
+.review-member-count { margin-left: auto; font-size: 12px; color: var(--text-muted); }
+.review-doc-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.review-doc {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--surface);
+}
+.review-doc b { font-weight: 600; }
+.review-doc-submitted { color: var(--accent-text); background: var(--accent-soft); border-color: var(--accent-border); }
+.review-doc-approved { color: var(--success-text); background: var(--success-soft); border-color: var(--success-border); }
+.review-doc-rejected { color: var(--danger-text); background: var(--danger-soft); border-color: var(--danger-border); }
+.review-member-note { margin: 8px 0 0; font-size: 12px; color: var(--text-muted); }
 .date-entry-list {
   display: flex;
   flex-direction: column;

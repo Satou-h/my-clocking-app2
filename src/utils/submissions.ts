@@ -24,6 +24,9 @@ export interface Submission {
   submittedAt: string;
   reviewedAt: string | null;
   reviewComment: string;
+  // 提出後に上長・管理者が修正した日時と、修正した人の名前（修正していなければ null・空）
+  modifiedAt: string | null;
+  modifiedByName: string;
 }
 
 export interface SubmissionState {
@@ -82,6 +85,8 @@ export function parseSubmission(row: Record<string, unknown>): Submission | null
     submittedAt: typeof row.submitted_at === 'string' ? row.submitted_at : '',
     reviewedAt: typeof row.reviewed_at === 'string' ? row.reviewed_at : null,
     reviewComment: typeof row.review_comment === 'string' ? row.review_comment : '',
+    modifiedAt: typeof row.modified_at === 'string' ? row.modified_at : null,
+    modifiedByName: typeof row.modified_by_name === 'string' ? row.modified_by_name : '',
   };
 }
 

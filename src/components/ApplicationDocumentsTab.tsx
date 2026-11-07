@@ -15,6 +15,7 @@ import type { AttendanceRecord, WorkSettings } from '../types/attendance';
 import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
 import Icon from './Icon';
 import SubmittedNotice from './SubmittedNotice';
+import { useCloudState } from '../utils/cloudSync';
 
 interface Props {
   records: AttendanceRecord[];
@@ -105,6 +106,8 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
   const [docType, setDocType] = useState<DocType>('leave');
   // 勤務表・交通費・作業報告書と共通の氏名
   const [name, setName] = useState(loadName);
+  // 上長・管理者が部下のデータを開いている間は、氏名（本人の社員情報）を変更できない
+  const viewing = useCloudState().viewing;
   // 勤務表から追加する候補と、保存済みの一覧を表示する月
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [month, setMonth] = useState(() => new Date().getMonth() + 1);
@@ -374,6 +377,8 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
           type="text"
           value={name}
           onChange={(e) => updateName(e.target.value)}
+          readOnly={!!viewing}
+          title={viewing ? '氏名は本人だけが変更できます' : undefined}
           placeholder="氏名"
         />
       </div>

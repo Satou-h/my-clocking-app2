@@ -24,15 +24,16 @@ import WorkReportTab from './components/WorkReportTab';
 import SkillTab from './components/SkillTab';
 import BulkDownloadTab from './components/BulkDownloadTab';
 import SubmitTab from './components/SubmitTab';
+import ReviewTab from './components/ReviewTab';
 import SignatureTab from './components/SignatureTab';
 import MembersTab from './components/MembersTab';
-import { useCloudState, cloudStatus } from './utils/cloudSync';
+import { useCloudState, cloudStatus, closeMemberData, getCloudState } from './utils/cloudSync';
 import { useSubmissions } from './utils/submissions';
 import { fetchMyRole, type MemberRole } from './utils/members';
 import './App.css';
 
 type Tab = 'input' | 'list' | 'transfer' | 'transport' | 'settings' | 'documents' | 'report' | 'skill' | 'bulk' | 'signature'
-  | 'submit' | 'members'
+  | 'submit' | 'review' | 'members'
   // スマホの下タブ「提出」「その他」から開くメニュー画面
   | 'menu-submit' | 'menu-more';
 
@@ -54,6 +55,7 @@ const NAV_GROUPS: { id: NavGroupId; label: string; items: { key: Tab; label: str
       { key: 'skill', label: 'スキル表', icon: 'user', desc: 'スキル・資格・職務経歴' },
       { key: 'bulk', label: 'ダウンロード', icon: 'download', desc: '提出書類を選んでPDF出力' },
       { key: 'submit', label: '提出', icon: 'send', desc: '書類を選んで提出・提出状況の確認' },
+      { key: 'review', label: '部下の提出', icon: 'inbox', desc: '部下の提出状況の確認・提出済み書類の修正（上長・管理者のみ）' },
     ],
   },
   {
@@ -68,6 +70,10 @@ const NAV_GROUPS: { id: NavGroupId; label: string; items: { key: Tab; label: str
 
 // 管理者だけに出すメニュー
 const ADMIN_TABS: Tab[] = ['members'];
+// 上長・管理者だけに出すメニュー
+const REVIEWER_TABS: Tab[] = ['review'];
+// 部下のデータを開いている間は出さないメニュー（本人の社員情報・サイン・データ削除などは本人だけが変更する）
+const MEMBER_MODE_HIDDEN: Tab[] = ['review', 'members', 'settings', 'transfer', 'signature'];
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('input');
@@ -91,9 +97,18 @@ export default function App() {
     return () => { alive = false; };
   }, []);
   const isAdmin = myRole === 'admin';
-  const navGroups = NAV_GROUPS.map((g) => ({
-    ...g, items: g.items.filter((i) => isAdmin || !ADMIN_TABS.includes(i.key)),
-  }));
+  const isReviewer = myRole === 'manager' || myRole === 'admin';
+  // 上長・管理者として開いている部下（自分のデータを開いているときは null）
+  const viewing = cloud.viewing;
+  const tabVisible = (key: Tab) =>
+    (isAdmin || !ADMIN_TABS.includes(key))
+    && (isReviewer || !REVIEWER_TABS.includes(key))
+    && (!viewing || !MEMBER_MODE_HIDDEN.includes(key));
+  const navGroups = NAV_GROUPS
+    .map((g) => ({ ...g, items: g.items.filter((i) => tabVisible(i.key)) }))
+    .filter((g) => g.items.length > 0);
+  // 部下のデータを開いたときに提出画面で表示する月
+  const [focusMonth, setFocusMonth] = useState<{ year: number; month: number } | null>(null);
   // データは端末に保存していないため、クラウドに送れていない変更はページを閉じると失われる
   const unsavedWarning = cloud.pending > 0 && (cloud.phase === 'offline' || cloud.phase === 'error')
     ? `クラウドに保存できていない変更が${cloud.pending}件あります`
@@ -280,6 +295,21 @@ export default function App() {
     window.scrollTo(0, 0);
   }
 
+  // 部下のデータを閉じて、自分のデータに戻る
+  async function handleCloseMember() {
+    let err = await closeMemberData();
+    if (err && getCloudState().pending > 0) {
+      if (!window.confirm(`${err}。保存できていない修正を捨てて、自分のデータに戻りますか？`)) return;
+      err = await closeMemberData(true);
+    }
+    if (err) {
+      alert(`自分のデータに戻れませんでした。\n\n${err}`);
+      return;
+    }
+    setFocusMonth(null);
+    openTab('review');
+  }
+
   // 月末に提出する書類の入力状況（今月分）。未対応の件数をメニューに表示する
   const now = new Date();
   const thisYear = now.getFullYear();
@@ -292,7 +322,8 @@ export default function App() {
   const groupOfTab = NAV_GROUPS.find((g) => g.items.some((i) => i.key === tab))?.id;
 
   function renderMenuList(groupId: NavGroupId) {
-    const group = navGroups.find((g) => g.id === groupId)!;
+    const group = navGroups.find((g) => g.id === groupId);
+    if (!group) return null;
     return (
       <>
         <h2 className="page-title">{group.label}</h2>
@@ -312,13 +343,18 @@ export default function App() {
     );
   }
 
-  const bottomItems: { key: Tab; label: string; icon: IconName; active: boolean; count?: number }[] = [
+  const bottomItems: { key: Tab | 'back'; label: string; icon: IconName; active: boolean; count?: number }[] = [
     { key: 'input', label: '入力', icon: 'pen', active: tab === 'input' },
     { key: 'list', label: '一覧', icon: 'calendar', active: tab === 'list' },
     { key: 'transport', label: '交通費', icon: 'train', active: tab === 'transport' },
-    { key: 'menu-submit', label: '提出', icon: 'download', active: tab === 'menu-submit' || groupOfTab === 'submit', count: pendingCount },
-    { key: 'menu-more', label: 'その他', icon: 'more', active: tab === 'menu-more' || groupOfTab === 'more' },
+    { key: 'menu-submit', label: '提出', icon: 'download', active: tab === 'menu-submit' || groupOfTab === 'submit', count: viewing ? undefined : pendingCount },
+    // 部下のデータを開いている間は「その他」の代わりに、自分のデータに戻るボタンを出す
+    viewing
+      ? { key: 'back', label: '戻る', icon: 'back', active: false }
+      : { key: 'menu-more', label: 'その他', icon: 'more', active: tab === 'menu-more' || groupOfTab === 'more' },
   ];
+  // 設定画面は部下のデータを開いている間は出さない
+  const openSettings = () => { if (!viewing) openTab('settings'); };
 
   return (
     <div className="app">
@@ -330,19 +366,26 @@ export default function App() {
         <button
           type="button"
           className={`header-cloud cloud-tone-${cloudBadge.tone}`}
-          onClick={() => openTab('settings')}
+          onClick={openSettings}
           title={cloudBadge.label}
           aria-label={`クラウド保存: ${cloudBadge.label}`}
         >
           <Icon name="cloud" size={16} />
           <span className="header-cloud-text">{cloudBadge.short}</span>
         </button>
-        <button type="button" className="header-user" onClick={() => openTab('settings')} aria-label="社員情報の設定">
-          {profileMissing
-            ? <span className="header-user-unset">社員情報 未設定</span>
-            : <span>{userProfile.employeeId} {userProfile.lastName}</span>}
-          <span className="header-avatar">{userProfile.lastName.trim().charAt(0) || <Icon name="user" size={16} />}</span>
-        </button>
+        {viewing ? (
+          <span className="header-user header-viewing" title="部下のデータを開いています">
+            <span>{viewing.name}さんのデータ</span>
+            <span className="header-avatar"><Icon name="inbox" size={16} /></span>
+          </span>
+        ) : (
+          <button type="button" className="header-user" onClick={openSettings} aria-label="社員情報の設定">
+            {profileMissing
+              ? <span className="header-user-unset">社員情報 未設定</span>
+              : <span>{userProfile.employeeId} {userProfile.lastName}</span>}
+            <span className="header-avatar">{userProfile.lastName.trim().charAt(0) || <Icon name="user" size={16} />}</span>
+          </button>
+        )}
       </header>
 
       <div className="app-body">
@@ -361,7 +404,7 @@ export default function App() {
                   >
                     <Icon name={item.icon} />
                     {item.label}
-                    {item.key === 'bulk' && pendingCount > 0 && <span className="nav-count">{pendingCount}件</span>}
+                    {item.key === 'bulk' && !viewing && pendingCount > 0 && <span className="nav-count">{pendingCount}件</span>}
                   </button>
                 ))}
               </Fragment>
@@ -370,14 +413,23 @@ export default function App() {
         </nav>
 
       <main className="app-main" key={cloud.dataVersion}>
+        {viewing && (
+          <div className="notice-banner notice-viewing" role="status">
+            <Icon name="inbox" />
+            <span>
+              <strong>{viewing.name}さん</strong>のデータを開いています。修正できるのは提出済み（承認前）の書類だけです。
+            </span>
+            <button type="button" className="btn-link" onClick={() => { void handleCloseMember(); }}>自分のデータに戻る</button>
+          </div>
+        )}
         {unsavedWarning && tab !== 'settings' && (
           <div className="notice-banner" role="status">
             <Icon name="alert" />
             <span>{unsavedWarning}</span>
-            <button type="button" className="btn-link" onClick={() => openTab('settings')}>確認する</button>
+            {!viewing && <button type="button" className="btn-link" onClick={() => openTab('settings')}>確認する</button>}
           </div>
         )}
-        {profileMissing && tab !== 'settings' && (
+        {profileMissing && !viewing && tab !== 'settings' && (
           <div className="notice-banner" role="status">
             <Icon name="alert" />
             <span>社員番号・苗字が未設定です（PDFの出力に必要です）</span>
@@ -454,12 +506,22 @@ export default function App() {
             transportRecords={transportRecords}
             workSettings={workSettings}
             paidLeaveSettings={paidLeave}
+            initialYear={focusMonth?.year}
+            initialMonth={focusMonth?.month}
           />
         )}
-        {tab === 'signature' && (
+        {tab === 'review' && tabVisible('review') && (
+          <ReviewTab
+            onOpened={(year, month) => {
+              setFocusMonth({ year, month });
+              openTab('submit');
+            }}
+          />
+        )}
+        {tab === 'signature' && tabVisible('signature') && (
           <SignatureTab />
         )}
-        {tab === 'transfer' && (
+        {tab === 'transfer' && tabVisible('transfer') && (
           <TransferTab
             records={records}
             transportRecords={transportRecords}
@@ -471,7 +533,7 @@ export default function App() {
             onImportMeta={handleImportMeta}
           />
         )}
-        {tab === 'members' && isAdmin && (
+        {tab === 'members' && tabVisible('members') && (
           <MembersTab
             onMyRoleChange={(role) => {
               setMyRole(role);
@@ -479,7 +541,7 @@ export default function App() {
             }}
           />
         )}
-        {tab === 'settings' && (
+        {tab === 'settings' && tabVisible('settings') && (
           <WorkSettingsForm
             settings={workSettings}
             userProfile={userProfile}
@@ -500,7 +562,10 @@ export default function App() {
             type="button"
             className={`bottom-nav-item ${item.active ? 'active' : ''}`}
             aria-current={item.active ? 'page' : undefined}
-            onClick={() => openTab(item.key)}
+            onClick={() => {
+              if (item.key === 'back') void handleCloseMember();
+              else openTab(item.key);
+            }}
           >
             <Icon name={item.icon} size={22} />
             {item.label}
