@@ -1,7 +1,8 @@
 /**
- * members.ts — 管理者のユーザー管理（アカウントの作成・役割と上長の設定）
+ * members.ts — 管理者のユーザー管理（アカウントの作成・役割の設定）
  *
- * ・一覧の取得と役割・上長の変更は、データベースの関数（admin_list_members / admin_set_member）で行う
+ * ・リーダー・管理者は全員の提出物を確認できるため、メンバーごとのリーダーは設定しない
+ * ・一覧の取得と役割の変更は、データベースの関数（admin_list_members / admin_set_member）で行う
  * ・アカウントの作成は秘密鍵が必要なため、Edge Function（supabase/functions/admin-create-user）で行う
  * ・どれも管理者かどうかをデータベース・Edge Function の側で確かめる（画面で隠すだけに頼らない）
  */
@@ -17,16 +18,10 @@ export interface Member {
   userId: string;
   email: string;
   role: MemberRole;
-  managerId: string | null;
   employeeId: string;
   lastName: string;
   fullName: string;
   lastSignInAt: string | null;
-}
-
-// 上長に選べるのは、役割が上長か管理者の人
-export function canBeManager(role: MemberRole): boolean {
-  return role === 'manager' || role === 'admin';
 }
 
 const asRole = (v: unknown): MemberRole => (v === 'manager' || v === 'admin' ? v : 'member');
@@ -53,7 +48,6 @@ export async function listMembers(): Promise<Member[]> {
     userId: String(r.user_id),
     email: String(r.email ?? ''),
     role: asRole(r.role),
-    managerId: typeof r.manager_id === 'string' ? r.manager_id : null,
     employeeId: String(r.employee_id ?? ''),
     lastName: String(r.last_name ?? ''),
     fullName: String(r.full_name ?? ''),
@@ -61,8 +55,9 @@ export async function listMembers(): Promise<Member[]> {
   }));
 }
 
-export async function setMember(userId: string, role: MemberRole, managerId: string | null): Promise<void> {
-  const { error } = await supabase.rpc('admin_set_member', { p_user: userId, p_role: role, p_manager: managerId });
+// 役割を変える（p_manager はデータベースの関数の互換のために残っている引数で、使われない）
+export async function setRole(userId: string, role: MemberRole): Promise<void> {
+  const { error } = await supabase.rpc('admin_set_member', { p_user: userId, p_role: role, p_manager: null });
   if (error) throw new Error(dbErrorText(error));
 }
 

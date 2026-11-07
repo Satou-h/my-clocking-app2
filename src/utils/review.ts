@@ -1,7 +1,7 @@
 /**
- * review.ts — 上長・管理者が見る「部下の提出」（部下の一覧と提出状況）
+ * review.ts — リーダー・管理者が見る「メンバーの提出」（メンバーの一覧と提出状況）
  *
- * ・上長は自分の部下、管理者は自分以外の全員が対象（読める範囲はデータベースの RLS でも同じに制限している）
+ * ・リーダー・管理者とも、自分以外の全員が対象（読める範囲はデータベースの RLS でも同じに制限している）
  * ・部下のデータを開いて修正する処理は cloudSync.ts（openMemberData / closeMemberData）
  */
 import { supabase } from './supabase';
@@ -29,14 +29,12 @@ export async function listReviewMembers(): Promise<ReviewMember[]> {
   const me = session?.user.id;
   if (!me) throw new Error('ログインしてください');
 
-  // 自分の行・部下の行（管理者は全員の行）が読める
-  const { data: rows, error } = await supabase.from('org_members').select('user_id,role,manager_id');
+  // リーダー・管理者は全員の行が読める（一般は自分の行だけ）
+  const { data: rows, error } = await supabase.from('org_members').select('user_id');
   if (error) throw new Error(dbErrorText(error));
-  const members = (rows ?? []) as { user_id: string; role: string; manager_id: string | null }[];
-  const isAdmin = members.some((m) => m.user_id === me && m.role === 'admin');
-  const ids = members
-    .filter((m) => m.user_id !== me && (isAdmin || m.manager_id === me))
-    .map((m) => m.user_id);
+  const ids = ((rows ?? []) as { user_id: string }[])
+    .map((m) => m.user_id)
+    .filter((id) => id !== me);
   if (ids.length === 0) return [];
 
   const subQuery = (columns: string) => supabase.from('monthly_submissions').select(columns).in('user_id', ids);

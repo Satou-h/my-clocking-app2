@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import {
-  ROLES, ROLE_LABELS, canBeManager, createAccount, generatePassword, joinFullName, listMembers, setMember,
+  ROLES, ROLE_LABELS, createAccount, generatePassword, joinFullName, listMembers, setRole as saveRole,
   type Member, type MemberRole,
 } from '../utils/members';
 import { useCloudState } from '../utils/cloudSync';
@@ -17,20 +17,6 @@ function fmtDate(iso: string | null): string {
   return `最終ログイン ${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
 }
 
-// 上長の選択肢（役割が上長・管理者の人。本人は除く）
-function ManagerOptions({ members, exclude }: { members: Member[]; exclude?: string }) {
-  return (
-    <>
-      <option value="">なし</option>
-      {members.filter((m) => canBeManager(m.role) && m.userId !== exclude).map((m) => (
-        <option key={m.userId} value={m.userId}>
-          {displayName(m)}（{m.email}）
-        </option>
-      ))}
-    </>
-  );
-}
-
 type Message = { error: boolean; text: string } | null;
 
 function MessageLine({ message }: { message: Message }) {
@@ -42,22 +28,20 @@ function MessageLine({ message }: { message: Message }) {
   );
 }
 
-/** 一覧の1人分（役割と上長を変えて保存する） */
-function MemberCard({ member, members, isYou, onSaved }: {
-  member: Member; members: Member[]; isYou: boolean; onSaved: (role: MemberRole) => Promise<void>;
+/** 一覧の1人分（役割を変えて保存する） */
+function MemberCard({ member, isYou, onSaved }: {
+  member: Member; isYou: boolean; onSaved: (role: MemberRole) => Promise<void>;
 }) {
   const [role, setRole] = useState<MemberRole>(member.role);
-  const [managerId, setManagerId] = useState(member.managerId ?? '');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<Message>(null);
-  // 読み直した一覧で役割・上長が変わっていたら、選択をその内容に戻す
-  const [loaded, setLoaded] = useState({ role: member.role, managerId: member.managerId });
-  if (loaded.role !== member.role || loaded.managerId !== member.managerId) {
-    setLoaded({ role: member.role, managerId: member.managerId });
+  // 読み直した一覧で役割が変わっていたら、選択をその内容に戻す
+  const [loadedRole, setLoadedRole] = useState(member.role);
+  if (loadedRole !== member.role) {
+    setLoadedRole(member.role);
     setRole(member.role);
-    setManagerId(member.managerId ?? '');
   }
-  const changed = role !== member.role || managerId !== (member.managerId ?? '');
+  const changed = role !== member.role;
 
   async function handleSave() {
     if (isYou && member.role === 'admin' && role !== 'admin' && !window.confirm(
@@ -66,7 +50,7 @@ function MemberCard({ member, members, isYou, onSaved }: {
     setBusy(true);
     setMessage(null);
     try {
-      await setMember(member.userId, role, managerId || null);
+      await saveRole(member.userId, role);
       setMessage({ error: false, text: '保存しました' });
       await onSaved(role);
     } catch (e) {
@@ -94,12 +78,6 @@ function MemberCard({ member, members, isYou, onSaved }: {
             {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
           </select>
         </label>
-        <label className="member-field">
-          <span>リーダー</span>
-          <select value={managerId} onChange={(e) => setManagerId(e.target.value)} disabled={busy}>
-            <ManagerOptions members={members} exclude={member.userId} />
-          </select>
-        </label>
         <button type="button" className="btn btn-primary btn-sm member-save" disabled={!changed || busy} onClick={handleSave}>
           {busy ? '保存中…' : '保存'}
         </button>
@@ -109,7 +87,7 @@ function MemberCard({ member, members, isYou, onSaved }: {
   );
 }
 
-/** 管理者用: 社員のアカウントを作り、役割と上長を設定する */
+/** 管理者用: 社員のアカウントを作り、役割を設定する */
 export default function MembersTab({ onMyRoleChange }: { onMyRoleChange: (role: MemberRole) => void }) {
   const cloud = useCloudState();
   const [members, setMembers] = useState<Member[] | null>(null);
@@ -120,7 +98,6 @@ export default function MembersTab({ onMyRoleChange }: { onMyRoleChange: (role: 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState(() => generatePassword());
   const [role, setRole] = useState<MemberRole>('member');
-  const [managerId, setManagerId] = useState('');
   const [creating, setCreating] = useState(false);
   const [createMessage, setCreateMessage] = useState<Message>(null);
 
@@ -158,11 +135,11 @@ export default function MembersTab({ onMyRoleChange }: { onMyRoleChange: (role: 
       let text = `${fullName}さん（${addr}）のアカウントを作りました。メールアドレスと初期パスワード「${password}」を本人に伝え、`
         + 'ログインしたら設定画面でパスワードを変えるよう伝えてください。';
       let error = false;
-      if (role !== 'member' || managerId) {
+      if (role !== 'member') {
         try {
-          await setMember(userId, role, managerId || null);
+          await saveRole(userId, role);
         } catch (err) {
-          text += `\nただし、役割・リーダーを設定できませんでした（${errorText(err)}）。下の一覧で設定し直してください。`;
+          text += `\nただし、役割を設定できませんでした（${errorText(err)}）。下の一覧で設定し直してください。`;
           error = true;
         }
       }
@@ -172,7 +149,6 @@ export default function MembersTab({ onMyRoleChange }: { onMyRoleChange: (role: 
       setEmail('');
       setPassword(generatePassword());
       setRole('member');
-      setManagerId('');
       await refresh();
     } catch (err) {
       setCreateMessage({ error: true, text: errorText(err) });
@@ -181,18 +157,16 @@ export default function MembersTab({ onMyRoleChange }: { onMyRoleChange: (role: 
     }
   }
 
-  const list = members ?? [];
-
   return (
     <div className="members-tab">
       <h2>ユーザー管理</h2>
       <p className="hint">
-        社員のアカウントを作り、役割とリーダーを設定します。この画面は管理者だけが使えます。
+        社員のアカウントを作り、役割を設定します。この画面は管理者だけが使えます。
       </p>
       <ul className="member-roles">
         <li><strong>一般</strong>：自分のデータだけを見られます</li>
-        <li><strong>リーダー</strong>：自分と、自分がリーダーに設定されているメンバーのデータを見られます</li>
-        <li><strong>管理者</strong>：全員のデータを見られ、この画面でアカウントの作成と設定ができます</li>
+        <li><strong>リーダー</strong>：全員の提出物を確認・修正できます</li>
+        <li><strong>管理者</strong>：全員の提出物を確認・修正でき、この画面でアカウントの作成と役割の設定ができます</li>
       </ul>
 
       <h3>アカウントを作る</h3>
@@ -263,12 +237,6 @@ export default function MembersTab({ onMyRoleChange }: { onMyRoleChange: (role: 
             {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
           </select>
         </div>
-        <div className="form-row">
-          <label htmlFor="member-manager">リーダー</label>
-          <select id="member-manager" value={managerId} onChange={(e) => setManagerId(e.target.value)}>
-            <ManagerOptions members={list} />
-          </select>
-        </div>
         <MessageLine message={createMessage} />
         <div className="form-actions">
           <button type="submit" className="btn btn-primary" disabled={creating}>
@@ -278,7 +246,6 @@ export default function MembersTab({ onMyRoleChange }: { onMyRoleChange: (role: 
       </form>
 
       <h3>メンバー</h3>
-      <p className="hint">リーダーには、役割が「リーダー」か「管理者」の人を選べます。</p>
       {loadError && (
         <div className="cloud-message cloud-message-error" role="alert">
           メンバーの一覧を読み込めませんでした（{loadError}）
@@ -296,7 +263,6 @@ export default function MembersTab({ onMyRoleChange }: { onMyRoleChange: (role: 
               <MemberCard
                 key={m.userId}
                 member={m}
-                members={members}
                 isYou={isYou}
                 onSaved={async (role) => {
                   // 自分を管理者から外したときは、この画面を閉じる
