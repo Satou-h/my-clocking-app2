@@ -478,7 +478,8 @@ a { color: var(--accent-text); }
 .work-report-tab,
 .skill-tab,
 .bulk-tab,
-.signature-tab {
+.signature-tab,
+.members-tab {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -1977,6 +1978,7 @@ hr {
   .skill-tab,
   .bulk-tab,
   .signature-tab,
+  .members-tab,
   .status-card {
     padding: 16px;
   }
@@ -2628,4 +2630,102 @@ hr {
   /* 狭い画面ではヘッダーの状態表示をアイコンだけにする */
   .header-cloud { padding: 0 8px; }
   .header-cloud-text { display: none; }
+}
+
+/* ── ユーザー管理（components/MembersTab.tsx。管理者だけが使う） ── */
+.members-tab { max-width: 760px; }
+.member-roles {
+  margin: 0 0 8px;
+  padding-left: 18px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.8;
+}
+.member-roles strong { color: var(--text); }
+.member-password {
+  flex: 1;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+.member-password input { min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.member-password .btn { flex: none; }
+.member-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.member-card {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.member-card .cloud-message { margin: 10px 0 0; }
+.member-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 10px;
+  min-width: 0;
+}
+.member-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+.member-employee-id { color: var(--text-muted); font-size: 12px; font-weight: 500; }
+.member-you {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: 11px;
+  font-weight: 600;
+}
+.member-meta { color: var(--text-muted); font-size: 12px; overflow-wrap: anywhere; }
+.member-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 140px) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+.member-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.member-field select {
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--input-bg);
+  color: var(--text);
+  font-size: 14px;
+}
+.member-field select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.member-save { min-height: 36px; }
+.password-change { margin-top: 4px; }
+
+@media (max-width: 600px) {
+  .member-controls { grid-template-columns: minmax(0, 1fr); }
+  .member-field select {
+    min-height: 44px;
+    /* 16px 未満だと iPhone で入力時に画面が拡大されるため */
+    font-size: 16px;
+  }
+  .member-save { min-height: 44px; }
 }

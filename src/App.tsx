@@ -1,4 +1,4 @@
-import { Fragment, useState, useCallback } from 'react';
+import { Fragment, useState, useCallback, useEffect } from 'react';
 import type { AttendanceRecord, PaidLeaveSettings, WorkSettings } from './types/attendance';
 import type { TransportRecord } from './types/transport';
 import {
@@ -24,10 +24,13 @@ import WorkReportTab from './components/WorkReportTab';
 import SkillTab from './components/SkillTab';
 import BulkDownloadTab from './components/BulkDownloadTab';
 import SignatureTab from './components/SignatureTab';
+import MembersTab from './components/MembersTab';
 import { useCloudState, cloudStatus } from './utils/cloudSync';
+import { fetchMyRole, type MemberRole } from './utils/members';
 import './App.css';
 
 type Tab = 'input' | 'list' | 'transfer' | 'transport' | 'settings' | 'documents' | 'report' | 'skill' | 'bulk' | 'signature'
+  | 'members'
   // スマホの下タブ「提出」「その他」から開くメニュー画面
   | 'menu-submit' | 'menu-more';
 
@@ -54,10 +57,14 @@ const NAV_GROUPS: { id: NavGroupId; label: string; items: { key: Tab; label: str
     id: 'more', label: 'その他', items: [
       { key: 'signature', label: 'サイン', icon: 'signature', desc: '本人・上長（確認・検印）のサインを登録' },
       { key: 'transfer', label: 'QR/カナコード', icon: 'qr', desc: '別の端末へデータを移す' },
-      { key: 'settings', label: '設定', icon: 'settings', desc: 'クラウド保存・社員情報・基準時間・テーマ・データ削除' },
+      { key: 'members', label: 'ユーザー管理', icon: 'users', desc: 'アカウントの作成・役割と上長の設定（管理者のみ）' },
+      { key: 'settings', label: '設定', icon: 'settings', desc: 'クラウド保存・パスワード・社員情報・基準時間・テーマ・データ削除' },
     ],
   },
 ];
+
+// 管理者だけに出すメニュー
+const ADMIN_TABS: Tab[] = ['members'];
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('input');
@@ -71,6 +78,18 @@ export default function App() {
   const [listMonth, setListMonth] = useState(new Date().getMonth() + 1);
   const cloud = useCloudState();
   const cloudBadge = cloudStatus(cloud);
+
+  // ログイン中の人の役割（管理者ならユーザー管理のメニューを出す）
+  const [myRole, setMyRole] = useState<MemberRole | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void fetchMyRole().then((r) => { if (alive) setMyRole(r); });
+    return () => { alive = false; };
+  }, []);
+  const isAdmin = myRole === 'admin';
+  const navGroups = NAV_GROUPS.map((g) => ({
+    ...g, items: g.items.filter((i) => isAdmin || !ADMIN_TABS.includes(i.key)),
+  }));
   // データは端末に保存していないため、クラウドに送れていない変更はページを閉じると失われる
   const unsavedWarning = cloud.pending > 0 && (cloud.phase === 'offline' || cloud.phase === 'error')
     ? `クラウドに保存できていない変更が${cloud.pending}件あります`
@@ -269,7 +288,7 @@ export default function App() {
   const groupOfTab = NAV_GROUPS.find((g) => g.items.some((i) => i.key === tab))?.id;
 
   function renderMenuList(groupId: NavGroupId) {
-    const group = NAV_GROUPS.find((g) => g.id === groupId)!;
+    const group = navGroups.find((g) => g.id === groupId)!;
     return (
       <>
         <h2 className="page-title">{group.label}</h2>
@@ -325,7 +344,7 @@ export default function App() {
       <div className="app-body">
         <nav className="side-nav" aria-label="メインメニュー">
           <div className="side-nav-inner">
-            {NAV_GROUPS.map((group) => (
+            {navGroups.map((group) => (
               <Fragment key={group.id}>
                 <div className="nav-group-label">{group.label}</div>
                 {group.items.map((item) => (
@@ -437,6 +456,14 @@ export default function App() {
             userProfile={userProfile}
             paidLeaveSettings={paidLeave}
             onImportMeta={handleImportMeta}
+          />
+        )}
+        {tab === 'members' && isAdmin && (
+          <MembersTab
+            onMyRoleChange={(role) => {
+              setMyRole(role);
+              openTab('settings');
+            }}
           />
         )}
         {tab === 'settings' && (
