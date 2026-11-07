@@ -8,7 +8,7 @@
   --surface: #ffffff;
   --surface-2: #f6f8fb;
   --surface-hover: #edf1f7;
-  --paper: #ffffff; /* サイン欄など紙に見立てる部分。ダークモードでも白のまま */
+  --paper: #ffffff; /* 印鑑のプレビューなど紙に見立てる部分。ダークモードでも白のまま */
   --input-bg: #ffffff;
   --border: #e3e7ef;
   --border-soft: #eef0f4;
@@ -478,7 +478,7 @@ a { color: var(--accent-text); }
 .work-report-tab,
 .skill-tab,
 .bulk-tab,
-.signature-tab,
+.seal-tab,
 .members-tab {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -851,29 +851,29 @@ h3 {
 /* Work settings */
 .work-settings-form { max-width: 600px; }
 
-/* サイン（components/SignatureTab.tsx・SignaturePad.tsx） */
-.signature-tab { max-width: 600px; }
-.signature .btn-row { margin-top: 10px; }
-.signature-pad,
-.signature-preview {
-  display: block;
+/* 印鑑（components/SealTab.tsx） */
+.seal-tab { max-width: 600px; }
+.seal-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-top: 16px;
+}
+.seal-card-body { flex: 1; min-width: 0; }
+.seal-card-body h3 { margin-top: 0; }
+.seal-preview {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 104px;
+  height: 104px;
+  padding: 12px;
   background: var(--paper);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
 }
-.signature-pad {
-  width: 100%;
-  max-width: 400px;
-  height: 180px;
-  touch-action: none; /* 書いている間に画面がスクロールしないように */
-  cursor: crosshair;
-}
-.signature-preview {
-  max-width: 240px;
-  max-height: 96px;
-  padding: 8px 12px;
-}
-.signature-empty { margin: 0; color: var(--text-faint); font-size: 13px; }
+.seal-preview img { display: block; width: 100%; height: 100%; }
+.seal-empty { color: #8a8f99; font-size: 12px; text-align: center; } /* 白い紙の上なのでダークモードでも同じ色 */
 .stamp-section {
   margin-top: 16px;
   padding: 16px;
@@ -2089,7 +2089,7 @@ hr {
   .work-report-tab,
   .skill-tab,
   .bulk-tab,
-  .signature-tab,
+  .seal-tab,
   .members-tab,
   .status-card {
     padding: 16px;

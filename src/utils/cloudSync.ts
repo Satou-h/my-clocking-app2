@@ -28,7 +28,7 @@ import {
   loadLateEarlyApplications, saveLateEarlyApplications,
   loadSkillProfile, saveSkillProfile, loadSkillEntries, saveSkillEntries,
   loadCertifications, saveCertifications, loadWorkHistory, saveWorkHistory,
-  loadUserProfile, saveUserProfile, loadWorkSettings, saveWorkSettings, loadSignature, saveSignature,
+  loadUserProfile, saveUserProfile, loadWorkSettings, saveWorkSettings,
   getWorkLocation, generateId, isUuid,
 } from './storage';
 import {
@@ -59,7 +59,7 @@ export interface DataCounts {
   transport: number;
   applications: number;
   workReports: number;
-  // 社員情報・サイン・基準時間・スキル表・有給残日数のどれかが入っているか
+  // 社員情報・基準時間・スキル表・有給残日数のどれかが入っているか
   others: boolean;
   any: boolean;
 }
@@ -435,23 +435,20 @@ function skillEmpty(): SkillSheet {
   return { profile: { ...DEFAULT_SKILL_SHEET_PROFILE }, skills: [], certifications: [], workHistory: [] };
 }
 
-// 社員情報・氏名・基準時間・サイン（プロフィールは登録時に自動で作られるため、更新だけ行う）
+// 社員情報・氏名・基準時間（プロフィールは登録時に自動で作られるため、更新だけ行う）
+// 印鑑は苗字から PDF を出力するときに作るため、保存しない（以前の手書きサインの列 signature_* は使わない）
 interface ProfileItem {
   employeeId: string; lastName: string; name: string;
-  startTime: string; endTime: string; signSelf: string; signManager: string;
+  startTime: string; endTime: string;
 }
 const PROFILE_EMPTY: ProfileItem = {
   employeeId: '', lastName: '', name: '',
   startTime: DEFAULT_WORK_SETTINGS.standardStartTime, endTime: DEFAULT_WORK_SETTINGS.standardEndTime,
-  signSelf: '', signManager: '',
 };
 
 const profile = define<ProfileItem>({
-  id: 'profile', table: 'profiles', label: '社員情報・サイン',
-  columns: [
-    'employee_id', 'last_name', 'full_name', 'standard_start_time', 'standard_end_time',
-    'signature_self', 'signature_manager',
-  ],
+  id: 'profile', table: 'profiles', label: '社員情報',
+  columns: ['employee_id', 'last_name', 'full_name', 'standard_start_time', 'standard_end_time'],
   order: [], keyCols: [], conflict: 'user_id',
   items: () => {
     const p = loadUserProfile();
@@ -459,7 +456,6 @@ const profile = define<ProfileItem>({
     return [{
       employeeId: p.employeeId ?? '', lastName: p.lastName ?? '', name: loadName(),
       startTime: ws.standardStartTime, endTime: ws.standardEndTime,
-      signSelf: loadSignature('self'), signManager: loadSignature('manager'),
     }];
   },
   setItems: (items) => {
@@ -471,8 +467,6 @@ const profile = define<ProfileItem>({
       standardEndTime: p.endTime || DEFAULT_WORK_SETTINGS.standardEndTime,
     });
     saveName(p.name);
-    saveSignature('self', p.signSelf);
-    saveSignature('manager', p.signManager);
   },
   to: (p) => ({
     employee_id: p.employeeId ?? '',
@@ -480,13 +474,10 @@ const profile = define<ProfileItem>({
     full_name: p.name ?? '',
     standard_start_time: p.startTime || DEFAULT_WORK_SETTINGS.standardStartTime,
     standard_end_time: p.endTime || DEFAULT_WORK_SETTINGS.standardEndTime,
-    signature_self: p.signSelf ?? '',
-    signature_manager: p.signManager ?? '',
   }),
   from: (row) => ({
     employeeId: str(row.employee_id), lastName: str(row.last_name), name: str(row.full_name),
     startTime: str(row.standard_start_time), endTime: str(row.standard_end_time),
-    signSelf: str(row.signature_self), signManager: str(row.signature_manager),
   }),
   empty: PROFILE_EMPTY,
 });
@@ -667,7 +658,7 @@ function blockedLabels(c: Collection, row: Row | undefined): string[] {
       .map((p) => periodLabel(p.doc, p.year, p.month));
   }
   const { items } = getSubmissionState();
-  if (c.id === 'profile') return ['社員情報・氏名・サイン（本人だけが変更できます）'];
+  if (c.id === 'profile') return ['社員情報・氏名（本人だけが変更できます）'];
   if (c.id === 'skill') {
     const submitted = items.some((s) => (s.doc === 'skillSheet' || s.doc === 'workHistory') && s.status === 'submitted');
     return submitted ? [] : ['スキル表（未提出）'];

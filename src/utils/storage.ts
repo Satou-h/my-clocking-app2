@@ -20,7 +20,6 @@ const CERTIFICATIONS_KEY = 'clocking_certifications';
 const WORK_HISTORY_KEY = 'clocking_work_history';
 const LEAVE_APPLICATIONS_KEY = 'clocking_leave_applications';
 const LATE_EARLY_APPLICATIONS_KEY = 'clocking_late_early_applications';
-const SIGNATURE_KEYS = { self: 'clocking_signature', manager: 'clocking_signature_manager' } as const;
 
 // 保存した内容をデータベース（Supabase）へ送るよう同期処理に知らせる
 function setTracked(collection: CollectionId, key: string, value: unknown): void {
@@ -43,26 +42,6 @@ export function loadUserProfile(): UserProfile {
 
 export function saveUserProfile(profile: UserProfile): void {
   setTracked('profile', USER_PROFILE_KEY, profile);
-}
-
-// PDFの押印欄に入れる手書きサイン（PNG の data URL。未登録は空文字）
-// self: 本人。自分のPDFの本人・本人印の欄に入れる
-// manager: 上長。部下のPDFを読み込んで確認・確認印・検印の欄に入れる（自分のPDFには入れない）
-export type SignatureKind = keyof typeof SIGNATURE_KEYS;
-
-export function loadSignature(kind: SignatureKind): string {
-  try {
-    return memoryStore.getItem(SIGNATURE_KEYS[kind]) ?? '';
-  } catch {
-    return '';
-  }
-}
-
-export function saveSignature(kind: SignatureKind, dataUrl: string): void {
-  trackedWrite('profile', () => {
-    if (dataUrl) memoryStore.setItem(SIGNATURE_KEYS[kind], dataUrl);
-    else memoryStore.removeItem(SIGNATURE_KEYS[kind]);
-  });
 }
 
 export function loadRecords(): AttendanceRecord[] {

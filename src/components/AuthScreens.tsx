@@ -178,7 +178,7 @@ function countText(c: DataCounts): string[] {
     `交通費 ${c.transport}件`,
     `申請書 ${c.applications}件`,
     `作業報告 ${c.workReports}か月`,
-    `社員情報・サイン・スキル表など ${c.others ? 'あり' : 'なし'}`,
+    `社員情報・スキル表など ${c.others ? 'あり' : 'なし'}`,
   ];
 }
 

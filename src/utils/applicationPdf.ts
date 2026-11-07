@@ -2,7 +2,7 @@
 // レイアウトは以前の HTML を画像にしていた版と同じ。文字は画像にせずそのまま描く
 import { PDFDocument, type PDFImage } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
-import { loadSignature } from './storage';
+import { sealImage } from './seal';
 import { createPainter, downloadPdf, hex, loadFont, writeSignAreas, type Painter } from './pdfKit';
 
 export interface LeaveApplicationEntry {
@@ -57,15 +57,15 @@ const VALUE_W = RIGHT - VALUE_X - PAD_X;
 // "2026-10-23" → "2026年10月23日"
 const jpDate = (d: string) => d.replace(/^(\d{4})-0?(\d+)-0?(\d+)$/, '$1年$2月$3日');
 
-// signature: 本人欄に入れるサイン（PNG の data URL。空なら入れない）
-async function createDoc(fontBytes: ArrayBuffer | Uint8Array, title: string, signature: string) {
+// seal: 本人欄に押す印鑑（PNG の data URL。空なら押さない）
+async function createDoc(fontBytes: ArrayBuffer | Uint8Array, title: string, seal: string) {
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
   // サブセット化は loadFont() で詰め直したフォントが前提
   const font = await doc.embedFont(fontBytes, { subset: true });
   doc.setTitle(title);
   const p = createPainter(doc.addPage([W, H]), font);
-  const sign = signature ? await doc.embedPng(signature) : undefined;
+  const sign = seal ? await doc.embedPng(seal) : undefined;
   return { doc, p, sign };
 }
 
@@ -82,7 +82,7 @@ function drawHeader(p: Painter, title: string, name: string, applicationDate: st
 
   const metaSize = cssPt(10);
   p.txt(`氏名: ${name || '　'.repeat(7)}`, RIGHT, px(162.6), metaSize, C.meta, 'right'); // 未入力なら手書きできるよう空けておく
-  // 承認・確認・本人の欄（幅 100px の下線を 20px 間隔で右に寄せる）。本人欄には自分のサインを入れる
+  // 承認・確認・本人の欄（幅 100px の下線を 20px 間隔で右に寄せる）。本人欄には自分の印鑑を押す
   const boxW = px(100), gap = px(20);
   ['承認', '確認', '本人'].forEach((label, i) => {
     const x = RIGHT - boxW - (boxW + gap) * (2 - i);
@@ -119,10 +119,10 @@ function drawTable(p: Painter, rows: Row[]) {
 export async function buildLeaveApplicationPdf(
   fontBytes: ArrayBuffer | Uint8Array,
   data: LeaveApplicationData,
-  signature = '',
+  seal = '',
 ): Promise<Uint8Array> {
   const { applicationDate, name, dateEntries, leaveDays, reason } = data;
-  const { doc, p, sign } = await createDoc(fontBytes, `休暇申請書 ${jpDate(applicationDate)} ${name}`, signature);
+  const { doc, p, sign } = await createDoc(fontBytes, `休暇申請書 ${jpDate(applicationDate)} ${name}`, seal);
   drawHeader(p, '休　暇　申　請　書', name, applicationDate, sign);
 
   const schedule = [...dateEntries]
@@ -140,10 +140,10 @@ export async function buildLeaveApplicationPdf(
 export async function buildLateEarlyApplicationPdf(
   fontBytes: ArrayBuffer | Uint8Array,
   data: LateEarlyApplicationData,
-  signature = '',
+  seal = '',
 ): Promise<Uint8Array> {
   const { applicationDate, name, type, targetDate, scheduledTime, actualTime, reason } = data;
-  const { doc, p, sign } = await createDoc(fontBytes, `遅刻・早退申請書 ${jpDate(applicationDate)} ${name}`, signature);
+  const { doc, p, sign } = await createDoc(fontBytes, `遅刻・早退申請書 ${jpDate(applicationDate)} ${name}`, seal);
   drawHeader(p, '遅刻・早退申請書', name, applicationDate, sign);
 
   drawTable(p, [
@@ -165,11 +165,11 @@ function fileName(prefix: string, applicationDate: string, employeeId: string, l
 }
 
 export async function printLeaveApplication(data: LeaveApplicationData, employeeId = '', lastName = ''): Promise<void> {
-  const bytes = await buildLeaveApplicationPdf(await loadFont(), data, loadSignature('self'));
+  const bytes = await buildLeaveApplicationPdf(await loadFont(), data, await sealImage(lastName));
   downloadPdf(bytes, fileName('03_休暇申請書', data.applicationDate, employeeId, lastName));
 }
 
 export async function printLateEarlyApplication(data: LateEarlyApplicationData, employeeId = '', lastName = ''): Promise<void> {
-  const bytes = await buildLateEarlyApplicationPdf(await loadFont(), data, loadSignature('self'));
+  const bytes = await buildLateEarlyApplicationPdf(await loadFont(), data, await sealImage(lastName));
   downloadPdf(bytes, fileName('04_遅早退申請書', data.applicationDate, employeeId, lastName));
 }

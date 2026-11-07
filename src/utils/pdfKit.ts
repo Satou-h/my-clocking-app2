@@ -6,8 +6,8 @@ import {
 } from 'pdf-lib';
 import { savePdf } from './pdfOutput';
 
-// ── 押印欄のサインを入れる範囲 ────────────────────────────────────────────────
-// 上長が部下のPDFを読み込んで検印するとき（stampPdf.ts）に使うため、各欄の範囲をPDFの中に書いておく。
+// ── 押印欄の印鑑を押す範囲 ────────────────────────────────────────────────────
+// リーダーがメンバーのPDFを読み込んで検印するとき（stampPdf.ts）に使うため、各欄の範囲をPDFの中に書いておく。
 // レイアウトを変えても、そのPDFを作ったときの位置で検印できる。
 export interface SignArea { x: number; y: number; w: number; h: number } // PDF の座標（左下が原点）・1ページ目
 export type SignAreas = Record<string, SignArea>;
@@ -44,12 +44,25 @@ export function drawImageFit(page: PDFPage, img: PDFImage, { x, y, w, h }: SignA
 // NotoSansJP はバイト長が奇数のグリフを含み、fontkit は小さなサブセットを短い形式の loca
 // （オフセット÷2）で書き出すため、そのままだとグリフの位置がずれて文字が化ける。
 // 読み込み時に各グリフを偶数バイトに詰め直しておく（字形は変わらない）。
+let rawFont: Promise<ArrayBuffer> | null = null;
+// 同梱フォントのファイルそのまま（印鑑の画像を描くとき（seal.ts）にも使う。読み込みは1回だけ）
+export function loadRawFont(): Promise<ArrayBuffer> {
+  rawFont ??= fetch(import.meta.env.BASE_URL + 'fonts/NotoSansJP-Regular.ttf')
+    .then((res) => {
+      if (!res.ok) throw new Error('フォントの読み込みに失敗しました');
+      return res.arrayBuffer();
+    })
+    .catch((e: unknown) => {
+      rawFont = null; // 次に出力するときに読み込み直す
+      throw e;
+    });
+  return rawFont;
+}
+
 let cachedFontBytes: Uint8Array | null = null;
 export async function loadFont(): Promise<Uint8Array> {
   if (cachedFontBytes) return cachedFontBytes;
-  const res = await fetch(import.meta.env.BASE_URL + 'fonts/NotoSansJP-Regular.ttf');
-  if (!res.ok) throw new Error('フォントの読み込みに失敗しました');
-  cachedFontBytes = padGlyphs(new Uint8Array(await res.arrayBuffer()));
+  cachedFontBytes = padGlyphs(new Uint8Array(await loadRawFont()));
   return cachedFontBytes;
 }
 
@@ -206,14 +219,14 @@ export function createPainter(page: PDFPage, font: PDFFont) {
     }
     return lines;
   }
-  // 押印欄のサインを入れる範囲 (x, y, w, h) を覚えておく（writeSignAreas でPDFに書く）。sign があればそこに入れる
+  // 押印欄の印鑑を押す範囲 (x, y, w, h) を覚えておく（writeSignAreas でPDFに書く）。sign（印鑑の画像）があればそこに押す
   const signAreas: SignAreas = {};
   function signArea(label: string, x: number, y: number, w: number, h: number, sign?: PDFImage) {
     const area = { x: round2(x), y: round2(H - y - h), w: round2(w), h: round2(h) };
     signAreas[label] = area;
     if (sign) drawImageFit(page, sign, area);
   }
-  // 押印欄（ラベル付きの枠を横に並べる）。signs にラベルのサインがあればその枠に入れる
+  // 押印欄（ラベル付きの枠を横に並べる）。signs にラベルの印鑑があればその枠に押す
   function stamps(labels: string[], right: number, y: number, w: number, h: number, signs: Record<string, PDFImage | undefined> = {}) {
     const x0 = right - w * labels.length;
     labels.forEach((label, i) => {

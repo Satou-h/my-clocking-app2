@@ -25,14 +25,14 @@ import SkillTab from './components/SkillTab';
 import BulkDownloadTab from './components/BulkDownloadTab';
 import SubmitTab from './components/SubmitTab';
 import ReviewTab from './components/ReviewTab';
-import SignatureTab from './components/SignatureTab';
+import SealTab from './components/SealTab';
 import MembersTab from './components/MembersTab';
 import { useCloudState, cloudStatus, closeMemberData, getCloudState } from './utils/cloudSync';
 import { useSubmissions } from './utils/submissions';
 import { fetchMyRole, type MemberRole } from './utils/members';
 import './App.css';
 
-type Tab = 'input' | 'list' | 'transfer' | 'transport' | 'settings' | 'documents' | 'report' | 'skill' | 'bulk' | 'signature'
+type Tab = 'input' | 'list' | 'transfer' | 'transport' | 'settings' | 'documents' | 'report' | 'skill' | 'bulk' | 'seal'
   | 'submit' | 'review' | 'members'
   // スマホの下タブ「提出」「その他」から開くメニュー画面
   | 'menu-submit' | 'menu-more';
@@ -60,7 +60,7 @@ const NAV_GROUPS: { id: NavGroupId; label: string; items: { key: Tab; label: str
   },
   {
     id: 'more', label: 'その他', items: [
-      { key: 'signature', label: 'サイン', icon: 'signature', desc: '本人・リーダー（確認・検印）のサインを登録' },
+      { key: 'seal', label: '印鑑', icon: 'seal', desc: '苗字の印鑑の確認・リーダーの検印' },
       { key: 'transfer', label: 'QR/カナコード', icon: 'qr', desc: '別の端末へデータを移す' },
       { key: 'members', label: 'ユーザー管理', icon: 'users', desc: 'アカウントの作成・役割とリーダーの設定（管理者のみ）' },
       { key: 'settings', label: '設定', icon: 'settings', desc: 'クラウド保存・パスワード・社員情報・基準時間・テーマ・データ削除' },
@@ -72,8 +72,8 @@ const NAV_GROUPS: { id: NavGroupId; label: string; items: { key: Tab; label: str
 const ADMIN_TABS: Tab[] = ['members'];
 // 上長・管理者だけに出すメニュー
 const REVIEWER_TABS: Tab[] = ['review'];
-// 部下のデータを開いている間は出さないメニュー（本人の社員情報・サイン・データ削除などは本人だけが変更する）
-const MEMBER_MODE_HIDDEN: Tab[] = ['review', 'members', 'settings', 'transfer', 'signature'];
+// 部下のデータを開いている間は出さないメニュー（本人の社員情報・データ削除などは本人だけが変更する。検印はリーダー自身の印鑑で行う）
+const MEMBER_MODE_HIDDEN: Tab[] = ['review', 'members', 'settings', 'transfer', 'seal'];
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('input');
@@ -518,8 +518,8 @@ export default function App() {
             }}
           />
         )}
-        {tab === 'signature' && tabVisible('signature') && (
-          <SignatureTab />
+        {tab === 'seal' && tabVisible('seal') && (
+          <SealTab lastName={userProfile.lastName} />
         )}
         {tab === 'transfer' && tabVisible('transfer') && (
           <TransferTab

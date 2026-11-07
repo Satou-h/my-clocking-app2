@@ -4,7 +4,7 @@ import fontkit from '@pdf-lib/fontkit';
 import type { TransportRecord } from '../types/transport';
 import { TRIP_TYPE_LABELS } from '../types/transport';
 import { getHolidayName } from './holidays';
-import { loadSignature } from './storage';
+import { sealImage } from './seal';
 import { C, DOW_JA, createPainter, downloadPdf, loadFont, writeSignAreas } from './pdfKit';
 
 const yen = (n: number) => `¥${n.toLocaleString('ja-JP')}`;
@@ -15,7 +15,7 @@ export async function buildTransportPdf(
   year: number,
   month: number,
   name: string,
-  signature = '', // 本人印欄に入れるサイン（PNG の data URL）
+  seal = '', // 本人印欄に押す印鑑（PNG の data URL）
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
@@ -49,7 +49,7 @@ export async function buildTransportPdf(
   meta('氏名', name, 11);
   // 申請日は会社様式にならって対象月の末日
   meta('申請日', `${year}/${month}/${lastDay}`, 9);
-  const sign = signature ? await doc.embedPng(signature) : undefined;
+  const sign = seal ? await doc.embedPng(seal) : undefined;
   const stampX = p.stamps(['承認', '検印', '領収印', '本人印'], right, M.t, 46, 54, { 本人印: sign });
   p.hline(M.l, stampX - 14, M.t + 58, C.primary, 1.2);
 
@@ -164,7 +164,7 @@ export async function printTransportPDF(
   lastName = '',
   name = '',
 ): Promise<void> {
-  const bytes = await buildTransportPdf(await loadFont(), records, year, month, name, loadSignature('self'));
+  const bytes = await buildTransportPdf(await loadFont(), records, year, month, name, await sealImage(lastName));
   const userPart = (employeeId || lastName) ? `_${employeeId}${lastName}` : '';
   downloadPdf(bytes, `02_小口交通費${year}${String(month).padStart(2, '0')}${userPart}.pdf`);
 }
