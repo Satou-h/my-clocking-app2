@@ -4,6 +4,7 @@ import {
   WEEK_LABELS, EMPTY_WEEK, loadAllWeeks, saveAllWeeks, loadSummary, saveSummary, loadName, saveName, hasContent,
   transferWeek, transferMonth, weekHasData, monthHasData,
 } from '../utils/workReport';
+import SubmittedNotice from './SubmittedNotice';
 
 const CONDITIONS = ['', '◎', '○', '△', '×'];
 
@@ -137,6 +138,8 @@ export default function WorkReportTab() {
           </select>
         </div>
       </div>
+
+      <SubmittedNotice docs={['workReport']} year={year} month={month} />
 
       {/* 別の月・週への転記 */}
       <details className="work-report-transfer">

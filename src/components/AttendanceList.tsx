@@ -9,6 +9,7 @@ import {
 import { calcMonthlySummary, isWorkType } from '../utils/summary';
 import { getHolidayName } from '../utils/holidays';
 import { loadName, saveName } from '../utils/workReport';
+import SubmittedNotice from './SubmittedNotice';
 
 interface Props {
   records: AttendanceRecord[];
@@ -151,6 +152,8 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
           aria-label="氏名"
         />
       </div>
+
+      <SubmittedNotice docs={['attendance']} year={filterYear} month={filterMonth} />
 
       <div className="monthly-summary">
         <div className="summary-item">

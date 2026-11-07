@@ -6,6 +6,7 @@ import { TRIP_TYPE_LABELS } from '../types/transport';
 import { generateId } from '../utils/storage';
 import { getHolidayName } from '../utils/holidays';
 import { loadName, saveName } from '../utils/workReport';
+import SubmittedNotice from './SubmittedNotice';
 
 interface Props {
   records: TransportRecord[];
@@ -241,6 +242,8 @@ export default function TransportTab({ records, attendanceRecords, onSave, onSav
           </>
         )}
       </div>
+
+      <SubmittedNotice docs={['transport']} year={filterYear} month={filterMonth} />
 
       {/* 入力フォーム */}
       {showForm && (

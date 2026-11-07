@@ -10,11 +10,18 @@
  *   （送れなかった行はメモリ上の内容を残す）
  * ・以前の版はデータを端末（localStorage）に保存していた。端末に残っているデータは、ログインしたときに
  *   データベースへ移してから端末から消す
+ * ・書類の提出状況もデータベースから読み込む。提出済みの書類に含まれる行は、保存しようとしても取り消す
+ *   （データベースでも書き込みを拒否する）
  */
 import { useSyncExternalStore } from 'react';
 import { supabase } from './supabase';
 import { memoryStore } from './memoryStore';
 import { setWriteTracker, withoutTracking, type CollectionId } from './syncHooks';
+import {
+  clearSubmissions, isDocLocked, parseSubmission, periodLabel, setSubmissions, setSubmissionsError,
+  type Submission,
+} from './submissions';
+import type { DocKey } from '../types/document';
 import {
   loadRecords, saveRecords, loadTransportRecords, saveTransportRecords,
   loadPaidLeaveSettings, savePaidLeaveSettings, loadLeaveApplications, saveLeaveApplications,
@@ -623,26 +630,93 @@ function dequeue(id: CollectionId, sent: Record<string, number>, done: string[])
   saveQueue(q);
 }
 
-function snapshot(c: Collection): Map<string, string> {
-  const m = new Map<string, string>();
-  for (const [k, r] of rowMap(c, c.read())) m.set(k, stableStringify(r));
-  return m;
+// ── 提出済みの書類の変更を止める ──────────────────────────────────────────────
+
+// 行が含まれる書類と年月（データベースの書き込み制限と同じ対応）
+function periodsOfRow(c: Collection, row: Row): { doc: DocKey; year: number; month: number }[] {
+  const byDate = (doc: DocKey, v: unknown) => {
+    const d = str(v);
+    return DATE_RE.test(d) ? [{ doc, year: Number(d.slice(0, 4)), month: Number(d.slice(5, 7)) }] : [];
+  };
+  switch (c.id) {
+    case 'attendance': return byDate('attendance', row.work_date);
+    // 月初の有給残日数は勤務表に載るため、勤務表と一緒に締める
+    case 'paidLeave': return [{ doc: 'attendance', year: Number(row.year), month: Number(row.month) }];
+    case 'transport': return byDate('transport', row.trip_date);
+    case 'lateEarly': return byDate('lateEarly', row.target_date);
+    // 休暇申請書は取得日のどれか1日でも提出済みの月なら変更できない
+    case 'leave': return arr<unknown>(row.date_entries).flatMap((e) => byDate('leave', obj(e).date));
+    case 'workReport': return [{ doc: 'workReport', year: Number(row.year), month: Number(row.month) }];
+    default: return []; // 社員情報・スキル表は月ごとのデータではないため止めない
+  }
 }
 
-// 保存の前後で内容が変わった行を送信待ちに積む
+function lockedLabels(c: Collection, row: Row | undefined): string[] {
+  if (!row) return [];
+  return periodsOfRow(c, row)
+    .filter((p) => isDocLocked(p.doc, p.year, p.month))
+    .map((p) => periodLabel(p.doc, p.year, p.month));
+}
+
+let blockedNotice: Set<string> | null = null;
+
+// 1回の操作で何度も保存されることがあるため、取り消した書類はまとめて1回だけ知らせる
+function notifyBlocked(labels: string[]) {
+  if (!blockedNotice) {
+    blockedNotice = new Set();
+    setTimeout(() => {
+      const list = [...(blockedNotice ?? [])];
+      blockedNotice = null;
+      // 各画面が持っているデータを、取り消したあとの内容で読み直す
+      setState({ dataVersion: state.dataVersion + 1 });
+      alert(
+        `次の書類は提出済みのため、変更を取り消しました。\n\n${list.map((l) => `・${l}`).join('\n')}\n\n`
+        + '変更するには「提出」画面で提出を取り下げてください（承認済みの書類は変更できません）。',
+      );
+    }, 0);
+  }
+  labels.forEach((l) => blockedNotice?.add(l));
+}
+
+// 保存の前後で内容が変わった行を送信待ちに積む。提出済みの書類に含まれる行は、変更を取り消す
 function track(id: CollectionId, write: () => void) {
   const c = BY_ID[id];
-  let before: Map<string, string> | null = null;
-  try { before = snapshot(c); } catch { /* 読めないデータは比べずにそのまま書き込む */ }
+  let before: Map<string, Row> | null = null;
+  try { before = rowMap(c, c.read()); } catch { /* 読めないデータは比べずにそのまま書き込む */ }
   write();
   if (!before) return;
   try {
-    const after = snapshot(c);
+    const after = rowMap(c, c.read());
     const changed: string[] = [];
-    for (const [k, v] of before) if (after.get(k) !== v) changed.push(k);
+    for (const [k, r] of before) {
+      const a = after.get(k);
+      if (!a || stableStringify(a) !== stableStringify(r)) changed.push(k);
+    }
     for (const k of after.keys()) if (!before.has(k)) changed.push(k);
-    if (changed.length > 0) {
-      enqueue(id, changed);
+
+    const blocked = new Set<string>();
+    const labels = new Set<string>();
+    for (const k of changed) {
+      const ls = [...lockedLabels(c, before.get(k)), ...lockedLabels(c, after.get(k))];
+      if (ls.length === 0) continue;
+      blocked.add(k);
+      ls.forEach((l) => labels.add(l));
+    }
+    if (blocked.size > 0) {
+      // 提出済みの行だけ保存前の内容に戻し、ほかの行の変更は残す
+      const next: Row[] = [];
+      for (const [k, r] of after) {
+        if (!blocked.has(k)) next.push(r);
+        else if (before.has(k)) next.push(before.get(k)!);
+      }
+      for (const [k, r] of before) if (blocked.has(k) && !after.has(k)) next.push(r);
+      withoutTracking(() => c.write(next));
+      notifyBlocked([...labels]);
+    }
+
+    const sendable = changed.filter((k) => !blocked.has(k));
+    if (sendable.length > 0) {
+      enqueue(id, sendable);
       schedulePush();
     }
   } catch { /* 比べられなかった場合は次の同期で送れないが、この端末には保存済み */ }
@@ -685,7 +759,7 @@ function isNetworkError(e: DbError): boolean {
 // 通信できないときは OfflineError を投げ、それ以外は日本語の説明を返す
 function describe(e: DbError): string {
   if (isNetworkError(e)) throw new OfflineError('クラウドに接続できません');
-  if (e.code === '42501') return '提出済みの月か、変更する権限のないデータのため保存できません';
+  if (e.code === '42501') return '提出済みの書類か、変更する権限のないデータのため保存できません';
   if (e.code === '23514' || e.code === '22P02' || e.code === '22007' || e.code === '23502') {
     return '保存できない値が含まれています';
   }
@@ -722,6 +796,78 @@ type ServerData = Record<CollectionId, Row[]>;
 async function fetchServer(uid: string): Promise<ServerData> {
   const entries = await Promise.all(COLLECTIONS.map(async (c) => [c.id, await fetchTable(c, uid)] as const));
   return Object.fromEntries(entries) as ServerData;
+}
+
+// ── 書類の提出状況 ───────────────────────────────────────────────────────────
+
+// 提出の関数・列がデータベースにない（データベースの準備ができていない）
+function isMissingSubmissionSchema(e: DbError): boolean {
+  return e.code === 'PGRST202' || e.code === '42883' || e.code === '42703' || e.code === 'PGRST204';
+}
+
+function submissionErrorText(e: DbError): string {
+  if (isNetworkError(e)) return 'クラウドに接続できません。通信状態を確認してください';
+  if (isMissingSubmissionSchema(e)) return '提出の機能がデータベースにまだ用意されていません';
+  if (e.code === 'PGRST301' || e.code === 'PGRST303') return 'ログインの有効期限が切れました。ログインし直してください';
+  return e.message;
+}
+
+// 自分の提出状況を読み込む。読み込めなくてもデータの同期は続ける（失敗は提出画面に表示する）
+async function refreshSubmissions(me: string): Promise<void> {
+  try {
+    // 上長は部下の提出状況も読めるため、必ず自分の行だけに絞る
+    const { data, error } = await supabase.from('monthly_submissions')
+      .select('year,month,doc,status,submitted_at,reviewed_at,review_comment')
+      .eq('user_id', me);
+    if (uid !== me) return;
+    if (error) {
+      setSubmissionsError(submissionErrorText(error));
+      return;
+    }
+    setSubmissions(((data ?? []) as Row[])
+      .map(parseSubmission)
+      .filter((s): s is Submission => s !== null));
+  } catch (e) {
+    if (uid === me) setSubmissionsError(errorText(e));
+  }
+}
+
+// 選んだ書類を提出する。できなかったときは理由を返す
+// 提出した内容とデータベースの内容が食い違わないよう、送れていない変更を送り、ほかの端末の変更を読み込んでから提出する
+export function submitDocuments(year: number, month: number, docs: DocKey[]): Promise<string | null> {
+  clearTimeout(pushTimer);
+  return exclusive(async () => {
+    const me = uid;
+    if (!me || !state.loaded) return 'ログインしてください';
+    const version = state.dataVersion;
+    await runSync(true);
+    if (uid !== me) return 'ログインし直してください';
+    if (state.phase !== 'synced' || pendingCount() > 0) {
+      return 'クラウドに保存できていない変更があるため提出できません。通信状態を確認してから、もう一度お試しください'
+        + (state.error ? `（${state.error}）` : '');
+    }
+    if (state.dataVersion !== version) {
+      return 'ほかの端末で変更された内容を読み込みました。入力状況を確認してから、もう一度提出してください';
+    }
+    const { error } = await supabase.rpc('submit_documents', { p_year: year, p_month: month, p_docs: docs });
+    // 別の端末で先に提出していた場合なども、最新の提出状況を表示する
+    await refreshSubmissions(me);
+    return error ? submissionErrorText(error) : null;
+  });
+}
+
+// 提出を取り下げる（承認前の書類だけ）。できなかったときは理由を返す
+export async function withdrawDocuments(year: number, month: number, docs: DocKey[]): Promise<string | null> {
+  const result = await exclusive(async () => {
+    const me = uid;
+    if (!me || !state.loaded) return 'ログインしてください';
+    const { error } = await supabase.rpc('withdraw_documents', { p_year: year, p_month: month, p_docs: docs });
+    await refreshSubmissions(me);
+    return error ? submissionErrorText(error) : null;
+  });
+  // 提出済みのため送れなかった変更があれば、取り下げたので送り直す
+  if (!result) pushNow();
+  return result;
 }
 
 async function deleteRows(c: Collection, uid: string, keys: string[]): Promise<string | null> {
@@ -887,7 +1033,7 @@ async function runSync(pullAfter: boolean): Promise<void> {
     normalizeIds();
     const errors = await flushQueue(me);
     if (pullAfter) {
-      const server = await fetchServer(me);
+      const [server] = await Promise.all([fetchServer(me), refreshSubmissions(me)]);
       if (uid !== me) return; // 取得中にログアウトした
       const changed = applyServer(server);
       // 読み込み終えたら、いつもの画面を出す
@@ -949,6 +1095,7 @@ function autoSync() {
 function resetData() {
   clearTimeout(pushTimer);
   memoryStore.clear();
+  clearSubmissions();
   saveQueue({});
   dataOwner = null;
   syncEnabled = false;

@@ -11,10 +11,11 @@ interface Props {
   paidLeaveSettings: PaidLeaveSettings[];
   submitItems: SubmitItem[];
   onOpenBulk: () => void;
+  onOpenSubmit: () => void;
 }
 
 // 勤怠入力画面の横に出す「今月の状況」と「月末の提出まで」
-export default function MonthStatus({ year, month, records, workSettings, paidLeaveSettings, submitItems, onOpenBulk }: Props) {
+export default function MonthStatus({ year, month, records, workSettings, paidLeaveSettings, submitItems, onOpenBulk, onOpenSubmit }: Props) {
   const summary = calcMonthlySummary(records, workSettings, year, month);
   const plRemaining = calcPaidLeaveRemaining(records, paidLeaveSettings, year, month);
 
@@ -51,9 +52,14 @@ export default function MonthStatus({ year, month, records, workSettings, paidLe
             <span className="submit-state">{item.detail}</span>
           </div>
         ))}
-        <button type="button" className="btn-link status-link" onClick={onOpenBulk}>
-          ダウンロードへ →
-        </button>
+        <div className="status-links">
+          <button type="button" className="btn-link status-link" onClick={onOpenBulk}>
+            ダウンロードへ →
+          </button>
+          <button type="button" className="btn-link status-link" onClick={onOpenSubmit}>
+            提出へ →
+          </button>
+        </div>
       </section>
     </aside>
   );

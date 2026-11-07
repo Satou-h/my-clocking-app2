@@ -23,14 +23,16 @@ import ApplicationDocumentsTab from './components/ApplicationDocumentsTab';
 import WorkReportTab from './components/WorkReportTab';
 import SkillTab from './components/SkillTab';
 import BulkDownloadTab from './components/BulkDownloadTab';
+import SubmitTab from './components/SubmitTab';
 import SignatureTab from './components/SignatureTab';
 import MembersTab from './components/MembersTab';
 import { useCloudState, cloudStatus } from './utils/cloudSync';
+import { useSubmissions } from './utils/submissions';
 import { fetchMyRole, type MemberRole } from './utils/members';
 import './App.css';
 
 type Tab = 'input' | 'list' | 'transfer' | 'transport' | 'settings' | 'documents' | 'report' | 'skill' | 'bulk' | 'signature'
-  | 'members'
+  | 'submit' | 'members'
   // スマホの下タブ「提出」「その他」から開くメニュー画面
   | 'menu-submit' | 'menu-more';
 
@@ -51,6 +53,7 @@ const NAV_GROUPS: { id: NavGroupId; label: string; items: { key: Tab; label: str
       { key: 'documents', label: '申請書類', icon: 'form', desc: '休暇申請書・遅刻早退申請書' },
       { key: 'skill', label: 'スキル表', icon: 'user', desc: 'スキル・資格・職務経歴' },
       { key: 'bulk', label: 'ダウンロード', icon: 'download', desc: '提出書類を選んでPDF出力' },
+      { key: 'submit', label: '提出', icon: 'send', desc: '書類を選んで提出・提出状況の確認' },
     ],
   },
   {
@@ -78,6 +81,7 @@ export default function App() {
   const [listMonth, setListMonth] = useState(new Date().getMonth() + 1);
   const cloud = useCloudState();
   const cloudBadge = cloudStatus(cloud);
+  const submissions = useSubmissions();
 
   // ログイン中の人の役割（管理者ならユーザー管理のメニューを出す）
   const [myRole, setMyRole] = useState<MemberRole | null>(null);
@@ -281,7 +285,7 @@ export default function App() {
   const thisYear = now.getFullYear();
   const thisMonth = now.getMonth() + 1;
   const todayStr = `${thisYear}-${String(thisMonth).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  const submitItems = getSubmitStatus(thisYear, thisMonth, records, transportRecords, workSettings, todayStr);
+  const submitItems = getSubmitStatus(thisYear, thisMonth, records, transportRecords, workSettings, todayStr, submissions.items);
   const pendingCount = submitItems.filter((i) => !i.done).length;
 
   const profileMissing = !userProfile.employeeId.trim() || !userProfile.lastName.trim();
@@ -401,6 +405,7 @@ export default function App() {
               paidLeaveSettings={paidLeave}
               submitItems={submitItems}
               onOpenBulk={() => openTab('bulk')}
+              onOpenSubmit={() => openTab('submit')}
             />
           </div>
         )}
@@ -437,6 +442,14 @@ export default function App() {
         )}
         {tab === 'bulk' && (
           <BulkDownloadTab
+            records={records}
+            transportRecords={transportRecords}
+            workSettings={workSettings}
+            paidLeaveSettings={paidLeave}
+          />
+        )}
+        {tab === 'submit' && (
+          <SubmitTab
             records={records}
             transportRecords={transportRecords}
             workSettings={workSettings}

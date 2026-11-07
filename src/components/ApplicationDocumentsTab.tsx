@@ -14,6 +14,7 @@ import { LEAVE_LABELS, calcLeaveDays } from '../types/application';
 import type { AttendanceRecord, WorkSettings } from '../types/attendance';
 import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
 import Icon from './Icon';
+import SubmittedNotice from './SubmittedNotice';
 
 interface Props {
   records: AttendanceRecord[];
@@ -362,6 +363,7 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
       <span className="hint hint-inline">勤務表から追加する候補と、保存済みの一覧をこの月で表示します</span>
     </div>
   );
+  const monthNotice = <SubmittedNotice docs={[docType === 'leave' ? 'leave' : 'lateEarly']} year={year} month={month} />;
 
   const applicantSection = (
     <div className="leave-app-section">
@@ -409,6 +411,7 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
           <>
             <h2 className="section-title">{editingLeaveId ? '休暇申請書を編集' : '休暇申請書'}</h2>
             {monthFilter}
+            {monthNotice}
             {applicantSection}
 
             <div className="leave-app-section">
@@ -576,6 +579,7 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
           <>
             <h2 className="section-title">{editingLateEarlyId ? '遅早退申請書を編集' : '遅早退申請書'}</h2>
             {monthFilter}
+            {monthNotice}
             {applicantSection}
 
             <div className="leave-app-section">
