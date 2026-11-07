@@ -232,6 +232,27 @@ export function createPainter(page: PDFPage, font: PDFFont) {
 
 export type Painter = ReturnType<typeof createPainter>;
 
+// 枠 (x, y, w, h) の中に上詰めで折り返して書く。入りきらなければ文字を小さくし、それでも余れば … で切る
+// （作業状況報告書・スキルシートなど、自由記入の欄で使う）
+export function drawParagraph(p: Painter, s: string, x: number, y: number, w: number, h: number, size = 7.5, pad = 6, color: RGB = C.ink) {
+  const text = s.replace(/\s+$/, '');
+  if (!text) return;
+  const maxW = w - pad * 2;
+  const maxH = h - pad * 2 + 2;
+  const sizes = [size, size - 0.7, size - 1.3];
+  for (const sz of sizes) {
+    const lineH = sz * 1.5;
+    const lines = p.wrap(text, sz, maxW);
+    const cap = Math.max(1, Math.floor((maxH - sz) / lineH) + 1);
+    if (lines.length <= cap || sz === sizes[sizes.length - 1]) {
+      const shown = lines.slice(0, cap);
+      if (lines.length > cap) shown[cap - 1] = p.fit(shown[cap - 1] + '…', sz, maxW);
+      shown.forEach((ln, i) => p.txt(ln, x + pad, y + pad + sz + i * lineH, sz, color));
+      return;
+    }
+  }
+}
+
 // 集計欄の1項目
 export interface Stat {
   label: string;
