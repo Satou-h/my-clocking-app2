@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import {
-  ROLES, ROLE_LABELS, canBeManager, createAccount, generatePassword, listMembers, setMember,
+  ROLES, ROLE_LABELS, canBeManager, createAccount, generatePassword, joinFullName, listMembers, setMember,
   type Member, type MemberRole,
 } from '../utils/members';
 import { useCloudState } from '../utils/cloudSync';
@@ -115,6 +115,8 @@ export default function MembersTab({ onMyRoleChange }: { onMyRoleChange: (role: 
   const [members, setMembers] = useState<Member[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  const [lastName, setLastName] = useState('');
+  const [firstName, setFirstName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState(() => generatePassword());
   const [role, setRole] = useState<MemberRole>('member');
@@ -143,12 +145,17 @@ export default function MembersTab({ onMyRoleChange }: { onMyRoleChange: (role: 
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
+    if (!lastName.trim() || !firstName.trim()) {
+      setCreateMessage({ error: true, text: '苗字と名前を入力してください' });
+      return;
+    }
     const addr = email.trim();
+    const fullName = joinFullName(lastName, firstName);
     setCreating(true);
     setCreateMessage(null);
     try {
-      const userId = await createAccount(addr, password);
-      let text = `${addr} のアカウントを作りました。メールアドレスと初期パスワード「${password}」を本人に伝え、`
+      const userId = await createAccount(addr, password, lastName, firstName);
+      let text = `${fullName}さん（${addr}）のアカウントを作りました。メールアドレスと初期パスワード「${password}」を本人に伝え、`
         + 'ログインしたら設定画面でパスワードを変えるよう伝えてください。';
       let error = false;
       if (role !== 'member' || managerId) {
@@ -160,6 +167,8 @@ export default function MembersTab({ onMyRoleChange }: { onMyRoleChange: (role: 
         }
       }
       setCreateMessage({ error, text });
+      setLastName('');
+      setFirstName('');
       setEmail('');
       setPassword(generatePassword());
       setRole('member');
@@ -189,8 +198,35 @@ export default function MembersTab({ onMyRoleChange }: { onMyRoleChange: (role: 
       <h3>アカウントを作る</h3>
       <p className="hint">
         確認メールは送りません。作ったら、メールアドレスと初期パスワードを本人に伝えてください。
+        苗字・名前は本人の設定（苗字）と書類の氏名に自動で入り、印鑑も苗字から作られます。
       </p>
       <form onSubmit={handleCreate}>
+        <div className="form-row">
+          <label htmlFor="member-last-name">苗字</label>
+          <input
+            id="member-last-name"
+            type="text"
+            required
+            maxLength={20}
+            autoComplete="off"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            placeholder="例: 佐藤"
+          />
+        </div>
+        <div className="form-row">
+          <label htmlFor="member-first-name">名前</label>
+          <input
+            id="member-first-name"
+            type="text"
+            required
+            maxLength={20}
+            autoComplete="off"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            placeholder="例: 太郎"
+          />
+        </div>
         <div className="form-row">
           <label htmlFor="member-email">メールアドレス</label>
           <input

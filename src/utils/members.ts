@@ -66,9 +66,21 @@ export async function setMember(userId: string, role: MemberRole, managerId: str
   if (error) throw new Error(dbErrorText(error));
 }
 
+// 苗字と名前の区切り（全角スペース。本人が入力している氏名の形に合わせる）
+const NAME_SEPARATOR = String.fromCharCode(0x3000);
+
+// 苗字と名前から氏名を作る（Edge Function と同じ形）
+export function joinFullName(lastName: string, firstName: string): string {
+  const l = lastName.trim(), f = firstName.trim();
+  return f ? l + NAME_SEPARATOR + f : l;
+}
+
 // アカウントを作る（確認メールは送らない）。作ったユーザーの ID を返す
-export async function createAccount(email: string, password: string): Promise<string> {
-  const { data, error } = await supabase.functions.invoke('admin-create-user', { body: { email, password } });
+// 苗字・名前は本人のプロフィール（設定の「苗字」・書類の氏名）に入る。印鑑も苗字から作られる
+export async function createAccount(email: string, password: string, lastName: string, firstName: string): Promise<string> {
+  const { data, error } = await supabase.functions.invoke('admin-create-user', {
+    body: { email, password, lastName: lastName.trim(), firstName: firstName.trim() },
+  });
   if (error) {
     if (error instanceof FunctionsHttpError) {
       let message: string | null = null;
