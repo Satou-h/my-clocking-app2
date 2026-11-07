@@ -24,7 +24,7 @@ export async function stampManagerSignature(src: ArrayBuffer, signature: string)
     return { ok: false, title, reason: 'サインする欄の位置がわかりません。このアプリの最新版で出力し直したPDFを読み込んでください' };
   }
   const labels = MANAGER_LABELS.filter((l) => areas[l]);
-  if (labels.length === 0) return { ok: false, title, reason: '上長がサインする欄がない書類です' };
+  if (labels.length === 0) return { ok: false, title, reason: 'リーダーがサインする欄がない書類です' };
   if (doc.catalog.get(STAMPED_KEY)) return { ok: false, title, reason: 'すでに検印済みです' };
 
   const img = await doc.embedPng(signature);

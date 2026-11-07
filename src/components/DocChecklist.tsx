@@ -67,7 +67,7 @@ export function DocChecklist({ rows, selected, onToggle, showSubmission = false,
                 {submission!.modifiedAt && (
                   <span className="bulk-modified">
                     {fmtSubmittedAt(submission!.modifiedAt)}に
-                    {submission!.modifiedByName ? `${submission!.modifiedByName}さん` : '上長・管理者'}が修正
+                    {submission!.modifiedByName ? `${submission!.modifiedByName}さん` : 'リーダー・管理者'}が修正
                   </span>
                 )}
                 {submission!.status === 'submitted' && onWithdraw && (

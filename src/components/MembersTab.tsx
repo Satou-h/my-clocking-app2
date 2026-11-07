@@ -95,7 +95,7 @@ function MemberCard({ member, members, isYou, onSaved }: {
           </select>
         </label>
         <label className="member-field">
-          <span>上長</span>
+          <span>リーダー</span>
           <select value={managerId} onChange={(e) => setManagerId(e.target.value)} disabled={busy}>
             <ManagerOptions members={members} exclude={member.userId} />
           </select>
@@ -155,7 +155,7 @@ export default function MembersTab({ onMyRoleChange }: { onMyRoleChange: (role: 
         try {
           await setMember(userId, role, managerId || null);
         } catch (err) {
-          text += `\nただし、役割・上長を設定できませんでした（${errorText(err)}）。下の一覧で設定し直してください。`;
+          text += `\nただし、役割・リーダーを設定できませんでした（${errorText(err)}）。下の一覧で設定し直してください。`;
           error = true;
         }
       }
@@ -178,11 +178,11 @@ export default function MembersTab({ onMyRoleChange }: { onMyRoleChange: (role: 
     <div className="members-tab">
       <h2>ユーザー管理</h2>
       <p className="hint">
-        社員のアカウントを作り、役割と上長を設定します。この画面は管理者だけが使えます。
+        社員のアカウントを作り、役割とリーダーを設定します。この画面は管理者だけが使えます。
       </p>
       <ul className="member-roles">
         <li><strong>一般</strong>：自分のデータだけを見られます</li>
-        <li><strong>上長</strong>：自分と、上長に設定された部下のデータを見られます</li>
+        <li><strong>リーダー</strong>：自分と、自分がリーダーに設定されているメンバーのデータを見られます</li>
         <li><strong>管理者</strong>：全員のデータを見られ、この画面でアカウントの作成と設定ができます</li>
       </ul>
 
@@ -228,7 +228,7 @@ export default function MembersTab({ onMyRoleChange }: { onMyRoleChange: (role: 
           </select>
         </div>
         <div className="form-row">
-          <label htmlFor="member-manager">上長</label>
+          <label htmlFor="member-manager">リーダー</label>
           <select id="member-manager" value={managerId} onChange={(e) => setManagerId(e.target.value)}>
             <ManagerOptions members={list} />
           </select>
@@ -242,7 +242,7 @@ export default function MembersTab({ onMyRoleChange }: { onMyRoleChange: (role: 
       </form>
 
       <h3>メンバー</h3>
-      <p className="hint">上長には、役割が「上長」か「管理者」の人を選べます。</p>
+      <p className="hint">リーダーには、役割が「リーダー」か「管理者」の人を選べます。</p>
       {loadError && (
         <div className="cloud-message cloud-message-error" role="alert">
           メンバーの一覧を読み込めませんでした（{loadError}）

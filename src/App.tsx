@@ -55,14 +55,14 @@ const NAV_GROUPS: { id: NavGroupId; label: string; items: { key: Tab; label: str
       { key: 'skill', label: 'スキル表', icon: 'user', desc: 'スキル・資格・職務経歴' },
       { key: 'bulk', label: 'ダウンロード', icon: 'download', desc: '提出書類を選んでPDF出力' },
       { key: 'submit', label: '提出', icon: 'send', desc: '書類を選んで提出・提出状況の確認' },
-      { key: 'review', label: '部下の提出', icon: 'inbox', desc: '部下の提出状況の確認・提出済み書類の修正（上長・管理者のみ）' },
+      { key: 'review', label: 'メンバーの提出', icon: 'inbox', desc: 'メンバーの提出状況の確認・提出済み書類の修正（リーダー・管理者のみ）' },
     ],
   },
   {
     id: 'more', label: 'その他', items: [
-      { key: 'signature', label: 'サイン', icon: 'signature', desc: '本人・上長（確認・検印）のサインを登録' },
+      { key: 'signature', label: 'サイン', icon: 'signature', desc: '本人・リーダー（確認・検印）のサインを登録' },
       { key: 'transfer', label: 'QR/カナコード', icon: 'qr', desc: '別の端末へデータを移す' },
-      { key: 'members', label: 'ユーザー管理', icon: 'users', desc: 'アカウントの作成・役割と上長の設定（管理者のみ）' },
+      { key: 'members', label: 'ユーザー管理', icon: 'users', desc: 'アカウントの作成・役割とリーダーの設定（管理者のみ）' },
       { key: 'settings', label: '設定', icon: 'settings', desc: 'クラウド保存・パスワード・社員情報・基準時間・テーマ・データ削除' },
     ],
   },
@@ -374,7 +374,7 @@ export default function App() {
           <span className="header-cloud-text">{cloudBadge.short}</span>
         </button>
         {viewing ? (
-          <span className="header-user header-viewing" title="部下のデータを開いています">
+          <span className="header-user header-viewing" title="メンバーのデータを開いています">
             <span>{viewing.name}さんのデータ</span>
             <span className="header-avatar"><Icon name="inbox" size={16} /></span>
           </span>

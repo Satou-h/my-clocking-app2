@@ -10,7 +10,7 @@ import { supabase } from './supabase';
 
 export type MemberRole = 'member' | 'manager' | 'admin';
 
-export const ROLE_LABELS: Record<MemberRole, string> = { member: '一般', manager: '上長', admin: '管理者' };
+export const ROLE_LABELS: Record<MemberRole, string> = { member: '一般', manager: 'リーダー', admin: '管理者' };
 export const ROLES: MemberRole[] = ['member', 'manager', 'admin'];
 
 export interface Member {

@@ -65,13 +65,13 @@ export default function SignatureTab() {
       <p className="hint">自分のPDFを出力するとき、休暇申請書・遅刻早退申請書の「本人」欄と、交通費精算書の「本人印」欄に自動で入ります。</p>
       <SignaturePad label="本人のサイン" value={signs.self} onChange={(v) => handleChange('self', v)} />
 
-      <h3>上長の検印（部下の書類）</h3>
-      <p className="hint">上長が部下の書類にサインするときに使います。上長のサインは自分のPDFには入りません。</p>
-      <SignaturePad label="上長のサイン" value={signs.manager} onChange={(v) => handleChange('manager', v)} />
+      <h3>リーダーの検印（メンバーの書類）</h3>
+      <p className="hint">リーダーがメンバーの書類にサインするときに使います。リーダーのサインは自分のPDFには入りません。</p>
+      <SignaturePad label="リーダーのサイン" value={signs.manager} onChange={(v) => handleChange('manager', v)} />
 
       <div className="stamp-section">
         <p className="hint">
-          部下がこのアプリで出力したPDFを選ぶと、勤務表の「確認印」、休暇申請書・遅刻早退申請書の「確認」、交通費精算書の「検印」の欄に上長のサインを入れて保存します。まとめて選べます。
+          メンバーがこのアプリで出力したPDFを選ぶと、勤務表の「確認印」、休暇申請書・遅刻早退申請書の「確認」、交通費精算書の「検印」の欄にリーダーのサインを入れて保存します。まとめて選べます。
         </p>
         <input ref={fileRef} type="file" accept="application/pdf,.pdf" multiple className="is-hidden" onChange={handleFiles} />
         <button
@@ -82,7 +82,7 @@ export default function SignatureTab() {
         >
           {stamping ? 'サインを入れています…' : 'PDFを選んで検印する'}
         </button>
-        {!signs.manager && <p className="hint hint-inline mt-8">先に上長のサインを登録してください。</p>}
+        {!signs.manager && <p className="hint hint-inline mt-8">先にリーダーのサインを登録してください。</p>}
         {logs.length > 0 && (
           <ul className="stamp-log">
             {logs.map((l, i) => (

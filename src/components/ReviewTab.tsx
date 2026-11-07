@@ -44,9 +44,9 @@ export default function ReviewTab({ onOpened }: Props) {
 
   return (
     <div className="bulk-tab review-tab">
-      <h2>部下の提出</h2>
+      <h2>メンバーの提出</h2>
       <p className="hint">
-        部下（管理者は自分以外の全員）の提出状況です。「開いて修正」を押すとその人のデータを開き、
+        担当するメンバー（管理者は自分以外の全員）の提出状況です。「開いて修正」を押すとその人のデータを開き、
         提出済み（承認前）の書類をいつもの画面で修正できます。修正した日時と名前は、本人の提出画面に表示されます。
       </p>
 
@@ -63,11 +63,11 @@ export default function ReviewTab({ onOpened }: Props) {
       </div>
 
       {error && (
-        <div className="notice-banner" role="status"><span>部下の一覧を読み込めませんでした（{error}）</span></div>
+        <div className="notice-banner" role="status"><span>メンバーの一覧を読み込めませんでした（{error}）</span></div>
       )}
       {!error && members === null && <p className="hint">読み込んでいます…</p>}
       {members?.length === 0 && (
-        <p className="hint">部下がいません。「ユーザー管理」で上長を設定すると、ここに表示されます。</p>
+        <p className="hint">表示できるメンバーがいません。「ユーザー管理」でリーダーを設定すると、ここに表示されます。</p>
       )}
 
       <div className="review-list">
