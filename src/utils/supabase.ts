@@ -9,7 +9,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    // 登録確認メールのリンクから戻ってきたときに、そのままログイン状態にする
+    // パスワード再設定メールのリンクから戻ってきたときに、そのままログイン状態にする
     detectSessionInUrl: true,
   },
 });

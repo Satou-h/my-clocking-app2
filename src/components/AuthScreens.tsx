@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import Icon from './Icon';
 import {
-  useCloudState, signIn, signUp, signOut, syncNow, requestPasswordReset, updatePassword, chooseInitialData,
+  useCloudState, signIn, signOut, syncNow, requestPasswordReset, updatePassword, chooseInitialData,
   type DataCounts,
 } from '../utils/cloudSync';
 
@@ -29,11 +29,14 @@ async function signOutWithAlert(): Promise<void> {
   if (error) window.alert(`ログアウトできませんでした。\n${error}`);
 }
 
-type Mode = 'login' | 'signup' | 'reset';
+type Mode = 'login' | 'reset';
 
-const SUBMIT_LABEL: Record<Mode, string> = { login: 'ログイン', signup: '登録する', reset: '再設定メールを送る' };
+const SUBMIT_LABEL: Record<Mode, string> = { login: 'ログイン', reset: '再設定メールを送る' };
 
-/** メールアドレスとパスワードでのログイン・新規登録・パスワード再設定メールの送信 */
+/**
+ * メールアドレスとパスワードでのログイン・パスワード再設定メールの送信
+ * 本人による新規登録はできない（アカウントは管理者が「ユーザー管理」で作る）
+ */
 export function LoginForm({ idPrefix }: { idPrefix: string }) {
   const cloud = useCloudState();
   const [mode, setMode] = useState<Mode>('login');
@@ -58,16 +61,6 @@ export function LoginForm({ idPrefix }: { idPrefix: string }) {
       if (mode === 'login') {
         const error = await signIn(addr, password);
         if (error) setMessage({ error: true, text: error });
-      } else if (mode === 'signup') {
-        const r = await signUp(addr, password);
-        if (r.error) setMessage({ error: true, text: r.error });
-        else if (r.needsConfirm) {
-          setMessage({
-            error: false,
-            text: `${addr} に確認メールを送りました。メールのリンクを開くと登録が完了し、ログインした状態でこのアプリが開きます。`
-              + '（すでに登録済みのアドレスの場合はメールは届きません。ログインしてください）',
-          });
-        }
       } else {
         const error = await requestPasswordReset(addr);
         setMessage(error
@@ -92,19 +85,17 @@ export function LoginForm({ idPrefix }: { idPrefix: string }) {
           onChange={(e) => setEmail(e.target.value)}
         />
       </div>
-      {mode !== 'reset' && (
+      {mode === 'login' && (
         <div className="auth-field">
           <label htmlFor={`${idPrefix}-password`}>パスワード</label>
           <input
             id={`${idPrefix}-password`}
             type="password"
-            autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+            autoComplete="current-password"
             required
-            minLength={mode === 'signup' ? 6 : undefined}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-          {mode === 'signup' && <span className="auth-hint">6文字以上で決めてください</span>}
         </div>
       )}
       {mode === 'reset' && (
@@ -121,12 +112,9 @@ export function LoginForm({ idPrefix }: { idPrefix: string }) {
       <div className="auth-links">
         {mode === 'login' && (
           <>
-            <span>初めての方は <button type="button" className="btn-link" onClick={() => switchMode('signup')}>新規登録</button></span>
             <button type="button" className="btn-link" onClick={() => switchMode('reset')}>パスワードを忘れた場合</button>
+            <span>アカウントがない方は、管理者に作成を依頼してください</span>
           </>
-        )}
-        {mode === 'signup' && (
-          <span>登録済みの方は <button type="button" className="btn-link" onClick={() => switchMode('login')}>ログイン</button></span>
         )}
         {mode === 'reset' && (
           <button type="button" className="btn-link" onClick={() => switchMode('login')}>ログインに戻る</button>

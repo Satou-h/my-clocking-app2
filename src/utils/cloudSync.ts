@@ -1347,7 +1347,7 @@ export function initCloudSync() {
   });
 }
 
-// ── ログイン・登録 ───────────────────────────────────────────────────────────
+// ── ログイン ───────────────────────────────────────────────────────────────
 
 interface AuthErr { message: string; code?: string; status?: number; name?: string }
 
@@ -1355,8 +1355,6 @@ function authErrorText(e: AuthErr): string {
   switch (e.code) {
     case 'invalid_credentials': return 'メールアドレスまたはパスワードが違います';
     case 'email_not_confirmed': return 'メールアドレスの確認が済んでいません。届いた確認メールのリンクを開いてください';
-    case 'user_already_exists':
-    case 'email_exists': return 'このメールアドレスはすでに登録されています。ログインしてください';
     case 'weak_password': return 'パスワードが短すぎます。6文字以上にしてください';
     case 'over_email_send_rate_limit': return 'メールの送信回数の上限に達しました。しばらく待ってからやり直してください';
     case 'over_request_rate_limit': return '操作が多すぎます。しばらく待ってからやり直してください';
@@ -1374,14 +1372,10 @@ export async function signIn(email: string, password: string): Promise<string | 
   return error ? authErrorText(error) : null;
 }
 
-// 確認メール・再設定メールのリンクからこのアプリに戻ってくる
+// 再設定メールのリンクからこのアプリに戻ってくる
 const appUrl = () => window.location.origin + window.location.pathname;
 
-export async function signUp(email: string, password: string): Promise<{ error: string | null; needsConfirm: boolean }> {
-  const { data, error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: appUrl() } });
-  if (error) return { error: authErrorText(error), needsConfirm: false };
-  return { error: null, needsConfirm: !data.session };
-}
+// 本人による新規登録はできない（アカウントは管理者が Edge Function admin-create-user で作る）
 
 export async function requestPasswordReset(email: string): Promise<string | null> {
   const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: appUrl() });
