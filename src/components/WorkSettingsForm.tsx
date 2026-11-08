@@ -10,9 +10,6 @@ interface Props {
   userProfile: UserProfile;
   onProfileChange: (key: 'employeeId' | 'lastName', value: string) => void;
   onWorkTimeChange: (key: 'standardStartTime' | 'standardEndTime', value: string) => void;
-  onClearAttendance: () => void;
-  onClearTransport: () => void;
-  onClearAll: () => void;
 }
 
 const THEME_OPTIONS: { value: Theme; label: string }[] = [
@@ -22,7 +19,7 @@ const THEME_OPTIONS: { value: Theme; label: string }[] = [
 ];
 
 export default function WorkSettingsForm({
-  settings, userProfile, onProfileChange, onWorkTimeChange, onClearAttendance, onClearTransport, onClearAll,
+  settings, userProfile, onProfileChange, onWorkTimeChange,
 }: Props) {
   const { standardStartTime: startTime, standardEndTime: endTime } = settings;
   const [theme, setTheme] = useState<Theme>(loadTheme);
@@ -132,66 +129,7 @@ export default function WorkSettingsForm({
         </div>
       </div>
       <p className="form-hint">「自動」は端末のダークモード設定に合わせます。</p>
-
-      <hr />
-
-      <div className="danger-zone">
-        <h3>データ管理</h3>
-        <p className="hint">削除したデータはクラウドから削除され、元に戻せません。</p>
-        <div className="danger-actions">
-          <div className="danger-item">
-            <div className="danger-desc">
-              <strong>勤怠データをクリア</strong>
-              <span>登録済みの勤怠記録をすべて削除します</span>
-            </div>
-            <button
-              type="button"
-              className="btn btn-danger-outline"
-              onClick={() => {
-                if (window.confirm('勤怠データをすべて削除しますか？\nこの操作は元に戻せません。')) {
-                  onClearAttendance();
-                }
-              }}
-            >
-              勤怠データをクリア
-            </button>
-          </div>
-          <div className="danger-item">
-            <div className="danger-desc">
-              <strong>交通費データをクリア</strong>
-              <span>登録済みの交通費記録をすべて削除します</span>
-            </div>
-            <button
-              type="button"
-              className="btn btn-danger-outline"
-              onClick={() => {
-                if (window.confirm('交通費データをすべて削除しますか？\nこの操作は元に戻せません。')) {
-                  onClearTransport();
-                }
-              }}
-            >
-              交通費データをクリア
-            </button>
-          </div>
-          <div className="danger-item danger-item-all">
-            <div className="danger-desc">
-              <strong>すべてのデータをクリア</strong>
-              <span>勤怠・交通費のすべての記録を削除します</span>
-            </div>
-            <button
-              type="button"
-              className="btn btn-danger"
-              onClick={() => {
-                if (window.confirm('すべてのデータを削除しますか？\nこの操作は元に戻せません。')) {
-                  onClearAll();
-                }
-              }}
-            >
-              すべてクリア
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* 勤怠・交通費をまとめて消す操作は、誤ってデータを失わないよう置かない（削除は各画面で1件ずつ行う） */}
     </div>
   );
 }

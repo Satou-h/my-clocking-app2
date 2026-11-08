@@ -19,8 +19,8 @@ import Icon from './Icon';
 interface Props {
   records: AttendanceRecord[];
   transportRecords: TransportRecord[];
-  onImport: (records: AttendanceRecord[], mode: 'merge' | 'replace') => void;
-  onImportTransport: (records: TransportRecord[], mode: 'merge' | 'replace') => void;
+  onImport: (records: AttendanceRecord[]) => void;
+  onImportTransport: (records: TransportRecord[]) => void;
   workSettings: WorkSettings;
   userProfile: UserProfile;
   paidLeaveSettings: PaidLeaveSettings[];
@@ -97,7 +97,7 @@ function TransferDocsPreview({ docs, month, oldFormat, apply, onApplyChange }: {
           <ul className="bullet-list">
             <li>作業報告書: {reportParts.join('・')}</li>
           </ul>
-          {toggle('workReport', `作業報告書も取り込む（${month}月の作業報告書を取り込み方式に従って上書きします）`)}
+          {toggle('workReport', `作業報告書も取り込む（${month}月の受け取った週と総括を上書きし、ほかの週は残します）`)}
         </div>
       )}
       {applications && (
@@ -105,7 +105,7 @@ function TransferDocsPreview({ docs, month, oldFormat, apply, onApplyChange }: {
           <ul className="bullet-list">
             <li>申請書類: 休暇申請 {applications.leave.length}件・遅刻早退申請 {applications.lateEarly.length}件</li>
           </ul>
-          {toggle('applications', `申請書類も取り込む（${month}月の申請書類を取り込み方式に従って上書きします）`)}
+          {toggle('applications', `申請書類も取り込む（${month}月の同じ日付の申請を上書きし、ほかの申請は残します）`)}
         </div>
       )}
       {skillSheet && (
@@ -115,21 +115,22 @@ function TransferDocsPreview({ docs, month, oldFormat, apply, onApplyChange }: {
               スキル表: スキル {skillSheet.skills.length}件・資格 {skillSheet.certifications.length}件・職務経歴 {skillSheet.workHistory.length}件
             </li>
           </ul>
-          {toggle('skillSheet', 'スキル表も取り込む（現在のスキル表・資格・職務経歴をすべて置き換えます）')}
+          {toggle('skillSheet', 'スキル表も取り込む（プロフィールと同じ項目を上書きし、ほかのスキル・資格・職務経歴は残します）')}
         </div>
       )}
     </>
   );
 }
 
-// 読み込んだ提出書類のうち、取り込みを選んだものを保存する
-function importDocs(
-  docs: TransferDocs, apply: Record<DocKey, boolean>, year: number, month: number, mode: 'merge' | 'replace',
-) {
-  if (docs.workReport && apply.workReport) importWorkReport(year, month, docs.workReport, mode);
-  if (docs.applications && apply.applications) importApplications(year, month, docs.applications, mode);
+// 読み込んだ提出書類のうち、取り込みを選んだものを保存する（上書きだけで、既存のデータをまとめて消すことはしない）
+function importDocs(docs: TransferDocs, apply: Record<DocKey, boolean>, year: number, month: number) {
+  if (docs.workReport && apply.workReport) importWorkReport(year, month, docs.workReport);
+  if (docs.applications && apply.applications) importApplications(docs.applications);
   if (docs.skillSheet && apply.skillSheet) importSkillSheet(docs.skillSheet);
 }
+
+// 取り込みは上書き（マージ）だけ。既存のデータをすべて消して置き換える取り込みはできない
+const IMPORT_HINT = '取り込む日付のデータは上書きし、ほかの日のデータはそのまま残します。';
 
 // QRコード / カナコードで別デバイスとデータをやり取りするタブ
 export default function TransferTab({
@@ -174,7 +175,6 @@ export default function TransferTab({
   const [qrImportAtt, setQrImportAtt]   = useState<AttendanceRecord[] | null>(null);
   const [qrImportTrp, setQrImportTrp]   = useState<TransportRecord[] | null>(null);
   const [qrImportInfo, setQrImportInfo] = useState<{ year: number; month: number; oldFormat: boolean } | null>(null);
-  const [qrImportMode, setQrImportMode] = useState<'merge' | 'replace'>('merge');
   const [qrImportMeta, setQrImportMeta] = useState<TransferMeta | undefined>();
   const [qrApplyMeta, setQrApplyMeta]   = useState(true);
   const [qrImportDocs, setQrImportDocs] = useState<TransferDocs>({});
@@ -187,7 +187,6 @@ export default function TransferTab({
   const [jumonImportAtt, setJumonImportAtt] = useState<AttendanceRecord[] | null>(null);
   const [jumonImportTrp, setJumonImportTrp] = useState<TransportRecord[]>([]);
   const [jumonImportInfo, setJumonImportInfo] = useState<{ year: number; month: number; oldFormat: boolean } | null>(null);
-  const [jumonImportMode, setJumonImportMode] = useState<'merge' | 'replace'>('merge');
   const [jumonImportMeta, setJumonImportMeta] = useState<TransferMeta | undefined>();
   const [jumonApplyMeta, setJumonApplyMeta]   = useState(true);
   const [jumonImportDocs, setJumonImportDocs] = useState<TransferDocs>({});
@@ -251,10 +250,10 @@ export default function TransferTab({
 
   function handleQrImport() {
     if (!qrImportAtt) return;
-    if (qrImportAtt.length > 0)           onImport(qrImportAtt, qrImportMode);
-    if (qrImportTrp && qrImportTrp.length > 0) onImportTransport(qrImportTrp, qrImportMode);
+    if (qrImportAtt.length > 0)           onImport(qrImportAtt);
+    if (qrImportTrp && qrImportTrp.length > 0) onImportTransport(qrImportTrp);
     if (qrImportMeta && qrApplyMeta && qrImportInfo) onImportMeta(qrImportMeta, qrImportInfo.year, qrImportInfo.month);
-    if (qrImportInfo) importDocs(qrImportDocs, qrApplyDocs, qrImportInfo.year, qrImportInfo.month, qrImportMode);
+    if (qrImportInfo) importDocs(qrImportDocs, qrApplyDocs, qrImportInfo.year, qrImportInfo.month);
     setQrImportAtt(null); setQrImportTrp(null); setQrImportInfo(null);
   }
 
@@ -285,12 +284,10 @@ export default function TransferTab({
 
   function handleJumonImport() {
     if (!jumonImportAtt) return;
-    if (jumonImportAtt.length > 0) onImport(jumonImportAtt, jumonImportMode);
-    if (jumonImportTrp.length > 0)  onImportTransport(jumonImportTrp, jumonImportMode);
+    if (jumonImportAtt.length > 0) onImport(jumonImportAtt);
+    if (jumonImportTrp.length > 0)  onImportTransport(jumonImportTrp);
     if (jumonImportMeta && jumonApplyMeta && jumonImportInfo) onImportMeta(jumonImportMeta, jumonImportInfo.year, jumonImportInfo.month);
-    if (jumonImportInfo) {
-      importDocs(jumonImportDocs, jumonApplyDocs, jumonImportInfo.year, jumonImportInfo.month, jumonImportMode);
-    }
+    if (jumonImportInfo) importDocs(jumonImportDocs, jumonApplyDocs, jumonImportInfo.year, jumonImportInfo.month);
     setJumonImportAtt(null); setJumonImportInfo(null); setJumonInput('');
   }
 
@@ -370,13 +367,7 @@ export default function TransferTab({
               docs={qrImportDocs} month={qrImportInfo.month} oldFormat={qrImportInfo.oldFormat}
               apply={qrApplyDocs} onApplyChange={setQrApplyDocs}
             />
-            <div className="form-row">
-              <label>取り込み方式</label>
-              <select value={qrImportMode} onChange={e => setQrImportMode(e.target.value as 'merge' | 'replace')}>
-                <option value="merge">マージ（取り込む日付のデータは上書き、他の日は残す）</option>
-                <option value="replace">置換（既存データをすべて削除）</option>
-              </select>
-            </div>
+            <p className="hint">{IMPORT_HINT}</p>
             <div className="form-actions">
               <button className="btn btn-primary" onClick={handleQrImport}>インポート実行</button>
               <button className="btn btn-secondary" onClick={() => { setQrImportAtt(null); setQrImportTrp(null); setQrImportInfo(null); }}>キャンセル</button>
@@ -447,13 +438,7 @@ export default function TransferTab({
               docs={jumonImportDocs} month={jumonImportInfo.month} oldFormat={jumonImportInfo.oldFormat}
               apply={jumonApplyDocs} onApplyChange={setJumonApplyDocs}
             />
-            <div className="form-row mt-8">
-              <label>取り込み方式</label>
-              <select value={jumonImportMode} onChange={e => setJumonImportMode(e.target.value as 'merge' | 'replace')}>
-                <option value="merge">マージ（取り込む日付のデータは上書き、他の日は残す）</option>
-                <option value="replace">置換（既存データをすべて削除）</option>
-              </select>
-            </div>
+            <p className="hint mt-8">{IMPORT_HINT}</p>
             <div className="form-actions">
               <button className="btn btn-primary" onClick={handleJumonImport}>インポート実行</button>
               <button className="btn btn-secondary" onClick={() => { setJumonImportAtt(null); setJumonImportInfo(null); }}>キャンセル</button>

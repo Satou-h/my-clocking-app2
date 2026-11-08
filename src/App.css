@@ -926,64 +926,6 @@ h3 {
 .info-label { font-size: 11px; color: var(--text-muted); font-weight: 500; }
 .info-value { font-size: 13px; font-weight: 600; color: var(--text); }
 
-/* Danger zone */
-.danger-zone h3 { color: var(--danger-text); }
-.danger-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 12px;
-}
-.danger-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 16px;
-  background: var(--danger-soft);
-  border: 1px solid var(--danger-border);
-  border-radius: 8px;
-}
-.danger-item-all {
-  background: var(--danger-soft);
-  border-color: var(--danger-border);
-}
-.danger-desc {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.danger-desc strong { font-size: 13px; color: var(--text); }
-.danger-desc span   { font-size: 12px; color: var(--text-muted); }
-.btn-danger-outline {
-  padding: 7px 16px;
-  border-radius: 6px;
-  border: 1.5px solid var(--danger);
-  background: var(--surface);
-  color: var(--danger-text);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-  transition: background 0.15s, color 0.15s;
-}
-.btn-danger-outline:hover { background: var(--danger); color: var(--on-accent); }
-.btn-danger {
-  padding: 7px 16px;
-  border-radius: 6px;
-  border: none;
-  background: var(--danger);
-  color: var(--on-accent);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-  transition: background 0.15s;
-}
-.btn-danger:hover { background: var(--danger); }
-
 /* Transport */
 .transport-form-card {
   background: var(--surface-2);
@@ -2213,17 +2155,6 @@ hr {
   /* 設定のグリッド */
   .info-grid {
     grid-template-columns: 1fr;
-  }
-
-  /* 危険操作エリア */
-  .danger-item {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-  }
-  .btn-danger-outline,
-  .btn-danger {
-    align-self: flex-end;
   }
 
   /* 交通費 */

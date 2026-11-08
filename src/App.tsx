@@ -63,7 +63,7 @@ const NAV_GROUPS: { id: NavGroupId; label: string; items: { key: Tab; label: str
       { key: 'seal', label: '印鑑', icon: 'seal', desc: '苗字の印鑑の確認・リーダーの検印' },
       { key: 'transfer', label: 'QR/カナコード', icon: 'qr', desc: '別の端末へデータを移す' },
       { key: 'members', label: 'ユーザー管理', icon: 'users', desc: 'アカウントの作成・役割の設定（管理者のみ）' },
-      { key: 'settings', label: '設定', icon: 'settings', desc: 'クラウド保存・パスワード・社員情報・基準時間・テーマ・データ削除' },
+      { key: 'settings', label: '設定', icon: 'settings', desc: 'クラウド保存・パスワード・社員情報・基準時間・テーマ' },
     ],
   },
 ];
@@ -72,7 +72,7 @@ const NAV_GROUPS: { id: NavGroupId; label: string; items: { key: Tab; label: str
 const ADMIN_TABS: Tab[] = ['members'];
 // 上長・管理者だけに出すメニュー
 const REVIEWER_TABS: Tab[] = ['review'];
-// 部下のデータを開いている間は出さないメニュー（本人の社員情報・データ削除などは本人だけが変更する。検印はリーダー自身の印鑑で行う）
+// 部下のデータを開いている間は出さないメニュー（本人の社員情報などは本人だけが変更する。検印はリーダー自身の印鑑で行う）
 const MEMBER_MODE_HIDDEN: Tab[] = ['review', 'members', 'settings', 'transfer', 'seal'];
 
 export default function App() {
@@ -197,21 +197,6 @@ export default function App() {
     saveWorkSettings(settings);
   }
 
-  function handleClearAttendance() {
-    persistRecords([]);
-  }
-
-  function handleClearTransport() {
-    setTransportRecords([]);
-    saveTransportRecords([]);
-  }
-
-  function handleClearAll() {
-    persistRecords([]);
-    setTransportRecords([]);
-    saveTransportRecords([]);
-  }
-
   function handleSaveTransport(record: TransportRecord) {
     const exists = transportRecords.some((r) => r.id === record.id);
     const next = exists
@@ -233,23 +218,20 @@ export default function App() {
     saveTransportRecords(next);
   }
 
-  function handleImport(imported: AttendanceRecord[], mode: 'merge' | 'replace') {
-    if (mode === 'replace') {
-      persistRecords(imported);
-    } else {
-      const existingDates = new Map(records.map((r) => [r.date, r]));
-      const merged = [...records];
-      for (const r of imported) {
-        const existing = existingDates.get(r.date);
-        if (existing) {
-          const idx = merged.findIndex((x) => x.id === existing.id);
-          merged[idx] = { ...r, id: existing.id };
-        } else {
-          merged.push(r);
-        }
+  // 取り込んだ日付の勤怠だけ上書きし、ほかの日は残す（既存のデータをまとめて消す取り込みはできない）
+  function handleImport(imported: AttendanceRecord[]) {
+    const existingDates = new Map(records.map((r) => [r.date, r]));
+    const merged = [...records];
+    for (const r of imported) {
+      const existing = existingDates.get(r.date);
+      if (existing) {
+        const idx = merged.findIndex((x) => x.id === existing.id);
+        merged[idx] = { ...r, id: existing.id };
+      } else {
+        merged.push(r);
       }
-      persistRecords(merged);
     }
+    persistRecords(merged);
     setTab('list');
   }
 
@@ -273,19 +255,14 @@ export default function App() {
     }
   }
 
-  function handleImportTransport(imported: TransportRecord[], mode: 'merge' | 'replace') {
-    if (mode === 'replace') {
-      setTransportRecords(imported);
-      saveTransportRecords(imported);
-    } else {
-      // 1日に複数件の交通費があり得るため、取り込んだ日付の既存データはその日ごと置き換える
-      // （同じデータを繰り返し取り込んでも重複しない）
-      const importedDates = new Set(imported.map((r) => r.date));
-      const next = [...transportRecords.filter((r) => !importedDates.has(r.date)), ...imported]
-        .sort((a, b) => a.date.localeCompare(b.date));
-      setTransportRecords(next);
-      saveTransportRecords(next);
-    }
+  function handleImportTransport(imported: TransportRecord[]) {
+    // 1日に複数件の交通費があり得るため、取り込んだ日付の既存データはその日ごと置き換える
+    // （同じデータを繰り返し取り込んでも重複しない。ほかの日は残す）
+    const importedDates = new Set(imported.map((r) => r.date));
+    const next = [...transportRecords.filter((r) => !importedDates.has(r.date)), ...imported]
+      .sort((a, b) => a.date.localeCompare(b.date));
+    setTransportRecords(next);
+    saveTransportRecords(next);
     setTab('transport');
   }
 
@@ -547,9 +524,6 @@ export default function App() {
             userProfile={userProfile}
             onProfileChange={handleProfileChange}
             onWorkTimeChange={handleWorkTimeChange}
-            onClearAttendance={handleClearAttendance}
-            onClearTransport={handleClearTransport}
-            onClearAll={handleClearAll}
           />
         )}
       </main>
