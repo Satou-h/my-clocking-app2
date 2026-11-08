@@ -915,29 +915,45 @@ export async function withdrawDocuments(year: number, month: number, docs: DocKe
 }
 
 // リーダー・管理者が、開いているメンバーの提出済みの書類を承認する。できなかったときは理由を返す
-// 承認すると修正できなくなるため、送れていない修正を先に送ってから承認する
 export function approveDocuments(year: number, month: number, docs: DocKey[]): Promise<string | null> {
+  return reviewDocuments('approve', year, month, docs);
+}
+
+// リーダー・管理者が、開いているメンバーの承認済みの書類の承認を取り消す（提出済み・承認前に戻す）
+export function unapproveDocuments(year: number, month: number, docs: DocKey[]): Promise<string | null> {
+  return reviewDocuments('unapprove', year, month, docs);
+}
+
+// 承認すると修正できなくなるため、送れていない修正を先に送ってから承認・取り消しをする
+function reviewDocuments(action: 'approve' | 'unapprove', year: number, month: number, docs: DocKey[]): Promise<string | null> {
+  const verb = action === 'approve' ? '承認' : '承認の取り消し';
   clearTimeout(pushTimer);
   return exclusive(async () => {
     const me = uid;
     const target = viewAs;
     if (!me || !state.loaded) return 'ログインしてください';
-    if (!target) return '承認するメンバーのデータを開いてください';
+    if (!target) return 'メンバーのデータを開いてください';
     await runSync(false);
-    if (uid !== me || viewAs !== target) return '開いているデータが変わったため承認できませんでした';
+    if (uid !== me || viewAs !== target) return `開いているデータが変わったため、${verb}ができませんでした`;
     if (pendingCount() > 0) {
-      return 'クラウドに保存できていない修正があるため承認できません。通信状態を確認してから、もう一度お試しください';
+      return `クラウドに保存できていない修正があるため、${verb}ができません。通信状態を確認してから、もう一度お試しください`;
     }
     // 承認した人の苗字を残す列がないデータベースで承認すると、印鑑のない承認済みの書類ができてしまうため、先に確かめる
-    const check = await supabase.from('monthly_submissions').select('approver_last_name').eq('user_id', target).limit(1);
-    if (check.error) {
-      return check.error.code === '42703'
-        ? '承認の機能がデータベースにまだ用意されていません。管理者に連絡してください'
-        : submissionErrorText(check.error);
+    if (action === 'approve') {
+      const check = await supabase.from('monthly_submissions').select('approver_last_name').eq('user_id', target).limit(1);
+      if (check.error) {
+        return check.error.code === '42703'
+          ? '承認の機能がデータベースにまだ用意されていません。管理者に連絡してください'
+          : submissionErrorText(check.error);
+      }
     }
-    const { error } = await supabase.rpc('approve_documents', { p_user: target, p_year: year, p_month: month, p_docs: docs });
+    const { error } = await supabase.rpc(action === 'approve' ? 'approve_documents' : 'unapprove_documents', {
+      p_user: target, p_year: year, p_month: month, p_docs: docs,
+    });
     await refreshSubmissions(target);
-    return error ? submissionErrorText(error) : null;
+    if (!error) return null;
+    if (isMissingSubmissionSchema(error)) return `${verb}の機能がデータベースにまだ用意されていません。管理者に連絡してください`;
+    return submissionErrorText(error);
   });
 }
 

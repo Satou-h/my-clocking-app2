@@ -16,8 +16,9 @@ interface ChecklistProps {
   // 提出画面: 提出状況（未提出・提出済み・承認済み・差し戻し）を出す
   showSubmission?: boolean;
   onWithdraw?: (key: DocKey) => void;
-  // リーダー・管理者がメンバーの提出済みの書類を承認する
+  // リーダー・管理者がメンバーの提出済みの書類を承認する・承認済みの書類の承認を取り消す
   onApprove?: (key: DocKey) => void;
+  onUnapprove?: (key: DocKey) => void;
   // 見るだけ（チェックボックスを出さない。リーダー・管理者がメンバーの提出状況を見るとき）
   readOnly?: boolean;
   busy?: boolean;
@@ -25,7 +26,7 @@ interface ChecklistProps {
 
 // ダウンロード・提出する書類の一覧（チェックを入れて選ぶ。入力状況と不足している日を出す）
 export function DocChecklist({
-  rows, selected, onToggle, showSubmission = false, onWithdraw, onApprove, readOnly = false, busy = false,
+  rows, selected, onToggle, showSubmission = false, onWithdraw, onApprove, onUnapprove, readOnly = false, busy = false,
 }: ChecklistProps) {
   return (
     <div className={`bulk-checklist${readOnly ? ' bulk-checklist-readonly' : ''}`}>
@@ -86,7 +87,14 @@ export function DocChecklist({
                     承認
                   </button>
                 )}
-                {submission!.status === 'approved' && onWithdraw && <span>（承認済みのため取り下げできません）</span>}
+                {submission!.status === 'approved' && onUnapprove && (
+                  <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => onUnapprove(key)}>
+                    承認を取り消す
+                  </button>
+                )}
+                {submission!.status === 'approved' && onWithdraw && (
+                  <span>（承認済みのため取り下げできません。直す必要があるときは、リーダー・管理者に承認の取り消しを依頼してください）</span>
+                )}
               </div>
             )}
             {rejected && (

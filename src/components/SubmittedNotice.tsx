@@ -28,7 +28,7 @@ export default function SubmittedNotice({ docs, year, month }: Props) {
       docs.filter((d) => pick(statusOf(d))).map((d) => DOC_LABELS[d]).join('・');
     const sentences = [
       [names((s) => s === 'submitted'), '提出済みのため、修正できます。'],
-      [names((s) => s === 'approved'), '承認済みのため、修正できません。'],
+      [names((s) => s === 'approved'), '承認済みのため、修正できません（「提出」画面で承認を取り消すと修正できます）。'],
       [names((s) => s !== 'submitted' && s !== 'approved'), '提出されていないため、修正できません。'],
     ].filter(([n]) => n).map(([n, text], i) => `${i === 0 ? prefix : ''}${n}は${text}`);
     const editable = docs.some((d) => statusOf(d) === 'submitted');
@@ -61,6 +61,7 @@ export default function SubmittedNotice({ docs, year, month }: Props) {
       <span>
         {year}年{month}月の{parts}のため変更できません。
         {submitted && '変更するには「提出」画面で取り下げてください。'}
+        {approved && '承認済みの書類を変更するには、リーダー・管理者に承認の取り消しを依頼してください。'}
       </span>
     </div>
   );
