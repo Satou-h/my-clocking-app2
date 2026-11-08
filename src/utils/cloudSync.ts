@@ -830,8 +830,15 @@ function submissionErrorText(e: DbError): string {
 }
 
 const SUBMISSION_COLUMNS = 'year,month,doc,status,submitted_at,reviewed_at,review_comment';
-// 上長・管理者が修正した記録（この列がないデータベースでは、記録なしとして読む）
+// 上長・管理者が修正した記録と、承認した人の苗字
+// （列がまだないデータベースでは、ない列を外して読み直し、記録なしとして扱う）
 const MODIFIED_COLUMNS = ',modified_at,modified_by_name';
+const APPROVER_COLUMNS = ',approver_last_name';
+const SUBMISSION_COLUMN_SETS = [
+  SUBMISSION_COLUMNS + MODIFIED_COLUMNS + APPROVER_COLUMNS,
+  SUBMISSION_COLUMNS + MODIFIED_COLUMNS,
+  SUBMISSION_COLUMNS,
+];
 
 type SubmissionResult = { items: Submission[]; error: null } | { items: null; error: string };
 
@@ -841,8 +848,12 @@ async function loadSubmissions(target: string): Promise<SubmissionResult> {
     const query = (columns: string) =>
       // 上長は部下の提出状況も読めるため、必ず target の行だけに絞る
       supabase.from('monthly_submissions').select(columns).eq('user_id', target);
-    let { data, error } = await query(SUBMISSION_COLUMNS + MODIFIED_COLUMNS);
-    if (error?.code === '42703') ({ data, error } = await query(SUBMISSION_COLUMNS));
+    let result = await query(SUBMISSION_COLUMN_SETS[0]);
+    for (const columns of SUBMISSION_COLUMN_SETS.slice(1)) {
+      if (result.error?.code !== '42703') break;
+      result = await query(columns);
+    }
+    const { data, error } = result;
     if (error) return { items: null, error: submissionErrorText(error) };
     const items = ((data ?? []) as unknown as Row[])
       .map(parseSubmission)
@@ -901,6 +912,33 @@ export async function withdrawDocuments(year: number, month: number, docs: DocKe
   // 提出済みのため送れなかった変更があれば、取り下げたので送り直す
   if (!result) pushNow();
   return result;
+}
+
+// リーダー・管理者が、開いているメンバーの提出済みの書類を承認する。できなかったときは理由を返す
+// 承認すると修正できなくなるため、送れていない修正を先に送ってから承認する
+export function approveDocuments(year: number, month: number, docs: DocKey[]): Promise<string | null> {
+  clearTimeout(pushTimer);
+  return exclusive(async () => {
+    const me = uid;
+    const target = viewAs;
+    if (!me || !state.loaded) return 'ログインしてください';
+    if (!target) return '承認するメンバーのデータを開いてください';
+    await runSync(false);
+    if (uid !== me || viewAs !== target) return '開いているデータが変わったため承認できませんでした';
+    if (pendingCount() > 0) {
+      return 'クラウドに保存できていない修正があるため承認できません。通信状態を確認してから、もう一度お試しください';
+    }
+    // 承認した人の苗字を残す列がないデータベースで承認すると、印鑑のない承認済みの書類ができてしまうため、先に確かめる
+    const check = await supabase.from('monthly_submissions').select('approver_last_name').eq('user_id', target).limit(1);
+    if (check.error) {
+      return check.error.code === '42703'
+        ? '承認の機能がデータベースにまだ用意されていません。管理者に連絡してください'
+        : submissionErrorText(check.error);
+    }
+    const { error } = await supabase.rpc('approve_documents', { p_user: target, p_year: year, p_month: month, p_docs: docs });
+    await refreshSubmissions(target);
+    return error ? submissionErrorText(error) : null;
+  });
 }
 
 async function deleteRows(c: Collection, uid: string, keys: string[]): Promise<string | null> {

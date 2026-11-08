@@ -5,7 +5,7 @@ import { DOC_KEYS, DOC_LABELS, type DocKey } from '../types/document';
 import { loadUserProfile } from '../utils/storage';
 import { buildMonthDocs, useWorkTimeCheck } from '../utils/monthDocs';
 import { findSubmission, isLockedStatus, useSubmissions } from '../utils/submissions';
-import { submitDocuments, syncNow, useCloudState, withdrawDocuments } from '../utils/cloudSync';
+import { approveDocuments, submitDocuments, syncNow, useCloudState, withdrawDocuments } from '../utils/cloudSync';
 import { DocChecklist, WorkTimeVerify, type DocChecklistRow } from './DocChecklist';
 
 interface Props {
@@ -19,7 +19,8 @@ interface Props {
 }
 
 // 書類を選んで提出する画面。入力チェックはダウンロード画面と同じ
-// 上長・管理者が部下のデータを開いているときは、部下の提出状況を見るだけ（提出・取り下げは本人だけ）
+// リーダー・管理者がメンバーのデータを開いているときは、メンバーの提出状況を見て、提出済みの書類を承認する
+// （提出・取り下げは本人だけ）
 export default function SubmitTab({ records, transportRecords, workSettings, paidLeaveSettings, initialYear, initialMonth }: Props) {
   const now = new Date();
   const [filterYear, setFilterYear] = useState(initialYear ?? now.getFullYear());
@@ -50,6 +51,8 @@ export default function SubmitTab({ records, transportRecords, workSettings, pai
   const allSelected = selectableRows.every((r) => selected.has(r.key));
   const submittedCount = rows.filter(isLocked).length;
   const targetCount = rows.filter((r) => r.doc.required || isLocked(r)).length;
+  // 承認できる書類（提出済み・承認前）
+  const approvableKeys = rows.filter((r) => r.submission?.status === 'submitted').map((r) => r.key);
 
   // 検算は勤務表の確認なので、勤務表を提出するときだけ判定する
   const verifyBlocks = selectedRows.some((r) => r.key === 'attendance') && !verify.passed;
@@ -117,12 +120,33 @@ export default function SubmitTab({ records, transportRecords, workSettings, pai
     setMessage(`${filterYear}年${filterMonth}月の${DOC_LABELS[key]}の提出を取り下げました`);
   }
 
+  async function handleApprove(docs: DocKey[]) {
+    if (!viewing || docs.length === 0) return;
+    const names = docs.map((d) => `・${DOC_LABELS[d]}`).join('\n');
+    if (!window.confirm(
+      `${viewing.name}さんの${filterYear}年${filterMonth}月の次の書類を承認します。\n\n${names}\n\n`
+      + '承認した書類は、本人もリーダー・管理者も変更・取り下げできなくなります。承認は取り消せません。\n'
+      + '勤務表・交通費・休暇申請書・遅早退申請書のPDFには、承認欄にあなたの印鑑が押されます。',
+    )) return;
+
+    setBusy(true);
+    setMessage('');
+    const error = await approveDocuments(filterYear, filterMonth, docs);
+    setBusy(false);
+    if (error) {
+      alert(`承認できませんでした。\n\n${error}`);
+      return;
+    }
+    setMessage(`${viewing.name}さんの${filterYear}年${filterMonth}月の${docs.map((d) => DOC_LABELS[d]).join('・')}を承認しました`);
+  }
+
   return (
     <div className="bulk-tab">
       <h2>{viewing ? `提出（${viewing.name}さん）` : '提出'}</h2>
       {viewing ? (
         <p className="hint">
-          {viewing.name}さんの提出状況です。提出済み（承認前）の書類は、勤怠一覧・交通費・申請書類・作業報告・スキル表の画面で修正できます。
+          {viewing.name}さんの提出状況です。提出済みの書類は、内容を確かめてから「承認」を押してください。
+          承認前の書類は、勤怠一覧・交通費・申請書類・作業報告・スキル表の画面で修正できます。
           提出・取り下げは本人だけができます。
         </p>
       ) : (
@@ -170,9 +194,18 @@ export default function SubmitTab({ records, transportRecords, workSettings, pai
         onToggle={toggle}
         showSubmission={!statusUnavailable}
         onWithdraw={viewing ? undefined : handleWithdraw}
+        onApprove={viewing && !statusUnavailable ? (key) => { void handleApprove([key]); } : undefined}
         readOnly={!!viewing}
         busy={busy}
       />
+
+      {viewing && !statusUnavailable && approvableKeys.length > 1 && (
+        <div className="bulk-download-actions">
+          <button className="btn btn-primary" disabled={busy} onClick={() => { void handleApprove(approvableKeys); }}>
+            {busy ? '処理中…' : `提出済みの書類をすべて承認（${approvableKeys.length}件）`}
+          </button>
+        </div>
+      )}
 
       {!viewing && (
         <>

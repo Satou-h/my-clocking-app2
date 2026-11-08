@@ -9,7 +9,7 @@ interface Props {
   onOpened: (year: number, month: number) => void;
 }
 
-// 上長・管理者が、部下の提出状況を確かめ、部下のデータを開いて提出済みの書類を修正する画面
+// リーダー・管理者が、メンバーの提出状況を確かめ、メンバーのデータを開いて提出済みの書類を承認・修正する画面
 export default function ReviewTab({ onOpened }: Props) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -46,8 +46,9 @@ export default function ReviewTab({ onOpened }: Props) {
     <div className="bulk-tab review-tab">
       <h2>メンバーの提出</h2>
       <p className="hint">
-        自分以外の全員の提出状況です。「開いて修正」を押すとその人のデータを開き、
-        提出済み（承認前）の書類をいつもの画面で修正できます。修正した日時と名前は、本人の提出画面に表示されます。
+        自分以外の全員の提出状況です。「開いて確認」を押すとその人のデータを開きます。
+        提出画面で提出済みの書類を承認でき、承認前の書類はいつもの画面で修正できます。修正した日時と名前は、本人の提出画面に表示されます。
+        承認した書類のPDFには、承認欄にあなたの印鑑が押されます。
       </p>
 
       <div className="list-filter">
@@ -87,7 +88,7 @@ export default function ReviewTab({ onOpened }: Props) {
                   disabled={opening !== null}
                   onClick={() => { void open(m); }}
                 >
-                  {opening === m.userId ? '開いています…' : '開いて修正'}
+                  {opening === m.userId ? '開いています…' : '開いて確認'}
                 </button>
               </div>
               <div className="review-doc-list">
@@ -98,7 +99,7 @@ export default function ReviewTab({ onOpened }: Props) {
                 ))}
               </div>
               {editable === 0 && (
-                <p className="review-member-note">この月に修正できる書類（提出済み・承認前）はありません</p>
+                <p className="review-member-note">この月に承認・修正できる書類（提出済み・承認前）はありません</p>
               )}
             </div>
           );

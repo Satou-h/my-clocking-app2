@@ -84,6 +84,9 @@ export default function SealTab({ lastName }: Props) {
           <p className="hint">
             PDFを出力するとき、休暇申請書・遅刻早退申請書の「本人」欄と、交通費精算書の「本人印」欄に自動で押印します。
           </p>
+          <p className="hint">
+            リーダー・管理者が承認した書類は、勤務表の「承認印」、休暇申請書・遅刻早退申請書・交通費精算書の「承認」欄に、承認した人の印鑑も押されます。
+          </p>
           {!name && <p className="hint hint-inline">「設定」で苗字を入力すると、印鑑が作られます。</p>}
           {current?.error && <p className="hint hint-inline">{current.error}</p>}
         </div>

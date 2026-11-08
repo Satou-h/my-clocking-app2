@@ -27,6 +27,8 @@ export interface Submission {
   // 提出後に上長・管理者が修正した日時と、修正した人の名前（修正していなければ null・空）
   modifiedAt: string | null;
   modifiedByName: string;
+  // 承認した人の苗字（承認済みの書類だけ。PDFの承認欄にこの苗字の印鑑を押す）
+  approverLastName: string;
 }
 
 export interface SubmissionState {
@@ -87,6 +89,7 @@ export function parseSubmission(row: Record<string, unknown>): Submission | null
     reviewComment: typeof row.review_comment === 'string' ? row.review_comment : '',
     modifiedAt: typeof row.modified_at === 'string' ? row.modified_at : null,
     modifiedByName: typeof row.modified_by_name === 'string' ? row.modified_by_name : '',
+    approverLastName: typeof row.approver_last_name === 'string' ? row.approver_last_name.trim() : '',
   };
 }
 
@@ -97,6 +100,12 @@ export function findSubmission(items: Submission[], doc: DocKey, year: number, m
 // 提出済み・承認済みの書類は変更できない（差し戻された書類は直して出し直せる）
 export function isLockedStatus(status: SubmissionStatus | undefined): boolean {
   return status === 'submitted' || status === 'approved';
+}
+
+// 承認済みの書類なら、承認した人の苗字（承認欄に押す印鑑）。承認前・未提出なら空
+export function approverOf(items: Submission[], doc: DocKey, year: number, month: number): string {
+  const s = findSubmission(items, doc, year, month);
+  return s?.status === 'approved' ? s.approverLastName : '';
 }
 
 export function isDocLocked(doc: DocKey, year: number, month: number, items: Submission[] = state.items): boolean {

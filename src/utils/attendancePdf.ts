@@ -8,6 +8,7 @@ import {
   isLateArrival, isEarlyDeparture, getEffectiveBreak, getWorkLocation, timeToMins, withKishaNote,
 } from './storage';
 import { getHolidayName } from './holidays';
+import { sealImage } from './seal';
 import {
   C, DOW_JA, createPainter, drawStatGroups, downloadPdf, hm, hm10, loadFont, shortTime, writeSignAreas,
   type Stat,
@@ -100,6 +101,7 @@ export async function buildMonthlyAttendancePdf(
   month: number,
   plRemaining: number | null,
   name: string,
+  approverSeal = '', // 承認済みなら、承認印欄に押す承認した人の印鑑（PNG の data URL）
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
@@ -143,7 +145,8 @@ export async function buildMonthlyAttendancePdf(
   };
   meta('氏名', name, 11);
   meta('基準時間', `${shortTime(workSettings.standardStartTime)} 〜 ${shortTime(workSettings.standardEndTime)}`, 8.5);
-  const stampX = p.stamps(['承認印', '確認印'], right, M.t - 2, 54, 54);
+  const approverSign = approverSeal ? await doc.embedPng(approverSeal) : undefined;
+  const stampX = p.stamps(['承認印', '確認印'], right, M.t - 2, 54, 54, { 承認印: approverSign });
   p.hline(M.l, stampX - 16, M.t + 48, C.primary, 1.2);
 
   // ── 集計 ──────────────────────────────────────────────────────────────────
@@ -298,8 +301,11 @@ export async function printMonthlyAttendancePDF(
   employeeId = '',
   lastName = '',
   name = '',
+  approverLastName = '', // 承認済みなら承認した人の苗字（承認印欄に印鑑を押す）
 ): Promise<void> {
-  const bytes = await buildMonthlyAttendancePdf(await loadFont(), records, workSettings, year, month, plRemaining, name);
+  const bytes = await buildMonthlyAttendancePdf(
+    await loadFont(), records, workSettings, year, month, plRemaining, name, await sealImage(approverLastName),
+  );
   const userPart = (employeeId || lastName) ? `_${employeeId}${lastName}` : '';
   downloadPdf(bytes, `01_勤務表${year}${String(month).padStart(2, '0')}${userPart}.pdf`);
 }

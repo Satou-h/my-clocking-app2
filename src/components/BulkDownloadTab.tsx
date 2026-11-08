@@ -15,6 +15,7 @@ import { printSkillSheet, printWorkHistory } from '../utils/skillPdf';
 import { collectPdfs, deliverPdfs } from '../utils/pdfOutput';
 import { sortWorkHistory } from '../utils/workHistory';
 import { loadSummary } from '../utils/workReport';
+import { approverOf, getSubmissionState } from '../utils/submissions';
 import { DocChecklist, WorkTimeVerify } from './DocChecklist';
 
 interface Props {
@@ -73,16 +74,22 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
     if (!p.employeeId || !p.lastName) { alert('「設定」で社員番号と苗字を入力してください。'); return; }
     if (blockReason) return;
 
+    // 承認済みの書類は、承認欄に承認した人の印鑑を押す（承認前・未提出なら空）
+    const subs = getSubmissionState().items;
+    const approver = (doc: DocKey) => approverOf(subs, doc, filterYear, filterMonth);
+
     setDownloading(true);
     try {
       // 選んだPDFを作り終えてから、まとめてダウンロード（iPhone・iPad は共有シート）する
       const files = await collectPdfs(async () => {
         if (targets.has('attendance')) {
-          await printMonthlyAttendancePDF(records, workSettings, filterYear, filterMonth, plRemaining, p.employeeId, p.lastName, reportName);
+          await printMonthlyAttendancePDF(
+            records, workSettings, filterYear, filterMonth, plRemaining, p.employeeId, p.lastName, reportName, approver('attendance'),
+          );
         }
 
         if (targets.has('transport')) {
-          await printTransportPDF(transportRecords, filterYear, filterMonth, p.employeeId, p.lastName, reportName);
+          await printTransportPDF(transportRecords, filterYear, filterMonth, p.employeeId, p.lastName, reportName, approver('transport'));
         }
 
         if (targets.has('leave')) {
@@ -95,7 +102,7 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
               dateEntries: entriesInMonth.map((e) => ({ date: e.date, leaveLabel: LEAVE_LABELS[e.leaveType] })),
               leaveDays: calcLeaveDays(entriesInMonth),
               reason: batch.reason,
-            }, p.employeeId, p.lastName);
+            }, p.employeeId, p.lastName, approver('leave'));
           }
         }
 
@@ -110,7 +117,7 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
               scheduledTime: rec.scheduledTime,
               actualTime: rec.actualTime,
               reason: rec.reason,
-            }, p.employeeId, p.lastName);
+            }, p.employeeId, p.lastName, approver('lateEarly'));
           }
         }
 
@@ -137,7 +144,10 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
   return (
     <div className="bulk-tab">
       <h2>ダウンロード</h2>
-      <p className="hint">出力する書類にチェックを入れてください。選んだ書類の入力がすべて完了すると、まとめてダウンロードできます。</p>
+      <p className="hint">
+        出力する書類にチェックを入れてください。選んだ書類の入力がすべて完了すると、まとめてダウンロードできます。
+        承認された書類は、承認欄に承認した人の印鑑が押されます。
+      </p>
 
       <div className="list-filter">
         <select value={filterYear} onChange={(e) => setFilterYear(Number(e.target.value))}>
