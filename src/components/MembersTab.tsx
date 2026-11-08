@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import {
-  ROLES, ROLE_LABELS, createAccount, generatePassword, joinFullName, listMembers, setRole as saveRole,
-  type Member, type MemberRole,
+  ROLES, ROLE_LABELS, createAccount, generatePassword, joinFullName, listMembers, setMemberPassword,
+  setRole as saveRole, type Member, type MemberRole,
 } from '../utils/members';
 import { useCloudState } from '../utils/cloudSync';
 
@@ -28,13 +28,77 @@ function MessageLine({ message }: { message: Message }) {
   );
 }
 
-/** 一覧の1人分（役割を変えて保存する） */
+/** ほかの人のパスワードを変える欄（変えたら新しいパスワードを本人に伝える） */
+function PasswordForm({ member, onDone, onCancel }: {
+  member: Member; onDone: (password: string) => void; onCancel: () => void;
+}) {
+  const [password, setPassword] = useState(() => generatePassword());
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inputId = `member-new-password-${member.userId}`;
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!window.confirm(
+      `${displayName(member)}さんのパスワードを変えます。\n今のパスワードではログインできなくなります。よろしいですか？`,
+    )) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await setMemberPassword(member.userId, password);
+      onDone(password);
+    } catch (err) {
+      setError(errorText(err));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form className="member-password-form" onSubmit={handleSubmit}>
+      <div className="form-row">
+        <label htmlFor={inputId}>新しいパスワード</label>
+        <div className="member-password">
+          <input
+            id={inputId}
+            type="text"
+            required
+            minLength={6}
+            autoComplete="off"
+            spellCheck={false}
+            disabled={busy}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={busy}
+            onClick={() => setPassword(generatePassword())}
+          >
+            作り直す
+          </button>
+        </div>
+      </div>
+      <p className="form-hint">6文字以上。変えたら、新しいパスワードを本人に伝えてください</p>
+      {error && <p className="cloud-message cloud-message-error" role="alert">{error}</p>}
+      <div className="cloud-actions">
+        <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>
+          {busy ? '変更中…' : 'パスワードを変える'}
+        </button>
+        <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={onCancel}>やめる</button>
+      </div>
+    </form>
+  );
+}
+
+/** 一覧の1人分（役割を変えて保存する。自分以外はパスワードも変えられる） */
 function MemberCard({ member, isYou, onSaved }: {
   member: Member; isYou: boolean; onSaved: (role: MemberRole) => Promise<void>;
 }) {
   const [role, setRole] = useState<MemberRole>(member.role);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<Message>(null);
+  const [changingPassword, setChangingPassword] = useState(false);
   // 読み直した一覧で役割が変わっていたら、選択をその内容に戻す
   const [loadedRole, setLoadedRole] = useState(member.role);
   if (loadedRole !== member.role) {
@@ -81,7 +145,31 @@ function MemberCard({ member, isYou, onSaved }: {
         <button type="button" className="btn btn-primary btn-sm member-save" disabled={!changed || busy} onClick={handleSave}>
           {busy ? '保存中…' : '保存'}
         </button>
+        {!isYou && (
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm member-password-toggle"
+            aria-expanded={changingPassword}
+            onClick={() => { setChangingPassword(!changingPassword); setMessage(null); }}
+          >
+            パスワードを変更
+          </button>
+        )}
       </div>
+      {changingPassword && (
+        <PasswordForm
+          member={member}
+          onCancel={() => setChangingPassword(false)}
+          onDone={(password) => {
+            setChangingPassword(false);
+            setMessage({
+              error: false,
+              text: `パスワードを「${password}」に変えました。新しいパスワードを本人に伝え、`
+                + 'ログインしたら設定画面でパスワードを変えるよう伝えてください。',
+            });
+          }}
+        />
+      )}
       <MessageLine message={message} />
     </li>
   );
@@ -161,12 +249,12 @@ export default function MembersTab({ onMyRoleChange }: { onMyRoleChange: (role: 
     <div className="members-tab">
       <h2>ユーザー管理</h2>
       <p className="hint">
-        社員のアカウントを作り、役割を設定します。この画面は管理者だけが使えます。
+        社員のアカウントを作り、役割の設定やパスワードの変更をします。この画面は管理者だけが使えます。
       </p>
       <ul className="member-roles">
         <li><strong>一般</strong>：自分のデータだけを見られます</li>
         <li><strong>リーダー</strong>：全員の提出物を確認・修正できます</li>
-        <li><strong>管理者</strong>：全員の提出物を確認・修正でき、この画面でアカウントの作成と役割の設定ができます</li>
+        <li><strong>管理者</strong>：全員の提出物を確認・修正でき、この画面でアカウントの作成・役割の設定・パスワードの変更ができます</li>
       </ul>
 
       <h3>アカウントを作る</h3>
@@ -246,6 +334,10 @@ export default function MembersTab({ onMyRoleChange }: { onMyRoleChange: (role: 
       </form>
 
       <h3>メンバー</h3>
+      <p className="hint">
+        パスワードを忘れた人がいたら「パスワードを変更」で新しいパスワードを決め、本人に伝えてください。
+        自分のパスワードは設定画面で変えます。
+      </p>
       {loadError && (
         <div className="cloud-message cloud-message-error" role="alert">
           メンバーの一覧を読み込めませんでした（{loadError}）
