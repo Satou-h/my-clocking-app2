@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { AttendanceRecord, WorkSettings, PaidLeaveSettings } from '../types/attendance';
 import { ATTENDANCE_TYPE_LABELS, WORK_LOCATION_LABELS } from '../types/attendance';
 import {
-  calcWorkMinutes, calcOvertimeMinutes, calcLateNightMinutes,
+  calcWorkMinutes, calcOvertimeMinutes, calcLateNightMinutes, calcLateNightOvertimeMinutes,
   isLateArrival, isEarlyDeparture, formatMinutes, getEffectiveBreak,
   calcPaidLeaveMonthStatus, findPaidLeaveSetting, getWorkLocation,
 } from '../utils/storage';
@@ -63,13 +63,14 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
       : null;
     const legalHolidayMin = r.type === 'legal_holiday_work' && workMin !== null ? workMin : null;
     const lnMin = hasTime ? calcLateNightMinutes(r.clockIn!, r.clockOut!) : null;
+    const lnOtMin = hasTime ? calcLateNightOvertimeMinutes(r.type, r.clockIn!, r.clockOut!, effBreak) : null;
     const refStart = r.customStartTime ?? workSettings.standardStartTime;
     const refEnd = r.customEndTime ?? workSettings.standardEndTime;
     const isHalf = r.type === 'am_leave' || r.type === 'pm_leave';
     const late = hasTime && !isHalf ? isLateArrival(r.clockIn!, refStart) : false;
     const early = hasTime && !isHalf ? isEarlyDeparture(r.clockOut!, refEnd, r.clockIn) : false;
     const location = getWorkLocation(r);
-    return { effBreak, workMin, otMin, legalHolidayMin, lnMin, late, early, location };
+    return { effBreak, workMin, otMin, legalHolidayMin, lnMin, lnOtMin, late, early, location };
   }
 
   // 有給残日数（月度ごと。翌月へは繰り越さない）
@@ -189,6 +190,10 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
           <span className="s-label">深夜</span>
           <span className="s-value">{formatMinutes(summary.lateNightMins)}</span>
         </div>
+        <div className="summary-item latenight">
+          <span className="s-label">深夜残業</span>
+          <span className="s-value">{formatMinutes(summary.lateNightOvertimeMins)}</span>
+        </div>
         <div className="summary-item late">
           <span className="s-label">遅刻</span>
           <span className="s-value">{summary.lateCount}回</span>
@@ -250,6 +255,7 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
               <th>残業</th>
               <th>法定休日</th>
               <th>深夜</th>
+              <th>深夜残業</th>
               <th>状態</th>
               <th>備考</th>
               <th>操作</th>
@@ -262,6 +268,7 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
                   <tr key={row.date} className="row-off">
                     <td>{formatDay(row.date)}</td>
                     <td><span className="badge badge-holiday">休日</span></td>
+                    <td>-</td>
                     <td>-</td>
                     <td>-</td>
                     <td>-</td>
@@ -288,6 +295,7 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
                     <td>-</td>
                     <td>-</td>
                     <td>-</td>
+                    <td>-</td>
                     <td></td>
                     <td></td>
                     <td></td>
@@ -296,7 +304,7 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
               }
 
               const r = row.record;
-              const { effBreak: rowEffBreak, workMin, otMin, legalHolidayMin, lnMin, late, early, location } = rowValues(r);
+              const { effBreak: rowEffBreak, workMin, otMin, legalHolidayMin, lnMin, lnOtMin, late, early, location } = rowValues(r);
 
               return (
                 <tr key={r.id} className={`row-${r.type}`}>
@@ -323,6 +331,9 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
                   </td>
                   <td className={lnMin && lnMin > 0 ? 'text-latenight' : ''}>
                     {lnMin !== null ? (lnMin > 0 ? formatMinutes(lnMin) : '-') : '-'}
+                  </td>
+                  <td className={lnOtMin && lnOtMin > 0 ? 'text-latenight' : ''}>
+                    {lnOtMin ? formatMinutes(lnOtMin) : '-'}
                   </td>
                   <td>
                     <div className="status-badges">
@@ -379,6 +390,7 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
               <div className="day-card-side">
                 <span className="day-card-work">{v.workMin !== null ? formatMinutes(v.workMin) : ''}</span>
                 {!!v.otMin && <span className="day-card-ot">残業 {formatMinutes(v.otMin)}</span>}
+                {!!v.lnOtMin && <span className="day-card-ln">深夜残業 {formatMinutes(v.lnOtMin)}</span>}
                 <button type="button" className="btn-icon btn-delete" onClick={() => confirmDelete(r.id, r.date)}>削除</button>
               </div>
             </li>

@@ -3,7 +3,7 @@ import type { AttendanceRecord, AttendanceType, WorkLocation, WorkSettings } fro
 import { ATTENDANCE_TYPE_LABELS, WORK_LOCATION_LABELS } from '../types/attendance';
 import {
   generateId, calcWorkMinutes, calcOvertimeMinutes,
-  calcLateNightMinutes, isLateArrival, isEarlyDeparture, formatMinutes, getEffectiveBreak,
+  calcLateNightMinutes, calcLateNightOvertimeMinutes, isLateArrival, isEarlyDeparture, formatMinutes, getEffectiveBreak,
   getWorkLocation, calcSiteWorkMinutes, DEFAULT_KISHA_SWITCH_TIME, withKishaNote, todayStr,
 } from '../utils/storage';
 import { getHolidayName } from '../utils/holidays';
@@ -103,12 +103,14 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
   const calc = (() => {
     if (!needsTime || !clockIn || !clockOut) return null;
     const rawBreak = parseInt(breakMinutes) || 0;
-    const work = calcWorkMinutes(clockIn, clockOut, getEffectiveBreak(type, clockIn, clockOut, rawBreak));
+    const effBreak = getEffectiveBreak(type, clockIn, clockOut, rawBreak);
+    const work = calcWorkMinutes(clockIn, clockOut, effBreak);
     if (work <= 0) return null;
     return {
       work,
       overtime: calcOvertimeMinutes(work),
       lateNight: calcLateNightMinutes(clockIn, clockOut),
+      lateNightOvertime: calcLateNightOvertimeMinutes(type, clockIn, clockOut, effBreak),
       late: !isHalfLeave && isLateArrival(clockIn, effectiveStart),
       early: !isHalfLeave && isEarlyDeparture(clockOut, effectiveEnd, clockIn),
     };
@@ -441,6 +443,12 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
             <span className="calc-label">深夜時間</span>
             <span className={`calc-val ${calc.lateNight > 0 ? 'val-latenight' : ''}`}>
               {calc.lateNight > 0 ? formatMinutes(calc.lateNight) : 'なし'}
+            </span>
+          </div>
+          <div className="calc-row">
+            <span className="calc-label">深夜残業</span>
+            <span className={`calc-val ${calc.lateNightOvertime > 0 ? 'val-latenight' : ''}`}>
+              {calc.lateNightOvertime > 0 ? formatMinutes(calc.lateNightOvertime) : 'なし'}
             </span>
           </div>
           <div className="calc-row">

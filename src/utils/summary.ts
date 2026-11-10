@@ -1,6 +1,6 @@
 import type { AttendanceRecord, WorkSettings } from '../types/attendance';
 import {
-  calcWorkMinutes, calcOvertimeMinutes, calcLateNightMinutes,
+  calcWorkMinutes, calcOvertimeMinutes, calcLateNightMinutes, calcLateNightOvertimeMinutes,
   isLateArrival, isEarlyDeparture, getEffectiveBreak,
 } from './storage';
 
@@ -12,6 +12,7 @@ export interface MonthlySummary {
   overtimeMins: number;
   legalHolidayMins: number;
   lateNightMins: number;
+  lateNightOvertimeMins: number; // 深夜残業
   lateCount: number;
   earlyCount: number;
   paidDays: number;
@@ -37,6 +38,7 @@ export function calcMonthlySummary(
       const effBreak = getEffectiveBreak(r.type, r.clockIn, r.clockOut, r.breakMinutes ?? 0);
       const work = calcWorkMinutes(r.clockIn, r.clockOut, effBreak);
       const ln = calcLateNightMinutes(r.clockIn, r.clockOut);
+      const lnOt = calcLateNightOvertimeMinutes(r.type, r.clockIn, r.clockOut, effBreak);
       const refStart = r.customStartTime ?? workSettings.standardStartTime;
       const refEnd = r.customEndTime ?? workSettings.standardEndTime;
       const isHalf = r.type === 'am_leave' || r.type === 'pm_leave';
@@ -56,11 +58,12 @@ export function calcMonthlySummary(
         overtimeMins: acc.overtimeMins + ot,
         legalHolidayMins: acc.legalHolidayMins + legalHoliday,
         lateNightMins: acc.lateNightMins + ln,
+        lateNightOvertimeMins: acc.lateNightOvertimeMins + lnOt,
         lateCount: acc.lateCount + (late ? 1 : 0),
         earlyCount: acc.earlyCount + (early ? 1 : 0),
       };
     },
-    { workDays: 0, scheduledHolidayDays: 0, legalHolidayDays: 0, workMins: 0, overtimeMins: 0, legalHolidayMins: 0, lateNightMins: 0, lateCount: 0, earlyCount: 0, paidDays: 0 },
+    { workDays: 0, scheduledHolidayDays: 0, legalHolidayDays: 0, workMins: 0, overtimeMins: 0, legalHolidayMins: 0, lateNightMins: 0, lateNightOvertimeMins: 0, lateCount: 0, earlyCount: 0, paidDays: 0 },
   );
 
   summary.paidDays = monthRecords.reduce((acc, r) => {

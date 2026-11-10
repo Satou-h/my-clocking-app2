@@ -4,7 +4,7 @@ import fontkit from '@pdf-lib/fontkit';
 import type { AttendanceRecord, AttendanceType, WorkSettings } from '../types/attendance';
 import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
 import {
-  calcWorkMinutes, calcOvertimeMinutes, calcLateNightMinutes, calcPaidLeaveUsed,
+  calcWorkMinutes, calcOvertimeMinutes, calcLateNightMinutes, calcLateNightOvertimeMinutes, calcPaidLeaveUsed,
   isLateArrival, isEarlyDeparture, getEffectiveBreak, getWorkLocation, timeToMins, withKishaNote,
 } from './storage';
 import { getHolidayName } from './holidays';
@@ -36,17 +36,18 @@ interface DayRow {
   overLegal: number;       // 法定休日出勤
   overTotal: number;       // 時間外 計
   night: number;           // 深夜
+  nightOver: number;       // 深夜残業（時間外のうち 22:00〜翌5:00 の分）
   lateEarly: number;       // 遅刻早退（分）
 }
 
-type MinKey = 'brk' | 'bind' | 'actual' | 'normal' | 'overTotal' | 'overNormal' | 'overSched' | 'overLegal' | 'night' | 'lateEarly';
+type MinKey = 'brk' | 'bind' | 'actual' | 'normal' | 'overTotal' | 'overNormal' | 'overSched' | 'overLegal' | 'night' | 'nightOver' | 'lateEarly';
 
 function calcDay(dateKey: string, day: number, rec: AttendanceRecord | undefined, ws: WorkSettings): DayRow {
   const dow = new Date(dateKey + 'T00:00:00').getDay();
   const holiday = getHolidayName(dateKey);
   const row: DayRow = {
     day, dow, holiday, rec, isOff: dow === 0 || dow === 6 || !!holiday, worked: false,
-    brk: 0, bind: 0, actual: 0, normal: 0, overNormal: 0, overSched: 0, overLegal: 0, overTotal: 0, night: 0, lateEarly: 0,
+    brk: 0, bind: 0, actual: 0, normal: 0, overNormal: 0, overSched: 0, overLegal: 0, overTotal: 0, night: 0, nightOver: 0, lateEarly: 0,
   };
   if (!rec || !WORK_TYPES.has(rec.type) || !rec.clockIn || !rec.clockOut) return row;
 
@@ -66,6 +67,7 @@ function calcDay(dateKey: string, day: number, rec: AttendanceRecord | undefined
   }
   row.overTotal = row.overNormal + row.overSched + row.overLegal;
   row.night = calcLateNightMinutes(clockIn, clockOut);
+  row.nightOver = calcLateNightOvertimeMinutes(type, clockIn, clockOut, row.brk);
 
   // 遅刻早退（午前休・午後休と、土日祝・休日出勤の日は対象外。会社様式と同じく平日の勤務だけ）
   if (!row.isOff && (type === 'work' || type === 'transfer_holiday_work')) {
@@ -127,7 +129,7 @@ export async function buildMonthlyAttendancePdf(
   const total = {
     brk: sum('brk'), bind: sum('bind'), actual: sum('actual'), normal: sum('normal'),
     overTotal: sum('overTotal'), overNormal: sum('overNormal'), overSched: sum('overSched'),
-    overLegal: sum('overLegal'), night: sum('night'), lateEarly: sum('lateEarly'),
+    overLegal: sum('overLegal'), night: sum('night'), nightOver: sum('nightOver'), lateEarly: sum('lateEarly'),
   };
   const workDays = rows.filter(r => r.worked).length;
   const absentDays = rows.filter(r => r.rec?.type === 'absence').length;
@@ -176,6 +178,7 @@ export async function buildMonthlyAttendancePdf(
       { ...hours(total.overNormal + total.overSched, true), label: '普残/所休' },
       { ...hours(total.overLegal, true), label: '法定休日' },
       { ...hours(total.night, true), label: '深夜勤務' },
+      { ...hours(total.nightOver, true), label: '深夜残業' },
       { ...hours(total.lateEarly, true), label: '遅刻早退' },
     ] },
   ], M.l, right, sumY, sumH);
@@ -196,6 +199,7 @@ export async function buildMonthlyAttendancePdf(
     { key: 'overSched', label: '所定休日', w: 44, group: '時間外' },
     { key: 'overLegal', label: '法定休日', w: 44, group: '時間外' },
     { key: 'night', label: '深夜', w: 38, group: 'その他' },
+    { key: 'nightOver', label: '深夜残業', w: 44, group: 'その他' },
     { key: 'lateEarly', label: '遅刻早退', w: 44, group: 'その他' },
     { key: 'daikyu', label: '代休', w: 36, group: 'その他' },
     { key: 'note', label: '備考', w: 0 },
@@ -204,7 +208,7 @@ export async function buildMonthlyAttendancePdf(
   const colX: number[] = [];
   cols.reduce((acc, c) => (colX.push(acc), acc + c.w), M.l);
   const isGroupStart = (i: number) => i > 0 && (!cols[i].group || cols[i - 1].group !== cols[i].group);
-  const OVER_KEYS = new Set(['overTotal', 'overNormal', 'overSched', 'overLegal', 'night']);
+  const OVER_KEYS = new Set(['overTotal', 'overNormal', 'overSched', 'overLegal', 'night', 'nightOver']);
   const colorOf = (key: string) => (OVER_KEYS.has(key) ? C.over : key === 'lateEarly' ? C.sun : C.ink);
 
   const tY = sumY + sumH + 12, gH = 12, cH = 13, hH = gH + cH, totalH = 16, footH = 12;
@@ -286,7 +290,7 @@ export async function buildMonthlyAttendancePdf(
     p.cell(hm(v), colX[i], bodyBottom, c.w, totalH, 7.8, v === 0 ? C.faint : colorOf(c.key));
   });
 
-  p.txt('時間は 時:分（上部の集計は10分単位で切り上げ）。空欄は 0:00。', M.l, bodyBottom + totalH + 10, 6.3, C.sub);
+  p.txt('時間は 時:分（上部の集計は10分単位で切り上げ）。空欄は 0:00。深夜残業は時間外のうち 22:00〜翌5:00 の時間。', M.l, bodyBottom + totalH + 10, 6.3, C.sub);
 
   writeSignAreas(doc, p.signAreas);
   return doc.save();

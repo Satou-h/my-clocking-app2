@@ -347,21 +347,30 @@ export function calcOvertimeMinutes(workMinutes: number): number {
   return Math.max(0, workMinutes - 8 * 60);
 }
 
+// 深夜時間帯（22:00〜翌5:00）と重なる分数。s・e は出勤日の 0:00 からの分（e は翌日にかかってよい）
+function lateNightOverlap(s: number, e: number): number {
+  // 前日22:00〜当日5:00、当日22:00〜翌5:00、翌日22:00〜翌々日5:00
+  return [-2 * 60, 22 * 60, 46 * 60].reduce((a, n) => a + overlapMins(s, e, n, n + 7 * 60), 0);
+}
+
 // 深夜時間帯: 22:00〜翌5:00
 export function calcLateNightMinutes(clockIn: string, clockOut: string): number {
   const start = timeToMins(clockIn);
   let end = timeToMins(clockOut);
   if (end <= start) end += 24 * 60;
+  return lateNightOverlap(start, end);
+}
 
-  // [22:00, 29:00] = [1320, 1740] で翌5:00まで
-  const lateNight = overlapMins(start, end, 22 * 60, 29 * 60);
-
-  // 深夜跨ぎなし & 早朝帯 [0:00, 5:00] の重複
-  const earlyMorning = !( end > 24 * 60 ) && start < 5 * 60
-    ? overlapMins(start, end, 0, 5 * 60)
-    : 0;
-
-  return lateNight + earlyMorning;
+// 深夜残業: 1日8時間を超えた残業のうち 22:00〜翌5:00 に入る分。
+// 休憩の時刻は記録が無いので、休憩は残業が始まる前に取ったとみなし、「出勤＋休憩＋8時間」から退勤までを残業の時間帯とする。
+// 所定休日出勤・法定休日出勤は全時間が時間外なので、深夜時間がそのまま深夜残業。
+// breakMinutes は getEffectiveBreak() を通した休憩
+export function calcLateNightOvertimeMinutes(type: string, clockIn: string, clockOut: string, breakMinutes: number): number {
+  if (type === 'scheduled_holiday_work' || type === 'legal_holiday_work') return calcLateNightMinutes(clockIn, clockOut);
+  const start = timeToMins(clockIn);
+  let end = timeToMins(clockOut);
+  if (end <= start) end += 24 * 60;
+  return lateNightOverlap(start + breakMinutes + 8 * 60, end);
 }
 
 export function isLateArrival(clockIn: string, standardStart: string): boolean {
