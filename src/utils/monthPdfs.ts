@@ -3,6 +3,7 @@
  *
  * ・いま開いているデータ（自分、またはリーダー・管理者が開いたメンバー）の書類を作る
  * ・勤務表は、提出用の勤務表と、時間の内訳を細かく載せた勤務表(計算用)の2件を作る
+ * ・氏名・社員番号・苗字は、管理者が「ユーザー管理」で設定した内容を使う（申請書も申請ごとの氏名ではなくこちら）
  * ・確認済み・承認済みの書類は、確認の欄（勤務表: 確認印 / 休暇・遅刻早退申請書: 確認 / 交通費精算書: 検印）に
  *   確認した人の印鑑を押す。承認済みの書類は、承認欄に承認した人の印鑑も押す（未提出・確認前なら空）
  * ・作ったPDFは保存せずに返す（保存するか画面に表示するかは呼び出す側が決める）
@@ -65,7 +66,7 @@ export function makeMonthPdfs(
         const entriesInMonth = batch.dateEntries.filter((e) => e.date.startsWith(monthPrefix));
         await printLeaveApplication({
           applicationDate: batch.applicationDate,
-          name: batch.name,
+          name: reportName || batch.name,
           dateEntries: entriesInMonth.map((e) => ({ date: e.date, leaveLabel: LEAVE_LABELS[e.leaveType] })),
           leaveDays: calcLeaveDays(entriesInMonth),
           reason: batch.reason,
@@ -78,7 +79,7 @@ export function makeMonthPdfs(
       for (const rec of apps) {
         await printLateEarlyApplication({
           applicationDate: rec.applicationDate,
-          name: rec.name,
+          name: reportName || rec.name,
           type: rec.type,
           targetDate: rec.targetDate,
           scheduledTime: rec.scheduledTime,

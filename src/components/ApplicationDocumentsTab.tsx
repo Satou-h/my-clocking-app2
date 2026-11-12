@@ -8,14 +8,13 @@ import {
   LEAVE_TYPES, findLateEarly, lateEarlyKey, checkLeaveEntry, checkLateEarlyApplication,
   type LateEarlyOccurrence,
 } from '../utils/completeness';
-import { loadName, saveName } from '../utils/workReport';
+import { loadName } from '../utils/workReport';
 import type { LeaveType, LeaveApplicationRecord, LateEarlyApplicationRecord } from '../types/application';
 import { LEAVE_LABELS, calcLeaveDays } from '../types/application';
 import type { AttendanceRecord, WorkSettings } from '../types/attendance';
 import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
 import Icon from './Icon';
 import SubmittedNotice from './SubmittedNotice';
-import { useCloudState } from '../utils/cloudSync';
 
 interface Props {
   records: AttendanceRecord[];
@@ -104,10 +103,6 @@ type DocType = 'leave' | 'late_early';
 
 export default function ApplicationDocumentsTab({ records, workSettings }: Props) {
   const [docType, setDocType] = useState<DocType>('leave');
-  // 勤務表・交通費・作業報告書と共通の氏名
-  const [name, setName] = useState(loadName);
-  // 上長・管理者が部下のデータを開いている間は、氏名（本人の社員情報）を変更できない
-  const viewing = useCloudState().viewing;
   // 勤務表から追加する候補と、保存済みの一覧を表示する月
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [month, setMonth] = useState(() => new Date().getMonth() + 1);
@@ -130,11 +125,6 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
   const [scheduledTime, setScheduledTime] = useState('');
   const [actualTime, setActualTime] = useState('');
   const [leReason, setLeReason] = useState('');
-
-  function updateName(value: string) {
-    setName(value);
-    saveName(value);
-  }
 
   const currentYear = new Date().getFullYear();
   const years = [...new Set([...Array.from({ length: 5 }, (_, i) => currentYear - 2 + i), year])].sort((a, b) => a - b);
@@ -219,14 +209,14 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
     return {
       id,
       applicationDate,
-      name,
+      // 氏名はユーザー管理で設定された氏名（PDF にも出力時の氏名を印字する）
+      name: loadName(),
       dateEntries: dateEntries.map((e) => ({ date: e.date, leaveType: e.leaveType })),
       reason,
     };
   }
 
   function handleSaveLeave() {
-    if (!name.trim()) { alert('氏名を入力してください。'); return; }
     if (!applicationDate) { alert('申請日を入力してください。'); return; }
     if (dateEntries.length === 0) { alert('取得日を1日以上追加してください。'); return; }
     const duplicated = dateEntries.filter((e) => otherLeaveDates.has(e.date));
@@ -292,7 +282,7 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
     return {
       id,
       applicationDate: leAppDate,
-      name,
+      name: loadName(),
       type: lateEarlyType,
       targetDate,
       scheduledTime,
@@ -307,7 +297,6 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
     : scheduledTime !== '' || actualTime !== '' || leReason.trim() !== '';
 
   function handleSaveLateEarly() {
-    if (!name.trim()) { alert('氏名を入力してください。'); return; }
     if (!leAppDate) { alert('申請日を入力してください。'); return; }
     if (!targetDate) { alert('対象日を入力してください。'); return; }
     if (!scheduledTime || !actualTime) { alert('本来の時刻と実際の時刻を入力してください。'); return; }
@@ -368,24 +357,6 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
   );
   const monthNotice = <SubmittedNotice docs={[docType === 'leave' ? 'leave' : 'lateEarly']} year={year} month={month} />;
 
-  const applicantSection = (
-    <div className="leave-app-section">
-      <h3 className="leave-app-section-title">申請者情報</h3>
-      <div className="form-row">
-        <label>氏名</label>
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => updateName(e.target.value)}
-          readOnly={!!viewing}
-          title={viewing ? '氏名は本人だけが変更できます' : undefined}
-          placeholder="氏名"
-        />
-      </div>
-      <p className="form-hint">勤務表・交通費・作業報告書の氏名と共通です</p>
-    </div>
-  );
-
   const unappliedBadge = (count: number) =>
     count > 0 && (
       <span className="app-doc-menu-count" title={`${month}月の未申請 ${count}件`} aria-label={`未申請 ${count}件`}>
@@ -417,7 +388,6 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
             <h2 className="section-title">{editingLeaveId ? '休暇申請書を編集' : '休暇申請書'}</h2>
             {monthFilter}
             {monthNotice}
-            {applicantSection}
 
             <div className="leave-app-section">
               <h3 className="leave-app-section-title">申請内容</h3>
@@ -585,7 +555,6 @@ export default function ApplicationDocumentsTab({ records, workSettings }: Props
             <h2 className="section-title">{editingLateEarlyId ? '遅早退申請書を編集' : '遅早退申請書'}</h2>
             {monthFilter}
             {monthNotice}
-            {applicantSection}
 
             <div className="leave-app-section">
               <h3 className="leave-app-section-title">申請内容</h3>

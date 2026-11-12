@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import type { AttendanceRecord, PaidLeaveSettings, WorkSettings } from '../types/attendance';
 import type { TransportRecord } from '../types/transport';
 import { DOC_KEYS, DOC_LABELS, type DocKey } from '../types/document';
-import { loadUserProfile } from '../utils/storage';
+import { loadUserProfile, PROFILE_MISSING_MESSAGE } from '../utils/storage';
 import { buildMonthDocs, useWorkTimeCheck } from '../utils/monthDocs';
 import { makeMonthPdfs } from '../utils/monthPdfs';
 import { findSubmission, isLockedStatus, useSubmissions } from '../utils/submissions';
@@ -135,7 +135,7 @@ export default function SubmitTab({ records, transportRecords, workSettings, pai
 
   async function handleSubmit() {
     const p = loadUserProfile();
-    if (!p.employeeId || !p.lastName) { alert('「設定」で社員番号と苗字を入力してください。'); return; }
+    if (!p.employeeId || !p.lastName) { alert(PROFILE_MISSING_MESSAGE); return; }
     if (blockReason) return;
 
     const docs = selectedRows.map((r) => r.key);

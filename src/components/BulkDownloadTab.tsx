@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { AttendanceRecord, PaidLeaveSettings, WorkSettings } from '../types/attendance';
 import type { TransportRecord } from '../types/transport';
 import { DOC_KEYS, type DocKey } from '../types/document';
-import { loadUserProfile } from '../utils/storage';
+import { loadUserProfile, PROFILE_MISSING_MESSAGE } from '../utils/storage';
 import { buildMonthDocs, useWorkTimeCheck } from '../utils/monthDocs';
 import { makeMonthPdfs } from '../utils/monthPdfs';
 import { deliverPdfs } from '../utils/pdfOutput';
@@ -60,7 +60,7 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
 
   async function handleDownload() {
     const p = loadUserProfile();
-    if (!p.employeeId || !p.lastName) { alert('「設定」で社員番号と苗字を入力してください。'); return; }
+    if (!p.employeeId || !p.lastName) { alert(PROFILE_MISSING_MESSAGE); return; }
     if (blockReason) return;
 
     setDownloading(true);

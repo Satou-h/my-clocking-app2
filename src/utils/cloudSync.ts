@@ -436,6 +436,8 @@ function skillEmpty(): SkillSheet {
 }
 
 // 社員情報・氏名・基準時間（プロフィールは登録時に自動で作られるため、更新だけ行う）
+// 社員番号・苗字・氏名は管理者が「ユーザー管理」で決める。読み込むだけで、この端末からは書き込まない
+// （PROFILE_WRITABLE。古い内容で管理者の変更を上書きしないように）
 // 印鑑は苗字から PDF を出力するときに作るため、保存しない（以前の手書きサインの列 signature_* は使わない）
 interface ProfileItem {
   employeeId: string; lastName: string; name: string;
@@ -481,6 +483,18 @@ const profile = define<ProfileItem>({
   }),
   empty: PROFILE_EMPTY,
 });
+// プロフィールのうち、本人の端末から書き込む列
+const PROFILE_WRITABLE = ['standard_start_time', 'standard_end_time'];
+
+// 管理者が「ユーザー管理」で自分の社員情報を変えたとき、メモリ上の内容を合わせる（データベースは保存済み）
+export function applyOwnProfile(p: { employeeId: string; lastName: string; fullName: string }) {
+  if (viewAs) return; // メンバーのデータを開いている間はユーザー管理を使えない
+  withoutTracking(() => {
+    saveUserProfile({ ...loadUserProfile(), employeeId: p.employeeId, lastName: p.lastName });
+    saveName(p.fullName);
+  });
+  setState({}); // 画面に社員情報を読み直させる
+}
 
 const COLLECTIONS: Collection[] = [profile, skill, paidLeave, attendance, transport, leave, lateEarly, workReport];
 const BY_ID = Object.fromEntries(COLLECTIONS.map((c) => [c.id, c])) as Record<CollectionId, Collection>;
@@ -658,7 +672,7 @@ function blockedLabels(c: Collection, row: Row | undefined): string[] {
       .map((p) => periodLabel(p.doc, p.year, p.month));
   }
   const { items } = getSubmissionState();
-  if (c.id === 'profile') return ['社員情報・氏名（本人だけが変更できます）'];
+  if (c.id === 'profile') return ['基準時間（本人だけが変更できます）'];
   if (c.id === 'skill') {
     const submitted = items.some((s) => (s.doc === 'skillSheet' || s.doc === 'workHistory') && s.status === 'submitted');
     return submitted ? [] : ['スキル表（未提出）'];
@@ -1012,7 +1026,8 @@ async function upsertOne(c: Collection, uid: string, row: Row): Promise<string |
 
 async function upsertRows(c: Collection, uid: string, rows: Row[]): Promise<{ ok: string[]; error: string | null }> {
   if (c.id === 'profile') {
-    const { data, error } = await supabase.from(c.table).update(rows[0]).eq('user_id', uid).select('user_id');
+    const values = Object.fromEntries(PROFILE_WRITABLE.map((col) => [col, rows[0][col]]));
+    const { data, error } = await supabase.from(c.table).update(values).eq('user_id', uid).select('user_id');
     if (error) return { ok: [], error: describe(error) };
     if (!data || data.length === 0) return { ok: [], error: 'クラウドにプロフィールが見つかりません' };
     return { ok: ['me'], error: null };

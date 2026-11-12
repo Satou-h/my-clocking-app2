@@ -6,7 +6,7 @@ import {
   loadPaidLeaveSettings, savePaidLeaveSettings,
   loadWorkSettings, saveWorkSettings,
   loadTransportRecords, saveTransportRecords,
-  loadUserProfile, saveUserProfile,
+  loadUserProfile,
   findPaidLeaveSetting,
 } from './utils/storage';
 import AttendanceForm from './components/AttendanceForm';
@@ -16,7 +16,7 @@ import MonthStatus from './components/MonthStatus';
 import Icon, { type IconName } from './components/Icon';
 import type { TransferMeta } from './utils/transfer';
 import { getSubmitStatus } from './utils/submitStatus';
-import { saveName } from './utils/workReport';
+import { loadName } from './utils/workReport';
 import WorkSettingsForm from './components/WorkSettingsForm';
 import TransportTab from './components/TransportTab';
 import ApplicationDocumentsTab from './components/ApplicationDocumentsTab';
@@ -62,7 +62,7 @@ const NAV_GROUPS: { id: NavGroupId; label: string; items: { key: Tab; label: str
     id: 'more', label: 'その他', items: [
       { key: 'seal', label: '印鑑', icon: 'seal', desc: '苗字の印鑑の確認・リーダーの検印' },
       { key: 'transfer', label: 'QR/カナコード', icon: 'qr', desc: '別の端末へデータを移す' },
-      { key: 'members', label: 'ユーザー管理', icon: 'users', desc: 'アカウントの作成・役割の設定（管理者のみ）' },
+      { key: 'members', label: 'ユーザー管理', icon: 'users', desc: 'アカウントの作成・社員情報と役割の設定（管理者のみ）' },
       { key: 'settings', label: '設定', icon: 'settings', desc: 'クラウド保存・パスワード・社員情報・基準時間・テーマ' },
     ],
   },
@@ -82,7 +82,9 @@ export default function App() {
   const [workSettings, setWorkSettings] = useState<WorkSettings>(loadWorkSettings);
   const [transportRecords, setTransportRecords] = useState<TransportRecord[]>(loadTransportRecords);
   const [editingRecord, setEditingRecord] = useState<AttendanceRecord | undefined>();
-  const [userProfile, setUserProfile] = useState(loadUserProfile);
+  // 社員番号・苗字・氏名は管理者が「ユーザー管理」で設定する（読み込むだけ。メモリ上の内容を毎回読む）
+  const userProfile = loadUserProfile();
+  const fullName = loadName();
   const [listYear, setListYear] = useState(new Date().getFullYear());
   const [listMonth, setListMonth] = useState(new Date().getMonth() + 1);
   const cloud = useCloudState();
@@ -125,14 +127,7 @@ export default function App() {
     setPaidLeave(loadPaidLeaveSettings());
     setWorkSettings(loadWorkSettings());
     setTransportRecords(loadTransportRecords());
-    setUserProfile(loadUserProfile());
     setEditingRecord(undefined);
-  }
-
-  function handleProfileChange(key: 'employeeId' | 'lastName', value: string) {
-    const next = { ...userProfile, [key]: value };
-    setUserProfile(next);
-    saveUserProfile(next);
   }
 
   const persistRecords = useCallback((next: AttendanceRecord[]) => {
@@ -235,7 +230,8 @@ export default function App() {
     setTab('list');
   }
 
-  // QR / カナコードで受け取った基準時間・社員番号・苗字・氏名を反映（含まれている項目のみ上書き）
+  // QR / カナコードで受け取った基準時間・有給残日数を反映（含まれている項目のみ上書き）
+  // 社員番号・苗字・氏名もコードに含まれるが、管理者が「ユーザー管理」で設定するものなので取り込まない
   function handleImportMeta(meta: TransferMeta, year: number, month: number) {
     // 有給残日数は転送元の対象月の設定として保存する
     if (meta.paidLeaveDays !== undefined) {
@@ -243,16 +239,6 @@ export default function App() {
       handleSavePaidLeave([...paidLeave.filter((s) => s !== existing), { year, month, totalDays: meta.paidLeaveDays }]);
     }
     if (meta.workSettings) handleSaveWorkSettings({ ...workSettings, ...meta.workSettings });
-    if (meta.name) saveName(meta.name);
-    if (meta.employeeId || meta.lastName) {
-      const next = {
-        ...userProfile,
-        ...(meta.employeeId ? { employeeId: meta.employeeId } : {}),
-        ...(meta.lastName ? { lastName: meta.lastName } : {}),
-      };
-      setUserProfile(next);
-      saveUserProfile(next);
-    }
   }
 
   function handleImportTransport(imported: TransportRecord[]) {
@@ -295,7 +281,7 @@ export default function App() {
   const submitItems = getSubmitStatus(thisYear, thisMonth, records, transportRecords, workSettings, todayStr, submissions.items);
   const pendingCount = submitItems.filter((i) => !i.done).length;
 
-  const profileMissing = !userProfile.employeeId.trim() || !userProfile.lastName.trim();
+  const profileMissing = !userProfile.employeeId.trim() || !userProfile.lastName.trim() || !fullName.trim();
   const groupOfTab = NAV_GROUPS.find((g) => g.items.some((i) => i.key === tab))?.id;
 
   function renderMenuList(groupId: NavGroupId) {
@@ -409,8 +395,11 @@ export default function App() {
         {profileMissing && !viewing && tab !== 'settings' && (
           <div className="notice-banner" role="status">
             <Icon name="alert" />
-            <span>社員番号・苗字が未設定です（PDFの出力に必要です）</span>
-            <button type="button" className="btn-link" onClick={() => openTab('settings')}>設定する</button>
+            <span>
+              社員番号・氏名が未設定です（PDFの出力に必要です）。
+              {isAdmin ? '「ユーザー管理」で設定してください' : '管理者に「ユーザー管理」での設定を依頼してください'}
+            </span>
+            {isAdmin && <button type="button" className="btn-link" onClick={() => openTab('members')}>設定する</button>}
           </div>
         )}
         {tab === 'menu-submit' && renderMenuList('submit')}
@@ -522,7 +511,8 @@ export default function App() {
           <WorkSettingsForm
             settings={workSettings}
             userProfile={userProfile}
-            onProfileChange={handleProfileChange}
+            fullName={fullName}
+            onOpenMembers={isAdmin ? () => openTab('members') : undefined}
             onWorkTimeChange={handleWorkTimeChange}
           />
         )}

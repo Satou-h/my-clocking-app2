@@ -66,6 +66,7 @@ export function buildMonthDocs(
     leaveApplications, lateEarlyApplications, workSettings,
   );
 
+  // 氏名は管理者が「ユーザー管理」で設定したもの（勤務表・交通費・作業報告書・申請書に印字する）
   const reportName = loadName();
 
   const plRemaining = calcPaidLeaveRemaining(records, paidLeaveSettings, year, month);
@@ -82,8 +83,11 @@ export function buildMonthDocs(
   const docs: Record<DocKey, DocCompleteness> = {
     attendance,
     transport,
-    leave: completeness.leaveApplication,
-    lateEarly: completeness.lateEarlyApplication,
+    // 申請書は出すものがある月だけ氏名を確かめる
+    leave: completeness.leaveApplication.required
+      ? withNameCheck(completeness.leaveApplication, reportName) : completeness.leaveApplication,
+    lateEarly: completeness.lateEarlyApplication.required
+      ? withNameCheck(completeness.lateEarlyApplication, reportName) : completeness.lateEarlyApplication,
     workReport,
     skillSheet,
     workHistory: skillSheet,

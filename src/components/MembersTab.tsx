@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import {
-  ROLES, ROLE_LABELS, createAccount, generatePassword, joinFullName, listMembers, setMemberPassword,
-  setRole as saveRole, type Member, type MemberRole,
+  ROLES, ROLE_LABELS, createAccount, firstNameOf, generatePassword, joinFullName, listMembers, setMemberPassword,
+  setRole as saveRole, updateMemberProfile, type Member, type MemberProfile, type MemberRole,
 } from '../utils/members';
-import { useCloudState } from '../utils/cloudSync';
+import { applyOwnProfile, useCloudState } from '../utils/cloudSync';
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -54,7 +54,7 @@ function PasswordForm({ member, onDone, onCancel }: {
   }
 
   return (
-    <form className="member-password-form" onSubmit={handleSubmit}>
+    <form className="member-subform" onSubmit={handleSubmit}>
       <div className="form-row">
         <label htmlFor={inputId}>新しいパスワード</label>
         <div className="member-password">
@@ -91,14 +91,99 @@ function PasswordForm({ member, onDone, onCancel }: {
   );
 }
 
-/** 一覧の1人分（役割を変えて保存する。自分以外はパスワードも変えられる） */
-function MemberCard({ member, isYou, onSaved }: {
+/** 社員番号・苗字・名前を変える欄（勤務表などの書類の氏名・PDF のファイル名・印鑑に使う） */
+function ProfileForm({ member, onDone, onCancel }: {
+  member: Member; onDone: (profile: MemberProfile) => void; onCancel: () => void;
+}) {
+  const [employeeId, setEmployeeId] = useState(member.employeeId);
+  const [lastName, setLastName] = useState(member.lastName);
+  const [firstName, setFirstName] = useState(() => firstNameOf(member.fullName, member.lastName));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inputId = (field: string) => `member-${field}-${member.userId}`;
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!lastName.trim() || !firstName.trim()) {
+      setError('苗字と名前を入力してください');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      onDone(await updateMemberProfile(member.userId, employeeId, lastName, firstName));
+    } catch (err) {
+      setError(errorText(err));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form className="member-subform" onSubmit={handleSubmit}>
+      <div className="form-row">
+        <label htmlFor={inputId('employee-id')}>社員番号</label>
+        <input
+          id={inputId('employee-id')}
+          type="text"
+          maxLength={20}
+          autoComplete="off"
+          spellCheck={false}
+          disabled={busy}
+          value={employeeId}
+          onChange={(e) => setEmployeeId(e.target.value)}
+          placeholder="例: SS00"
+        />
+      </div>
+      <div className="form-row">
+        <label htmlFor={inputId('last-name')}>苗字</label>
+        <input
+          id={inputId('last-name')}
+          type="text"
+          required
+          maxLength={20}
+          autoComplete="off"
+          disabled={busy}
+          value={lastName}
+          onChange={(e) => setLastName(e.target.value)}
+          placeholder="例: 佐藤"
+        />
+      </div>
+      <div className="form-row">
+        <label htmlFor={inputId('first-name')}>名前</label>
+        <input
+          id={inputId('first-name')}
+          type="text"
+          required
+          maxLength={20}
+          autoComplete="off"
+          disabled={busy}
+          value={firstName}
+          onChange={(e) => setFirstName(e.target.value)}
+          placeholder="例: 太郎"
+        />
+      </div>
+      <p className="form-hint">勤務表・交通費・作業報告書・申請書の氏名と、PDFのファイル名・印鑑（苗字）に使います</p>
+      {error && <p className="cloud-message cloud-message-error" role="alert">{error}</p>}
+      <div className="cloud-actions">
+        <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>
+          {busy ? '保存中…' : '保存'}
+        </button>
+        <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={onCancel}>やめる</button>
+      </div>
+    </form>
+  );
+}
+
+/** 一覧の1人分（社員情報・役割を変えて保存する。自分以外はパスワードも変えられる） */
+function MemberCard({ member, isYou, onSaved, onProfileSaved }: {
   member: Member; isYou: boolean; onSaved: (role: MemberRole) => Promise<void>;
+  onProfileSaved: (profile: MemberProfile) => Promise<void>;
 }) {
   const [role, setRole] = useState<MemberRole>(member.role);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<Message>(null);
   const [changingPassword, setChangingPassword] = useState(false);
+  const [changingProfile, setChangingProfile] = useState(false);
   // 読み直した一覧で役割が変わっていたら、選択をその内容に戻す
   const [loadedRole, setLoadedRole] = useState(member.role);
   if (loadedRole !== member.role) {
@@ -129,7 +214,9 @@ function MemberCard({ member, isYou, onSaved }: {
       <div className="member-head">
         <strong className="member-name">
           {displayName(member)}
-          {member.employeeId && <span className="member-employee-id">{member.employeeId}</span>}
+          {member.employeeId
+            ? <span className="member-employee-id">{member.employeeId}</span>
+            : <span className="member-employee-id-unset">社員番号 未設定</span>}
           {isYou && <span className="member-you">あなた</span>}
         </strong>
         <span className="member-meta">{member.email}</span>
@@ -145,17 +232,38 @@ function MemberCard({ member, isYou, onSaved }: {
         <button type="button" className="btn btn-primary btn-sm member-save" disabled={!changed || busy} onClick={handleSave}>
           {busy ? '保存中…' : '保存'}
         </button>
-        {!isYou && (
+        <div className="member-toggles">
           <button
             type="button"
-            className="btn btn-secondary btn-sm member-password-toggle"
-            aria-expanded={changingPassword}
-            onClick={() => { setChangingPassword(!changingPassword); setMessage(null); }}
+            className="btn btn-secondary btn-sm"
+            aria-expanded={changingProfile}
+            onClick={() => { setChangingProfile(!changingProfile); setChangingPassword(false); setMessage(null); }}
           >
-            パスワードを変更
+            社員情報を変更
           </button>
-        )}
+          {!isYou && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              aria-expanded={changingPassword}
+              onClick={() => { setChangingPassword(!changingPassword); setChangingProfile(false); setMessage(null); }}
+            >
+              パスワードを変更
+            </button>
+          )}
+        </div>
       </div>
+      {changingProfile && (
+        <ProfileForm
+          member={member}
+          onCancel={() => setChangingProfile(false)}
+          onDone={(profile) => {
+            setChangingProfile(false);
+            setMessage({ error: false, text: '社員情報を保存しました' });
+            void onProfileSaved(profile);
+          }}
+        />
+      )}
       {changingPassword && (
         <PasswordForm
           member={member}
@@ -181,6 +289,7 @@ export default function MembersTab({ onMyRoleChange }: { onMyRoleChange: (role: 
   const [members, setMembers] = useState<Member[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  const [employeeId, setEmployeeId] = useState('');
   const [lastName, setLastName] = useState('');
   const [firstName, setFirstName] = useState('');
   const [email, setEmail] = useState('');
@@ -219,7 +328,7 @@ export default function MembersTab({ onMyRoleChange }: { onMyRoleChange: (role: 
     setCreating(true);
     setCreateMessage(null);
     try {
-      const userId = await createAccount(addr, password, lastName, firstName);
+      const userId = await createAccount(addr, password, employeeId, lastName, firstName);
       let text = `${fullName}さん（${addr}）のアカウントを作りました。メールアドレスと初期パスワード「${password}」を本人に伝え、`
         + 'ログインしたら設定画面でパスワードを変えるよう伝えてください。';
       let error = false;
@@ -232,6 +341,7 @@ export default function MembersTab({ onMyRoleChange }: { onMyRoleChange: (role: 
         }
       }
       setCreateMessage({ error, text });
+      setEmployeeId('');
       setLastName('');
       setFirstName('');
       setEmail('');
@@ -249,7 +359,7 @@ export default function MembersTab({ onMyRoleChange }: { onMyRoleChange: (role: 
     <div className="members-tab">
       <h2>ユーザー管理</h2>
       <p className="hint">
-        社員のアカウントを作り、役割の設定やパスワードの変更をします。この画面は管理者だけが使えます。
+        社員のアカウントを作り、社員情報（社員番号・氏名）・役割の設定やパスワードの変更をします。この画面は管理者だけが使えます。
       </p>
       <ul className="member-roles">
         <li><strong>一般</strong>：自分のデータだけを見られます</li>
@@ -260,9 +370,23 @@ export default function MembersTab({ onMyRoleChange }: { onMyRoleChange: (role: 
       <h3>アカウントを作る</h3>
       <p className="hint">
         確認メールは送りません。作ったら、メールアドレスと初期パスワードを本人に伝えてください。
-        苗字・名前は本人の設定（苗字）と書類の氏名に自動で入り、印鑑も苗字から作られます。
+        社員番号・苗字・名前は勤務表・交通費・作業報告書・申請書に印字され、印鑑も苗字から作られます。
+        本人は変えられないため、あとから変えるときは下の一覧の「社員情報を変更」で変えてください。
       </p>
       <form onSubmit={handleCreate}>
+        <div className="form-row">
+          <label htmlFor="member-employee-id">社員番号</label>
+          <input
+            id="member-employee-id"
+            type="text"
+            maxLength={20}
+            autoComplete="off"
+            spellCheck={false}
+            value={employeeId}
+            onChange={(e) => setEmployeeId(e.target.value)}
+            placeholder="例: SS00"
+          />
+        </div>
         <div className="form-row">
           <label htmlFor="member-last-name">苗字</label>
           <input
@@ -335,6 +459,7 @@ export default function MembersTab({ onMyRoleChange }: { onMyRoleChange: (role: 
 
       <h3>メンバー</h3>
       <p className="hint">
+        社員番号・氏名は「社員情報を変更」で変えます（自分の分もここで変えます）。
         パスワードを忘れた人がいたら「パスワードを変更」で新しいパスワードを決め、本人に伝えてください。
         自分のパスワードは設定画面で変えます。
       </p>
@@ -360,6 +485,11 @@ export default function MembersTab({ onMyRoleChange }: { onMyRoleChange: (role: 
                   // 自分を管理者から外したときは、この画面を閉じる
                   if (isYou && role !== 'admin') onMyRoleChange(role);
                   else await refresh();
+                }}
+                onProfileSaved={async (profile) => {
+                  // 自分の社員情報を変えたときは、画面上部の表示や書類に使う内容もすぐ変える
+                  if (isYou) applyOwnProfile(profile);
+                  await refresh();
                 }}
               />
             );

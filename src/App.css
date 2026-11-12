@@ -674,15 +674,13 @@ h3 {
   gap: 10px;
   margin-bottom: 16px;
 }
-.list-filter select,
-.list-filter-name {
+.list-filter select {
   padding: 7px 12px;
   border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 14px;
   background: var(--surface-2);
 }
-.list-filter-name { width: 140px; }
 
 /* Monthly summary */
 .monthly-summary {
@@ -2223,8 +2221,7 @@ hr {
   .list-filter {
     flex-wrap: wrap;
   }
-  .list-filter select,
-  .list-filter-name {
+  .list-filter select {
     flex: 1;
     min-width: 100px;
   }
@@ -2842,22 +2839,26 @@ hr {
   font-weight: 600;
 }
 .member-meta { color: var(--text-muted); font-size: 12px; overflow-wrap: anywhere; }
-/* 役割・保存を左に、「パスワードを変更」を右端に置く */
+/* 役割・保存を左に、「社員情報を変更」「パスワードを変更」を右端に置く */
 .member-controls {
   display: grid;
   grid-template-columns: minmax(0, 140px) auto minmax(0, 1fr) auto;
   align-items: end;
   gap: 10px;
 }
-.member-password-toggle { grid-column: 4; min-height: 36px; }
-.member-password-form {
+.member-toggles { grid-column: 4; display: flex; gap: 8px; }
+.member-toggles .btn { min-height: 36px; }
+.member-employee-id-unset { color: var(--warning-text); font-size: 12px; font-weight: 500; }
+.member-subform {
   margin-top: 12px;
   padding-top: 12px;
   border-top: 1px solid var(--border);
 }
-.member-password-form .form-row { margin-bottom: 10px; }
-.member-password-form .cloud-message { margin: 0 0 10px; }
-.member-password-form .cloud-actions { margin: 0; }
+.member-subform .form-row { margin-bottom: 10px; }
+.member-subform .cloud-message { margin: 0 0 10px; }
+.member-subform .cloud-actions { margin: 0; }
+.settings-profile { margin: 0 0 12px; }
+.settings-profile-actions { margin: 0 0 8px; }
 .member-field {
   display: flex;
   flex-direction: column;
@@ -2891,6 +2892,7 @@ hr {
     font-size: 16px;
   }
   .member-save { min-height: 44px; }
-  .member-password-toggle { grid-column: auto; min-height: 44px; }
-  .member-password-form .btn { min-height: 44px; }
+  .member-toggles { grid-column: auto; }
+  .member-toggles .btn { flex: 1; min-height: 44px; }
+  .member-subform .btn { min-height: 44px; }
 }

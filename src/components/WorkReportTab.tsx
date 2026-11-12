@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import type { WeekReportData } from '../utils/pdf';
 import {
-  WEEK_LABELS, EMPTY_WEEK, loadAllWeeks, saveAllWeeks, loadSummary, saveSummary, loadName, saveName, hasContent,
+  WEEK_LABELS, EMPTY_WEEK, loadAllWeeks, saveAllWeeks, loadSummary, saveSummary, hasContent,
   transferWeek, transferMonth, weekHasData, monthHasData,
 } from '../utils/workReport';
 import SubmittedNotice from './SubmittedNotice';
-import { useCloudState } from '../utils/cloudSync';
 
 const CONDITIONS = ['', '◎', '○', '△', '×'];
 
@@ -19,9 +18,6 @@ export default function WorkReportTab() {
   const [selectedWeek, setSelectedWeek] = useState(0);
   const [form, setForm] = useState<WeekReportData>({ ...EMPTY_WEEK });
   const [savedWeeks, setSavedWeeks] = useState<WeekReportData[]>(() => loadAllWeeks(currentYear, currentMonth));
-  const [name, setName] = useState(loadName);
-  // 上長・管理者が部下のデータを開いている間は、氏名（本人の社員情報）を変更できない
-  const viewing = useCloudState().viewing;
   const [summaryDraft, setSummaryDraft] = useState(() => loadSummary(currentYear, currentMonth));
   const [monthlySummary, setMonthlySummary] = useState(() => loadSummary(currentYear, currentMonth));
 
@@ -54,11 +50,6 @@ export default function WorkReportTab() {
     const next = savedWeeks.map((w, i) => i === selectedWeek ? { ...form } : w);
     setSavedWeeks(next);
     saveAllWeeks(year, month, next);
-  }
-
-  function handleNameChange(value: string) {
-    setName(value);
-    saveName(value);
   }
 
   function handleSaveSummary() {
@@ -122,17 +113,6 @@ export default function WorkReportTab() {
 
       {/* ツールバー */}
       <div className="work-report-toolbar">
-        <div className="form-row">
-          <label>氏名</label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => handleNameChange(e.target.value)}
-            readOnly={!!viewing}
-            title={viewing ? '氏名は本人だけが変更できます' : undefined}
-            placeholder="氏名"
-          />
-        </div>
         <div className="form-row">
           <label>対象年月</label>
           <select value={year} onChange={(e) => setYear(Number(e.target.value))}>

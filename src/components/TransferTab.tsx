@@ -27,23 +27,21 @@ interface Props {
   onImportMeta: (meta: TransferMeta, year: number, month: number) => void;
 }
 
-// QR / カナコードで読み込んだ付加情報（基準時間・社員番号・苗字・有給残日数・氏名）の確認表示と取り込み選択
+// QR / カナコードで読み込んだ付加情報（基準時間・有給残日数）の確認表示と取り込み選択
+// 社員番号・苗字・氏名もコードに含まれるが、管理者が「ユーザー管理」で設定するものなので取り込まない
 function TransferMetaPreview({ meta, month, apply, onApplyChange }: {
   meta?: TransferMeta; month: number; apply: boolean; onApplyChange: (v: boolean) => void;
 }) {
-  if (!meta || (!meta.workSettings && !meta.employeeId && !meta.lastName && meta.paidLeaveDays === undefined && !meta.name)) return null;
+  if (!meta || (!meta.workSettings && meta.paidLeaveDays === undefined)) return null;
   return (
     <div className="my-8">
       <ul className="bullet-list">
         {meta.workSettings && <li>基準時間: {meta.workSettings.standardStartTime} ～ {meta.workSettings.standardEndTime}</li>}
-        {meta.employeeId && <li>社員番号: {meta.employeeId}</li>}
-        {meta.lastName && <li>苗字: {meta.lastName}</li>}
-        {meta.name && <li>氏名: {meta.name}</li>}
         {meta.paidLeaveDays !== undefined && <li>{month}月 月初の有給残日数: {meta.paidLeaveDays}日</li>}
       </ul>
       <label className="range-toggle">
         <input type="checkbox" checked={apply} onChange={(e) => onApplyChange(e.target.checked)} />
-        基準時間・社員番号・苗字・有給残日数・氏名も取り込む（現在の設定を上書きします）
+        基準時間・有給残日数も取り込む（現在の設定を上書きします）
       </label>
     </div>
   );
@@ -297,7 +295,7 @@ export default function TransferTab({
 
       {/* ── QRコード転送 ── */}
       <h3>QRコード転送</h3>
-      <p className="hint">1ヶ月分の勤怠＋交通費＋作業報告書・申請書類・スキル表と、基準時間・社員番号・苗字・氏名・有給残日数をQRコードで別デバイスに転送します。</p>
+      <p className="hint">1ヶ月分の勤怠＋交通費＋作業報告書・申請書類・スキル表と、基準時間・有給残日数をQRコードで別デバイスに転送します。</p>
 
       <div className="form-row">
         <label>対象年月</label>
@@ -322,7 +320,7 @@ export default function TransferTab({
         </div>
       </div>
       <p className="hint">
-        基準時間・社員番号・苗字・氏名・有給残日数は常に含まれます。スキル表は対象月に関係なく、スキル・資格・職務経歴の全体を転送します。<br/>
+        基準時間・有給残日数は常に含まれます（社員番号・氏名はユーザー管理で設定するため、取り込みません）。スキル表は対象月に関係なく、スキル・資格・職務経歴の全体を転送します。<br/>
         QRコードとカナコードのどちらにも、ここで選んだ内容が含まれます。
       </p>
 
@@ -380,7 +378,7 @@ export default function TransferTab({
 
       {/* ── カナコード転送 ── */}
       <h3>カナコード転送</h3>
-      <p className="hint">1ヶ月分のデータをカタカナ文字列に変換します。コードをコピー&amp;ペーストまたは手入力することで、別デバイスへ勤怠（勤務区分・備考を含む）・交通費（行先・出発地・到着地・備考を含む）・作業報告書・申請書類・スキル表と基準時間・社員番号・苗字・氏名・有給残日数を転送できます。</p>
+      <p className="hint">1ヶ月分のデータをカタカナ文字列に変換します。コードをコピー&amp;ペーストまたは手入力することで、別デバイスへ勤怠（勤務区分・備考を含む）・交通費（行先・出発地・到着地・備考を含む）・作業報告書・申請書類・スキル表と基準時間・有給残日数を転送できます。</p>
 
       <div className="csv-section">
         <h4>コードを生成（エクスポート）</h4>

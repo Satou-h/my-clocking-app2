@@ -252,17 +252,17 @@ export function withPaidLeaveCheck(doc: DocCompleteness, month: number, paidLeav
   };
 }
 
-// 勤務表・交通費・作業報告書: 共通の氏名が入力されていること（3つの書類に印字する）
+// 氏名を印字する書類: ユーザー管理で氏名が設定されていること
 export function withNameCheck(doc: DocCompleteness, name: string): DocCompleteness {
   if (name.trim()) return doc;
   return {
     ...doc,
     complete: false,
-    issues: [...doc.issues, '氏名が入力されていません（勤務表・交通費・作業報告書共通）'],
+    issues: [...doc.issues, '氏名が設定されていません（管理者が「ユーザー管理」で設定します）'],
   };
 }
 
-// 作業報告書: 対象月のいずれかの週が入力済みで、氏名が入力されていること
+// 作業報告書: 対象月のいずれかの週が入力済みで、氏名が設定されていること
 export function checkWorkReport(weeks: WeekReportData[], name: string): DocCompleteness {
   const issues = weeks.some(hasContent) ? [] : ['作業報告書が入力されていません'];
   return withNameCheck({ required: true, complete: issues.length === 0, missingDates: [], extraDates: [], issues }, name);

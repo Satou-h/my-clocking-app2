@@ -1,10 +1,12 @@
 /**
- * members.ts — 管理者のユーザー管理（アカウントの作成・役割の設定・パスワードの変更）
+ * members.ts — 管理者のユーザー管理（アカウントの作成・社員情報と役割の設定・パスワードの変更）
  *
+ * ・社員番号・苗字・名前は管理者がここで決める。勤務表などの書類の氏名・ファイル名・印鑑はこの内容を使い、
+ *   本人の画面（設定・各書類の画面）では変えられない
  * ・リーダー・管理者は全員の提出物を確認できるため、メンバーごとのリーダーは設定しない
  * ・一覧の取得と役割の変更は、データベースの関数（admin_list_members / admin_set_member）で行う
- * ・アカウントの作成とほかの人のパスワードの変更は秘密鍵が必要なため、
- *   Edge Function（supabase/functions/admin-create-user / admin-set-password）で行う
+ * ・アカウントの作成・社員情報の変更・ほかの人のパスワードの変更は秘密鍵が必要なため、
+ *   Edge Function（supabase/functions/admin-create-user / admin-update-member / admin-set-password）で行う
  * ・どれも管理者かどうかをデータベース・Edge Function の側で確かめる（画面で隠すだけに頼らない）
  */
 import { FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from '@supabase/supabase-js';
@@ -62,7 +64,7 @@ export async function setRole(userId: string, role: MemberRole): Promise<void> {
   if (error) throw new Error(dbErrorText(error));
 }
 
-// 苗字と名前の区切り（全角スペース。本人が入力している氏名の形に合わせる）
+// 苗字と名前の区切り（全角スペース。Edge Function と同じ）
 const NAME_SEPARATOR = String.fromCharCode(0x3000);
 
 // 苗字と名前から氏名を作る（Edge Function と同じ形）
@@ -91,17 +93,50 @@ async function invokeAdminFunction(name: string, body: Record<string, unknown>, 
   return data;
 }
 
+// 氏名から名前（苗字のあと）を取り出す（社員情報を変える欄に入れるため）
+export function firstNameOf(fullName: string, lastName: string): string {
+  const full = fullName.trim(), last = lastName.trim();
+  if (last && full.startsWith(last)) return full.slice(last.length).trim();
+  const parts = full.split(/\s+/);
+  return parts.length > 1 ? parts.slice(1).join(' ') : '';
+}
+
 // アカウントを作る（確認メールは送らない）。作ったユーザーの ID を返す
-// 苗字・名前は本人のプロフィール（設定の「苗字」・書類の氏名）に入る。印鑑も苗字から作られる
-export async function createAccount(email: string, password: string, lastName: string, firstName: string): Promise<string> {
+// 社員番号・苗字・名前は本人のプロフィールに入り、書類の氏名・ファイル名に使う。印鑑も苗字から作られる
+export async function createAccount(
+  email: string, password: string, employeeId: string, lastName: string, firstName: string,
+): Promise<string> {
   const data = await invokeAdminFunction(
     'admin-create-user',
-    { email, password, lastName: lastName.trim(), firstName: firstName.trim() },
+    { email, password, employeeId: employeeId.trim(), lastName: lastName.trim(), firstName: firstName.trim() },
     'アカウントを作れませんでした',
   );
   const userId = (data as { userId?: unknown } | null)?.userId;
   if (typeof userId !== 'string') throw new Error('アカウントを作れませんでした');
   return userId;
+}
+
+export interface MemberProfile {
+  employeeId: string;
+  lastName: string;
+  fullName: string;
+}
+
+// メンバー（自分を含む）の社員番号・苗字・名前を変える（Edge Function admin-update-member）。保存した内容を返す
+// 本人の画面では変えられない。社員番号はほかの人と同じものにはできない
+export async function updateMemberProfile(
+  userId: string, employeeId: string, lastName: string, firstName: string,
+): Promise<MemberProfile> {
+  const data = await invokeAdminFunction(
+    'admin-update-member',
+    { userId, employeeId: employeeId.trim(), lastName: lastName.trim(), firstName: firstName.trim() },
+    '社員情報を変えられませんでした',
+  ) as Record<string, unknown> | null;
+  return {
+    employeeId: String(data?.employeeId ?? ''),
+    lastName: String(data?.lastName ?? ''),
+    fullName: String(data?.fullName ?? ''),
+  };
 }
 
 // ほかの人のパスワードを変える（Edge Function admin-set-password。自分のパスワードは設定画面で変える）

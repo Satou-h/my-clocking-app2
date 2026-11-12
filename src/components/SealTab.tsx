@@ -87,7 +87,7 @@ export default function SealTab({ lastName }: Props) {
           <p className="hint">
             リーダー・管理者が承認した書類は、勤務表の「承認印」、休暇申請書・遅刻早退申請書・交通費精算書の「承認」欄に、承認した人の印鑑も押されます。
           </p>
-          {!name && <p className="hint hint-inline">「設定」で苗字を入力すると、印鑑が作られます。</p>}
+          {!name && <p className="hint hint-inline">管理者が「ユーザー管理」で苗字を設定すると、印鑑が作られます。</p>}
           {current?.error && <p className="hint hint-inline">{current.error}</p>}
         </div>
       </div>

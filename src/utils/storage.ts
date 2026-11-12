@@ -26,10 +26,15 @@ function setTracked(collection: CollectionId, key: string, value: unknown): void
   trackedWrite(collection, () => memoryStore.setItem(key, JSON.stringify(value)));
 }
 
+// 社員番号・苗字は管理者が「ユーザー管理」で設定する（本人の画面では変えられない。データベースから読み込むだけ）
 export interface UserProfile {
   employeeId: string;
   lastName: string;
 }
+
+// 社員番号・苗字がないため PDF を作れないときの知らせ
+export const PROFILE_MISSING_MESSAGE =
+  '社員番号と苗字が設定されていません。管理者が「ユーザー管理」で設定してから、もう一度お試しください。';
 
 export function loadUserProfile(): UserProfile {
   try {

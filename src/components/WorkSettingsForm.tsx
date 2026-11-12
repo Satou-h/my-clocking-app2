@@ -8,7 +8,9 @@ import CloudSyncPanel from './CloudSyncPanel';
 interface Props {
   settings: WorkSettings;
   userProfile: UserProfile;
-  onProfileChange: (key: 'employeeId' | 'lastName', value: string) => void;
+  fullName: string;
+  // 管理者のとき: 「ユーザー管理」を開く（社員番号・氏名はそこで変える）
+  onOpenMembers?: () => void;
   onWorkTimeChange: (key: 'standardStartTime' | 'standardEndTime', value: string) => void;
 }
 
@@ -19,7 +21,7 @@ const THEME_OPTIONS: { value: Theme; label: string }[] = [
 ];
 
 export default function WorkSettingsForm({
-  settings, userProfile, onProfileChange, onWorkTimeChange,
+  settings, userProfile, fullName, onOpenMembers, onWorkTimeChange,
 }: Props) {
   const { standardStartTime: startTime, standardEndTime: endTime } = settings;
   const [theme, setTheme] = useState<Theme>(loadTheme);
@@ -36,27 +38,27 @@ export default function WorkSettingsForm({
       <CloudSyncPanel />
 
       <h3>社員情報</h3>
-      <p className="hint">勤務表・交通費などのPDFに印字されます。</p>
-      <div className="form-row">
-        <label htmlFor="settings-employee-id">社員番号</label>
-        <input
-          id="settings-employee-id"
-          type="text"
-          value={userProfile.employeeId}
-          onChange={(e) => onProfileChange('employeeId', e.target.value)}
-          placeholder="例: SS00"
-        />
+      <p className="hint">
+        勤務表・交通費・作業報告書・申請書のPDFに印字され、印鑑も苗字から作られます。
+        社員番号・氏名は管理者が「ユーザー管理」で設定します。
+      </p>
+      <div className="settings-info settings-profile">
+        <div className="info-grid">
+          <div className="info-item">
+            <span className="info-label">社員番号</span>
+            <span className="info-value">{userProfile.employeeId.trim() || '未設定'}</span>
+          </div>
+          <div className="info-item">
+            <span className="info-label">氏名</span>
+            <span className="info-value">{fullName.trim() || userProfile.lastName.trim() || '未設定'}</span>
+          </div>
+        </div>
       </div>
-      <div className="form-row">
-        <label htmlFor="settings-last-name">苗字</label>
-        <input
-          id="settings-last-name"
-          type="text"
-          value={userProfile.lastName}
-          onChange={(e) => onProfileChange('lastName', e.target.value)}
-          placeholder="例: 佐藤"
-        />
-      </div>
+      {onOpenMembers && (
+        <div className="form-actions settings-profile-actions">
+          <button type="button" className="btn btn-secondary btn-sm" onClick={onOpenMembers}>ユーザー管理で変更する</button>
+        </div>
+      )}
 
       <h3>勤務時間</h3>
       <p className="hint">この時間を基準に遅刻・早退・残業・深夜時間を計算します。</p>

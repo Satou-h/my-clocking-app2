@@ -8,9 +8,7 @@ import {
 } from '../utils/storage';
 import { calcMonthlySummary, isWorkType } from '../utils/summary';
 import { getHolidayName } from '../utils/holidays';
-import { loadName, saveName } from '../utils/workReport';
 import SubmittedNotice from './SubmittedNotice';
-import { useCloudState } from '../utils/cloudSync';
 
 interface Props {
   records: AttendanceRecord[];
@@ -32,15 +30,6 @@ type DayRow =
 export default function AttendanceList({ records, workSettings, paidLeaveSettings, filterYear, filterMonth, onFilterChange, onEdit, onDelete, onSavePaidLeave }: Props) {
   const currentYear = new Date().getFullYear();
   const [plInput, setPlInput] = useState('');
-  const [name, setName] = useState(loadName);
-  // 上長・管理者が部下のデータを開いている間は、氏名（本人の社員情報）を変更できない
-  const viewing = useCloudState().viewing;
-
-  // 氏名は作業報告書・交通費と共通で保存する
-  function handleNameChange(value: string) {
-    setName(value);
-    saveName(value);
-  }
 
   const prefix = `${filterYear}-${String(filterMonth).padStart(2, '0')}`;
 
@@ -147,16 +136,6 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
         <select value={filterMonth} onChange={(e) => onFilterChange(filterYear, Number(e.target.value))}>
           {months.map((m) => <option key={m} value={m}>{m}月</option>)}
         </select>
-        <input
-          className="list-filter-name"
-          type="text"
-          value={name}
-          onChange={(e) => handleNameChange(e.target.value)}
-          readOnly={!!viewing}
-          title={viewing ? '氏名は本人だけが変更できます' : undefined}
-          placeholder="氏名"
-          aria-label="氏名"
-        />
       </div>
 
       <SubmittedNotice docs={['attendance']} year={filterYear} month={filterMonth} />
