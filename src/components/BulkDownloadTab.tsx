@@ -1,21 +1,11 @@
 import { useState } from 'react';
 import type { AttendanceRecord, PaidLeaveSettings, WorkSettings } from '../types/attendance';
 import type { TransportRecord } from '../types/transport';
-import { LEAVE_LABELS, calcLeaveDays } from '../types/application';
 import { DOC_KEYS, type DocKey } from '../types/document';
-import {
-  loadUserProfile, loadSkillEntries, loadCertifications, loadWorkHistory,
-} from '../utils/storage';
+import { loadUserProfile } from '../utils/storage';
 import { buildMonthDocs, useWorkTimeCheck } from '../utils/monthDocs';
-import { printMonthlyAttendancePDF } from '../utils/attendancePdf';
-import { printWorkReport } from '../utils/pdf';
-import { printLeaveApplication, printLateEarlyApplication } from '../utils/applicationPdf';
-import { printTransportPDF } from '../utils/transportPdf';
-import { printSkillSheet, printWorkHistory } from '../utils/skillPdf';
-import { collectPdfs, deliverPdfs } from '../utils/pdfOutput';
-import { sortWorkHistory } from '../utils/workHistory';
-import { loadSummary } from '../utils/workReport';
-import { approverOf, getSubmissionState } from '../utils/submissions';
+import { makeMonthPdfs } from '../utils/monthPdfs';
+import { deliverPdfs } from '../utils/pdfOutput';
 import { DocChecklist, WorkTimeVerify } from './DocChecklist';
 
 interface Props {
@@ -36,10 +26,9 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
   const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
 
-  const {
-    items, monthPrefix, leaveApplications, lateEarlyApplications, reportName, plRemaining, reportWeeks,
-    skillProfile, skillName, totalWorkMins, kishaSummary,
-  } = buildMonthDocs(filterYear, filterMonth, records, transportRecords, workSettings, paidLeaveSettings);
+  const { items, totalWorkMins, kishaSummary } = buildMonthDocs(
+    filterYear, filterMonth, records, transportRecords, workSettings, paidLeaveSettings,
+  );
 
   // 検算チェック（入力値がある場合のみ照合）
   const verify = useWorkTimeCheck(totalWorkMins);
@@ -74,64 +63,12 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
     if (!p.employeeId || !p.lastName) { alert('「設定」で社員番号と苗字を入力してください。'); return; }
     if (blockReason) return;
 
-    // 承認済みの書類は、承認欄に承認した人の印鑑を押す（承認前・未提出なら空）
-    const subs = getSubmissionState().items;
-    const approver = (doc: DocKey) => approverOf(subs, doc, filterYear, filterMonth);
-
     setDownloading(true);
     try {
       // 選んだPDFを作り終えてから、まとめてダウンロード（iPhone・iPad は共有シート）する
-      const files = await collectPdfs(async () => {
-        if (targets.has('attendance')) {
-          await printMonthlyAttendancePDF(
-            records, workSettings, filterYear, filterMonth, plRemaining, p.employeeId, p.lastName, reportName, approver('attendance'),
-          );
-        }
-
-        if (targets.has('transport')) {
-          await printTransportPDF(transportRecords, filterYear, filterMonth, p.employeeId, p.lastName, reportName, approver('transport'));
-        }
-
-        if (targets.has('leave')) {
-          const batches = leaveApplications.filter((b) => b.dateEntries.some((e) => e.date.startsWith(monthPrefix)));
-          for (const batch of batches) {
-            const entriesInMonth = batch.dateEntries.filter((e) => e.date.startsWith(monthPrefix));
-            await printLeaveApplication({
-              applicationDate: batch.applicationDate,
-              name: batch.name,
-              dateEntries: entriesInMonth.map((e) => ({ date: e.date, leaveLabel: LEAVE_LABELS[e.leaveType] })),
-              leaveDays: calcLeaveDays(entriesInMonth),
-              reason: batch.reason,
-            }, p.employeeId, p.lastName, approver('leave'));
-          }
-        }
-
-        if (targets.has('lateEarly')) {
-          const apps = lateEarlyApplications.filter((r) => r.targetDate.startsWith(monthPrefix));
-          for (const rec of apps) {
-            await printLateEarlyApplication({
-              applicationDate: rec.applicationDate,
-              name: rec.name,
-              type: rec.type,
-              targetDate: rec.targetDate,
-              scheduledTime: rec.scheduledTime,
-              actualTime: rec.actualTime,
-              reason: rec.reason,
-            }, p.employeeId, p.lastName, approver('lateEarly'));
-          }
-        }
-
-        if (targets.has('workReport')) {
-          await printWorkReport(filterYear, filterMonth, reportName, reportWeeks, p.employeeId, p.lastName, loadSummary(filterYear, filterMonth));
-        }
-
-        if (targets.has('skillSheet')) {
-          await printSkillSheet({ ...skillProfile, name: skillName }, loadSkillEntries(), loadCertifications(), p.employeeId, p.lastName);
-        }
-
-        if (targets.has('workHistory')) {
-          await printWorkHistory(skillName, sortWorkHistory(loadWorkHistory()), p.employeeId, p.lastName);
-        }
+      // 確認済み・承認済みの書類は、確認の欄・承認欄に確認した人・承認した人の印鑑が押される（確認前・未提出なら空）
+      const files = await makeMonthPdfs(filterYear, filterMonth, targets, {
+        records, transportRecords, workSettings, paidLeaveSettings,
       });
       await deliverPdfs(files);
     } catch (err) {
@@ -146,7 +83,7 @@ export default function BulkDownloadTab({ records, transportRecords, workSetting
       <h2>ダウンロード</h2>
       <p className="hint">
         出力する書類にチェックを入れてください。選んだ書類の入力がすべて完了すると、まとめてダウンロードできます。
-        承認された書類は、承認欄に承認した人の印鑑が押されます。
+        確認された書類は確認の欄（交通費精算書は検印の欄）に確認した人の印鑑が、承認された書類は承認欄に承認した人の印鑑が押されます。
       </p>
 
       <div className="list-filter">

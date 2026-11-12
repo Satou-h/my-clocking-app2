@@ -13,12 +13,17 @@ interface ChecklistProps {
   rows: DocChecklistRow[];
   selected: Set<DocKey>;
   onToggle: (key: DocKey) => void;
-  // 提出画面: 提出状況（未提出・提出済み・承認済み・差し戻し）を出す
+  // 提出画面: 提出状況（未提出・提出済み・確認済み・承認済み・差し戻し）を出す
   showSubmission?: boolean;
   onWithdraw?: (key: DocKey) => void;
-  // リーダー・管理者がメンバーの提出済みの書類を承認する・承認済みの書類の承認を取り消す
+  // リーダー・管理者がメンバーの提出済みの書類を確認する・確認済みの書類の確認を取り消す
+  onConfirm?: (key: DocKey) => void;
+  onUnconfirm?: (key: DocKey) => void;
+  // リーダー・管理者がメンバーの確認済みの書類を承認する・承認済みの書類の承認を取り消す
   onApprove?: (key: DocKey) => void;
   onUnapprove?: (key: DocKey) => void;
+  // 提出済み・確認済み・承認済みの書類をPDFで見る
+  onPreview?: (key: DocKey) => void;
   // 見るだけ（チェックボックスを出さない。リーダー・管理者がメンバーの提出状況を見るとき）
   readOnly?: boolean;
   busy?: boolean;
@@ -26,12 +31,13 @@ interface ChecklistProps {
 
 // ダウンロード・提出する書類の一覧（チェックを入れて選ぶ。入力状況と不足している日を出す）
 export function DocChecklist({
-  rows, selected, onToggle, showSubmission = false, onWithdraw, onApprove, onUnapprove, readOnly = false, busy = false,
+  rows, selected, onToggle, showSubmission = false, onWithdraw, onConfirm, onUnconfirm, onApprove, onUnapprove, onPreview,
+  readOnly = false, busy = false,
 }: ChecklistProps) {
   return (
     <div className={`bulk-checklist${readOnly ? ' bulk-checklist-readonly' : ''}`}>
       {rows.map(({ key, label, doc, submission }) => {
-        // 提出済み・承認済みの書類は、取り下げるまで選べない
+        // 提出済み・確認済み・承認済みの書類は、取り下げるまで選べない
         const locked = showSubmission && isLockedStatus(submission?.status);
         const inputStatus = !doc.required ? 'skip' : doc.complete ? 'ok' : 'missing';
         const status = locked ? submission!.status : inputStatus;
@@ -67,6 +73,9 @@ export function DocChecklist({
               <div className="bulk-submission-row">
                 <span>
                   {fmtSubmittedAt(submission!.submittedAt)}に提出
+                  {(submission!.status === 'confirmed' || submission!.status === 'approved') && submission!.confirmedAt && (
+                    `・${fmtSubmittedAt(submission!.confirmedAt)}に${submission!.confirmerLastName ? `${submission!.confirmerLastName}さんが` : ''}確認`
+                  )}
                   {submission!.status === 'approved' && submission!.reviewedAt && (
                     `・${fmtSubmittedAt(submission!.reviewedAt)}に${submission!.approverLastName ? `${submission!.approverLastName}さんが` : ''}承認`
                   )}
@@ -77,12 +86,27 @@ export function DocChecklist({
                     {submission!.modifiedByName ? `${submission!.modifiedByName}さん` : 'リーダー・管理者'}が修正
                   </span>
                 )}
+                {onPreview && (
+                  <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => onPreview(key)}>
+                    PDFで確認
+                  </button>
+                )}
                 {submission!.status === 'submitted' && onWithdraw && (
                   <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => onWithdraw(key)}>
                     取り下げ
                   </button>
                 )}
-                {submission!.status === 'submitted' && onApprove && (
+                {submission!.status === 'submitted' && onConfirm && (
+                  <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => onConfirm(key)}>
+                    確認
+                  </button>
+                )}
+                {submission!.status === 'confirmed' && onUnconfirm && (
+                  <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => onUnconfirm(key)}>
+                    確認を取り消す
+                  </button>
+                )}
+                {submission!.status === 'confirmed' && onApprove && (
                   <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => onApprove(key)}>
                     承認
                   </button>
@@ -92,8 +116,11 @@ export function DocChecklist({
                     承認を取り消す
                   </button>
                 )}
+                {submission!.status === 'confirmed' && onWithdraw && (
+                  <span>（確認済みのため取り下げできません。直す必要があるときは、リーダー・管理者に確認の取り消しを依頼してください）</span>
+                )}
                 {submission!.status === 'approved' && onWithdraw && (
-                  <span>（承認済みのため取り下げできません。直す必要があるときは、リーダー・管理者に承認の取り消しを依頼してください）</span>
+                  <span>（承認済みのため取り下げできません。直す必要があるときは、リーダー・管理者に承認と確認の取り消しを依頼してください）</span>
                 )}
               </div>
             )}

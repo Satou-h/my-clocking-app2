@@ -5,7 +5,7 @@ import type { TransportRecord } from '../types/transport';
 import { TRIP_TYPE_LABELS } from '../types/transport';
 import { getHolidayName } from './holidays';
 import { sealImage } from './seal';
-import { C, DOW_JA, createPainter, downloadPdf, loadFont, writeSignAreas } from './pdfKit';
+import { C, DOW_JA, createPainter, downloadPdf, loadFont, markLeaderSigned, writeSignAreas } from './pdfKit';
 
 const yen = (n: number) => `¥${n.toLocaleString('ja-JP')}`;
 
@@ -17,6 +17,7 @@ export async function buildTransportPdf(
   name: string,
   seal = '', // 本人印欄に押す印鑑（PNG の data URL）
   approverSeal = '', // 承認済みなら、承認欄に押す承認した人の印鑑（PNG の data URL）
+  confirmerSeal = '', // 確認済み・承認済みなら、検印欄に押す確認した人の印鑑（PNG の data URL）
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
@@ -52,7 +53,11 @@ export async function buildTransportPdf(
   meta('申請日', `${year}/${month}/${lastDay}`, 9);
   const sign = seal ? await doc.embedPng(seal) : undefined;
   const approverSign = approverSeal ? await doc.embedPng(approverSeal) : undefined;
-  const stampX = p.stamps(['承認', '検印', '領収印', '本人印'], right, M.t, 46, 54, { 承認: approverSign, 本人印: sign });
+  const confirmerSign = confirmerSeal ? await doc.embedPng(confirmerSeal) : undefined;
+  if (confirmerSign) markLeaderSigned(doc);
+  const stampX = p.stamps(['承認', '検印', '領収印', '本人印'], right, M.t, 46, 54, {
+    承認: approverSign, 検印: confirmerSign, 本人印: sign,
+  });
   p.hline(M.l, stampX - 14, M.t + 58, C.primary, 1.2);
 
   // ── 集計（合計金額をいちばん大きく） ─────────────────────────────────────
@@ -166,9 +171,11 @@ export async function printTransportPDF(
   lastName = '',
   name = '',
   approverLastName = '', // 承認済みなら承認した人の苗字（承認欄に印鑑を押す）
+  confirmerLastName = '', // 確認済み・承認済みなら確認した人の苗字（検印欄に印鑑を押す）
 ): Promise<void> {
   const bytes = await buildTransportPdf(
-    await loadFont(), records, year, month, name, await sealImage(lastName), await sealImage(approverLastName),
+    await loadFont(), records, year, month, name,
+    await sealImage(lastName), await sealImage(approverLastName), await sealImage(confirmerLastName),
   );
   const userPart = (employeeId || lastName) ? `_${employeeId}${lastName}` : '';
   downloadPdf(bytes, `02_小口交通費${year}${String(month).padStart(2, '0')}${userPart}.pdf`);

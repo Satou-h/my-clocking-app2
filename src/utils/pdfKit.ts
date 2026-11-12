@@ -1,6 +1,6 @@
 // 勤務表・交通費・申請書PDF（pdf-lib）で共有するフォント読み込み・色・描画ヘルパー
 import {
-  LineJoinStyle, PDFHexString, PDFName, PDFString, TextRenderingMode, popGraphicsState, pushGraphicsState, rgb,
+  LineJoinStyle, PDFBool, PDFHexString, PDFName, PDFString, TextRenderingMode, popGraphicsState, pushGraphicsState, rgb,
   setLineJoin, setLineWidth, setStrokingColor, setTextRenderingMode,
   type PDFDocument, type PDFFont, type PDFImage, type PDFPage, type RGB,
 } from 'pdf-lib';
@@ -30,6 +30,18 @@ export function readSignAreas(doc: PDFDocument): SignAreas | null {
 }
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
+
+// リーダーの印鑑を確認の欄（確認印・確認・検印）に押したことをPDFに書いておく。
+// 確認済みの書類を出力したときと、印鑑の画面で手で検印したとき（stampPdf.ts）に書き、手で二重に押さないようにする
+const LEADER_SIGNED_KEY = PDFName.of('ClockingManagerSigned');
+
+export function markLeaderSigned(doc: PDFDocument): void {
+  doc.catalog.set(LEADER_SIGNED_KEY, PDFBool.True);
+}
+
+export function isLeaderSigned(doc: PDFDocument): boolean {
+  return !!doc.catalog.get(LEADER_SIGNED_KEY);
+}
 
 // 画像を範囲の中に縦横比を保って中央に収める
 export function drawImageFit(page: PDFPage, img: PDFImage, { x, y, w, h }: SignArea): void {

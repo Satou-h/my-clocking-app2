@@ -1,11 +1,11 @@
 // リーダーの検印：メンバーがこのアプリで出力したPDFを読み込み、確認印・確認・検印の欄にリーダーの印鑑を押す
 // 欄の位置は、PDFを出力したときに書いておいたもの（pdfKit.ts の writeSignAreas）を使う
-import { PDFBool, PDFDocument, PDFName } from 'pdf-lib';
-import { drawImageFit, readSignAreas } from './pdfKit';
+// 確認済みの書類をアプリから出力したPDFは、この欄に確認した人の印鑑がすでに押されている（検印済みとして扱う）
+import { PDFDocument } from 'pdf-lib';
+import { drawImageFit, isLeaderSigned, markLeaderSigned, readSignAreas } from './pdfKit';
 
 // リーダーが押印する欄（勤務表: 確認印 / 休暇・遅刻早退申請書: 確認 / 交通費精算書: 検印）
 const LEADER_LABELS = ['確認印', '確認', '検印'];
-const STAMPED_KEY = PDFName.of('ClockingManagerSigned');
 
 export type StampResult =
   | { ok: true; title: string; labels: string[]; bytes: Uint8Array }
@@ -26,11 +26,11 @@ export async function stampLeaderSeal(src: ArrayBuffer, seal: string): Promise<S
   }
   const labels = LEADER_LABELS.filter((l) => areas[l]);
   if (labels.length === 0) return { ok: false, title, reason: 'リーダーが押印する欄がない書類です' };
-  if (doc.catalog.get(STAMPED_KEY)) return { ok: false, title, reason: 'すでに検印済みです' };
+  if (isLeaderSigned(doc)) return { ok: false, title, reason: 'すでに検印済みです（確認済みの書類は、確認した人の印鑑が押されています）' };
 
   const img = await doc.embedPng(seal);
   const page = doc.getPage(0);
   for (const l of labels) drawImageFit(page, img, areas[l]);
-  doc.catalog.set(STAMPED_KEY, PDFBool.True);
+  markLeaderSigned(doc);
   return { ok: true, title, labels, bytes: await doc.save() };
 }

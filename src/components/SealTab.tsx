@@ -96,6 +96,7 @@ export default function SealTab({ lastName }: Props) {
       <div className="stamp-section">
         <p className="hint">
           メンバーがこのアプリで出力したPDFを選ぶと、勤務表の「確認印」、休暇申請書・遅刻早退申請書の「確認」、交通費精算書の「検印」の欄にあなたの印鑑を押して保存します。まとめて選べます。
+          提出された書類は、「メンバーの提出」から開いて「確認」すると、出力するPDFのこれらの欄に自動で印鑑が押されます（その場合はここでの検印は不要です）。
         </p>
         <input ref={fileRef} type="file" accept="application/pdf,.pdf" multiple className="is-hidden" onChange={handleFiles} />
         <button

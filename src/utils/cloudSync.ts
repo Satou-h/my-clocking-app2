@@ -18,7 +18,7 @@ import { supabase } from './supabase';
 import { memoryStore } from './memoryStore';
 import { setWriteTracker, withoutTracking, type CollectionId } from './syncHooks';
 import {
-  clearSubmissions, findSubmission, getSubmissionState, isDocLocked, parseSubmission, periodLabel,
+  SUBMISSION_LABELS, clearSubmissions, findSubmission, getSubmissionState, isDocLocked, parseSubmission, periodLabel,
   setSubmissions, setSubmissionsError, type Submission,
 } from './submissions';
 import type { DocKey } from '../types/document';
@@ -647,8 +647,8 @@ function periodsOfRow(c: Collection, row: Row): { doc: DocKey; year: number; mon
 
 // 行を変更できない理由（変更できるときは空）
 // ・自分のデータ: 提出済み・承認済みの書類に含まれる行は変更できない
-// ・上長・管理者として部下のデータを開いているとき: 提出済み（承認前）の書類に含まれる行だけ変更できる
-//   （データベースの書き込み制限と同じ判定）
+// ・上長・管理者として部下のデータを開いているとき: 提出済み（確認前）の書類に含まれる行だけ変更できる
+//   （データベースの書き込み制限と同じ判定。確認済み・承認済みの書類は修正できない）
 function blockedLabels(c: Collection, row: Row | undefined): string[] {
   if (!row) return [];
   const periods = periodsOfRow(c, row);
@@ -665,8 +665,11 @@ function blockedLabels(c: Collection, row: Row | undefined): string[] {
   }
   if (periods.length === 0) return [c.label];
   const statuses = periods.map((p) => findSubmission(items, p.doc, p.year, p.month)?.status);
-  if (statuses.includes('submitted') && !statuses.includes('approved')) return [];
-  return periods.map((p, i) => `${periodLabel(p.doc, p.year, p.month)}（${statuses[i] === 'approved' ? '承認済み' : '未提出'}）`);
+  if (statuses.includes('submitted') && !statuses.some((s) => s === 'confirmed' || s === 'approved')) return [];
+  return periods.map((p, i) => {
+    const s = statuses[i];
+    return `${periodLabel(p.doc, p.year, p.month)}（${s === 'confirmed' || s === 'approved' ? SUBMISSION_LABELS[s] : '未提出'}）`;
+  });
 }
 
 let blockedNotice: Set<string> | null = null;
@@ -683,9 +686,9 @@ function notifyBlocked(labels: string[]) {
       setState({ dataVersion: state.dataVersion + 1 });
       const text = viewAs
         ? `次のデータは修正できないため、変更を取り消しました。\n\n${list}\n\n`
-          + 'リーダー・管理者が修正できるのは、提出済み（承認前）の書類だけです。'
+          + 'リーダー・管理者が修正できるのは、提出済み（確認前）の書類だけです。'
         : `次の書類は提出済みのため、変更を取り消しました。\n\n${list}\n\n`
-          + '変更するには「提出」画面で提出を取り下げてください（承認済みの書類は変更できません）。';
+          + '変更するには「提出」画面で提出を取り下げてください（確認済み・承認済みの書類は変更できません）。';
       // 入力のたびに保存される欄で、同じ知らせが続けて出ないようにする
       if (text === lastBlockedAlert.text && Date.now() - lastBlockedAlert.at < 5000) return;
       lastBlockedAlert = { text, at: Date.now() };
@@ -830,11 +833,13 @@ function submissionErrorText(e: DbError): string {
 }
 
 const SUBMISSION_COLUMNS = 'year,month,doc,status,submitted_at,reviewed_at,review_comment';
-// 上長・管理者が修正した記録と、承認した人の苗字
+// 上長・管理者が修正した記録と、承認した人・確認した人の苗字
 // （列がまだないデータベースでは、ない列を外して読み直し、記録なしとして扱う）
 const MODIFIED_COLUMNS = ',modified_at,modified_by_name';
 const APPROVER_COLUMNS = ',approver_last_name';
+const CONFIRMER_COLUMNS = ',confirmed_at,confirmer_last_name';
 const SUBMISSION_COLUMN_SETS = [
+  SUBMISSION_COLUMNS + MODIFIED_COLUMNS + APPROVER_COLUMNS + CONFIRMER_COLUMNS,
   SUBMISSION_COLUMNS + MODIFIED_COLUMNS + APPROVER_COLUMNS,
   SUBMISSION_COLUMNS + MODIFIED_COLUMNS,
   SUBMISSION_COLUMNS,
@@ -899,7 +904,7 @@ export function submitDocuments(year: number, month: number, docs: DocKey[]): Pr
   });
 }
 
-// 提出を取り下げる（承認前の書類だけ）。できなかったときは理由を返す
+// 提出を取り下げる（確認前の書類だけ）。できなかったときは理由を返す
 export async function withdrawDocuments(year: number, month: number, docs: DocKey[]): Promise<string | null> {
   const result = await exclusive(async () => {
     const me = uid;
@@ -914,19 +919,39 @@ export async function withdrawDocuments(year: number, month: number, docs: DocKe
   return result;
 }
 
-// リーダー・管理者が、開いているメンバーの提出済みの書類を承認する。できなかったときは理由を返す
+// リーダー・管理者が、開いているメンバーの提出済み（確認前）の書類を確認する。できなかったときは理由を返す
+export function confirmDocuments(year: number, month: number, docs: DocKey[]): Promise<string | null> {
+  return reviewDocuments('confirm', year, month, docs);
+}
+
+// リーダー・管理者が、開いているメンバーの確認済みの書類の確認を取り消す（提出済み・確認前に戻す）
+export function unconfirmDocuments(year: number, month: number, docs: DocKey[]): Promise<string | null> {
+  return reviewDocuments('unconfirm', year, month, docs);
+}
+
+// リーダー・管理者が、開いているメンバーの確認済みの書類を承認する。できなかったときは理由を返す
 export function approveDocuments(year: number, month: number, docs: DocKey[]): Promise<string | null> {
   return reviewDocuments('approve', year, month, docs);
 }
 
-// リーダー・管理者が、開いているメンバーの承認済みの書類の承認を取り消す（提出済み・承認前に戻す）
+// リーダー・管理者が、開いているメンバーの承認済みの書類の承認を取り消す（確認済み・承認前に戻す）
 export function unapproveDocuments(year: number, month: number, docs: DocKey[]): Promise<string | null> {
   return reviewDocuments('unapprove', year, month, docs);
 }
 
-// 承認すると修正できなくなるため、送れていない修正を先に送ってから承認・取り消しをする
-function reviewDocuments(action: 'approve' | 'unapprove', year: number, month: number, docs: DocKey[]): Promise<string | null> {
-  const verb = action === 'approve' ? '承認' : '承認の取り消し';
+type ReviewAction = 'confirm' | 'unconfirm' | 'approve' | 'unapprove';
+
+const REVIEW_ACTIONS: Record<ReviewAction, { verb: string; rpc: string; column?: string }> = {
+  // 印鑑を押す操作は、押す人の苗字を残す列がデータベースにあるか先に確かめる
+  confirm: { verb: '確認', rpc: 'confirm_documents', column: 'confirmer_last_name' },
+  unconfirm: { verb: '確認の取り消し', rpc: 'unconfirm_documents' },
+  approve: { verb: '承認', rpc: 'approve_documents', column: 'approver_last_name' },
+  unapprove: { verb: '承認の取り消し', rpc: 'unapprove_documents' },
+};
+
+// 確認・承認すると修正できなくなるため、送れていない修正を先に送ってから確認・承認・取り消しをする
+function reviewDocuments(action: ReviewAction, year: number, month: number, docs: DocKey[]): Promise<string | null> {
+  const { verb, rpc, column } = REVIEW_ACTIONS[action];
   clearTimeout(pushTimer);
   return exclusive(async () => {
     const me = uid;
@@ -938,18 +963,16 @@ function reviewDocuments(action: 'approve' | 'unapprove', year: number, month: n
     if (pendingCount() > 0) {
       return `クラウドに保存できていない修正があるため、${verb}ができません。通信状態を確認してから、もう一度お試しください`;
     }
-    // 承認した人の苗字を残す列がないデータベースで承認すると、印鑑のない承認済みの書類ができてしまうため、先に確かめる
-    if (action === 'approve') {
-      const check = await supabase.from('monthly_submissions').select('approver_last_name').eq('user_id', target).limit(1);
+    // 押す人の苗字を残す列がないデータベースで確認・承認すると、印鑑のない書類ができてしまうため、先に確かめる
+    if (column) {
+      const check = await supabase.from('monthly_submissions').select(column).eq('user_id', target).limit(1);
       if (check.error) {
         return check.error.code === '42703'
-          ? '承認の機能がデータベースにまだ用意されていません。管理者に連絡してください'
+          ? `${verb}の機能がデータベースにまだ用意されていません。管理者に連絡してください`
           : submissionErrorText(check.error);
       }
     }
-    const { error } = await supabase.rpc(action === 'approve' ? 'approve_documents' : 'unapprove_documents', {
-      p_user: target, p_year: year, p_month: month, p_docs: docs,
-    });
+    const { error } = await supabase.rpc(rpc, { p_user: target, p_year: year, p_month: month, p_docs: docs });
     await refreshSubmissions(target);
     if (!error) return null;
     if (isMissingSubmissionSchema(error)) return `${verb}の機能がデータベースにまだ用意されていません。管理者に連絡してください`;
@@ -1201,7 +1224,7 @@ function resetData() {
 
 // ── 上長・管理者が部下のデータを開く ─────────────────────────────────────────
 // 開いている間は、部下のデータをメモリ上に読み込み、いつもの画面で読み書きする。
-// 修正できるのは部下の提出済み（承認前）の書類だけ（track() とデータベースの両方で制限する）
+// 修正できるのは部下の提出済み（確認前）の書類だけ（track() とデータベースの両方で制限する）
 
 export interface ViewingMember {
   userId: string;

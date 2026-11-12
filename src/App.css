@@ -1310,6 +1310,7 @@ hr {
 .bulk-download-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
   margin-top: 8px;
 }
@@ -1328,13 +1329,18 @@ hr {
 }
 .submit-summary strong { color: var(--accent-text); font-size: 15px; }
 .bulk-checklist .bulk-check-submitted .bulk-check-head,
+.bulk-checklist .bulk-check-confirmed .bulk-check-head,
 .bulk-checklist .bulk-check-approved .bulk-check-head { cursor: default; }
 /* 提出済み・承認済みは選べないため、チェックボックスは場所だけ残して隠す */
 .bulk-check-submitted .bulk-check-select,
+.bulk-check-confirmed .bulk-check-select,
 .bulk-check-approved .bulk-check-select { visibility: hidden; }
 .bulk-check-submitted { border-color: var(--accent-border); background: var(--accent-soft); }
 .bulk-check-submitted .bulk-check-icon { background: var(--accent); font-size: 11px; }
 .bulk-check-submitted .bulk-check-status { color: var(--accent-text); font-weight: 600; }
+.bulk-check-confirmed { border-color: var(--teal-fg); background: var(--teal-bg); }
+.bulk-check-confirmed .bulk-check-icon { background: var(--teal-fg); font-size: 11px; }
+.bulk-check-confirmed .bulk-check-status { color: var(--teal-fg); font-weight: 600; }
 .bulk-check-approved { border-color: var(--success-border); background: var(--success-soft); }
 .bulk-check-approved .bulk-check-icon { background: var(--success); font-size: 11px; }
 .bulk-check-approved .bulk-check-status { color: var(--success-text); font-weight: 600; }
@@ -1426,6 +1432,7 @@ hr {
 }
 .review-doc b { font-weight: 600; }
 .review-doc-submitted { color: var(--accent-text); background: var(--accent-soft); border-color: var(--accent-border); }
+.review-doc-confirmed { color: var(--teal-fg); background: var(--teal-bg); border-color: var(--teal-fg); }
 .review-doc-approved { color: var(--success-text); background: var(--success-soft); border-color: var(--success-border); }
 .review-doc-rejected { color: var(--danger-text); background: var(--danger-soft); border-color: var(--danger-border); }
 .review-member-note { margin: 8px 0 0; font-size: 12px; color: var(--text-muted); }
@@ -2493,6 +2500,108 @@ hr {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+/* ── 提出された書類をPDFで確認（PdfPreview） ── */
+.pdf-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.55);
+}
+.pdf-preview {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 1000px;
+  height: 100%;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+.pdf-preview-head {
+  display: flex;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.pdf-preview-title {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-width: 0;
+}
+.pdf-preview-title strong { font-size: 15px; }
+.pdf-preview-title span { font-size: 12px; color: var(--text-muted); }
+.pdf-preview-zoom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pdf-preview-zoom .btn { min-width: 36px; padding: 4px 8px; }
+.pdf-preview-zoom-value {
+  min-width: 44px;
+  text-align: center;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+.pdf-preview-body {
+  flex: 1;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px;
+  background: var(--surface-2);
+}
+.pdf-preview-pages { min-width: 100%; }
+.pdf-preview-file + .pdf-preview-file { margin-top: 20px; }
+.pdf-preview-file-label {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.pdf-preview-page {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+.pdf-preview-page + .pdf-preview-page { margin-top: 12px; }
+.pdf-preview-message {
+  margin: 24px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+@media (max-width: 600px) {
+  .pdf-preview-backdrop { padding: 0; }
+  .pdf-preview {
+    max-width: none;
+    border: none;
+    border-radius: 0;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .pdf-preview-head { padding: 8px 10px; }
+  .pdf-preview-body { padding: 8px; }
+  .pdf-preview-zoom { gap: 4px; }
+  .pdf-preview-zoom-value { min-width: 38px; font-size: 12px; }
+}
+/* とても狭い画面では、書類の名前を1行目、拡大・閉じるを2行目に出す */
+@media (max-width: 359px) {
+  .pdf-preview-head { flex-wrap: wrap; }
+  .pdf-preview-title { flex-basis: 100%; }
+  .pdf-preview-zoom { margin-left: auto; }
 }
 
 /* ── クラウド保存（設定画面・初回の選択） ── */

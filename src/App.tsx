@@ -394,7 +394,7 @@ export default function App() {
           <div className="notice-banner notice-viewing" role="status">
             <Icon name="inbox" />
             <span>
-              <strong>{viewing.name}さん</strong>のデータを開いています。承認は「提出」画面で行います。修正できるのは提出済み（承認前）の書類だけです。
+              <strong>{viewing.name}さん</strong>のデータを開いています。確認・承認は「提出」画面で行います。修正できるのは提出済み（確認前）の書類だけです。
             </span>
             <button type="button" className="btn-link" onClick={() => { void handleCloseMember(); }}>自分のデータに戻る</button>
           </div>

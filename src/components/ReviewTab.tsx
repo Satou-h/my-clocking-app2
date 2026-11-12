@@ -9,7 +9,7 @@ interface Props {
   onOpened: (year: number, month: number) => void;
 }
 
-// リーダー・管理者が、メンバーの提出状況を確かめ、メンバーのデータを開いて提出済みの書類を承認・修正する画面
+// リーダー・管理者が、メンバーの提出状況を確かめ、メンバーのデータを開いて提出済みの書類を確認・承認・修正する画面
 export default function ReviewTab({ onOpened }: Props) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -47,8 +47,9 @@ export default function ReviewTab({ onOpened }: Props) {
       <h2>メンバーの提出</h2>
       <p className="hint">
         自分以外の全員の提出状況です。「開いて確認」を押すとその人のデータを開きます。
-        提出画面で提出済みの書類を承認でき、承認前の書類はいつもの画面で修正できます。修正した日時と名前は、本人の提出画面に表示されます。
-        承認した書類のPDFには、承認欄にあなたの印鑑が押されます。
+        提出画面で提出済みの書類をPDFで見て「確認」し、確認済みの書類を「承認」できます。確認前の書類はいつもの画面で修正できます。
+        修正した日時と名前は、本人の提出画面に表示されます。
+        確認した書類のPDFには確認の欄（交通費精算書は検印の欄）に、承認した書類のPDFには承認欄に、あなたの印鑑が押されます。
       </p>
 
       <div className="list-filter">
@@ -74,7 +75,7 @@ export default function ReviewTab({ onOpened }: Props) {
       <div className="review-list">
         {members?.map((m) => {
           const rows = DOC_KEYS.map((doc) => ({ doc, s: findSubmission(m.submissions, doc, year, month) }));
-          const editable = rows.filter((r) => r.s?.status === 'submitted').length;
+          const editable = rows.filter((r) => r.s?.status === 'submitted' || r.s?.status === 'confirmed').length;
           const submitted = rows.filter((r) => isLockedStatus(r.s?.status)).length;
           return (
             <div key={m.userId} className="review-member">
@@ -99,7 +100,7 @@ export default function ReviewTab({ onOpened }: Props) {
                 ))}
               </div>
               {editable === 0 && (
-                <p className="review-member-note">この月に承認・修正できる書類（提出済み・承認前）はありません</p>
+                <p className="review-member-note">この月に確認・承認できる書類（提出済み・確認済み）はありません</p>
               )}
             </div>
           );

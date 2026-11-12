@@ -20,7 +20,7 @@ export default function SubmittedNotice({ docs, year, month }: Props) {
   const prefix = monthly ? `${year}年${month}月の` : '';
 
   if (viewing) {
-    // 月ごとでない書類は、どこかの月で提出済み（承認前）なら修正できる
+    // 月ごとでない書類は、どこかの月で提出済み（確認前）なら修正できる
     const statusOf = (d: DocKey): SubmissionStatus | undefined => (monthly
       ? findSubmission(items, d, year, month)?.status
       : items.some((s) => s.doc === d && s.status === 'submitted') ? 'submitted' : undefined);
@@ -28,8 +28,9 @@ export default function SubmittedNotice({ docs, year, month }: Props) {
       docs.filter((d) => pick(statusOf(d))).map((d) => DOC_LABELS[d]).join('・');
     const sentences = [
       [names((s) => s === 'submitted'), '提出済みのため、修正できます。'],
-      [names((s) => s === 'approved'), '承認済みのため、修正できません（「提出」画面で承認を取り消すと修正できます）。'],
-      [names((s) => s !== 'submitted' && s !== 'approved'), '提出されていないため、修正できません。'],
+      [names((s) => s === 'confirmed'), '確認済みのため、修正できません（「提出」画面で確認を取り消すと修正できます）。'],
+      [names((s) => s === 'approved'), '承認済みのため、修正できません（「提出」画面で承認と確認を取り消すと修正できます）。'],
+      [names((s) => s !== 'submitted' && s !== 'confirmed' && s !== 'approved'), '提出されていないため、修正できません。'],
     ].filter(([n]) => n).map(([n, text], i) => `${i === 0 ? prefix : ''}${n}は${text}`);
     const editable = docs.some((d) => statusOf(d) === 'submitted');
     return (
@@ -49,9 +50,11 @@ export default function SubmittedNotice({ docs, year, month }: Props) {
   const names = (status: Submission['status']) =>
     locked.filter((s) => s.status === status).map((s) => DOC_LABELS[s.doc]).join('・');
   const submitted = names('submitted');
+  const confirmed = names('confirmed');
   const approved = names('approved');
   const parts = [
     submitted && `${submitted}は提出済み`,
+    confirmed && `${confirmed}は確認済み`,
     approved && `${approved}は承認済み`,
   ].filter(Boolean).join('、');
 
@@ -61,7 +64,7 @@ export default function SubmittedNotice({ docs, year, month }: Props) {
       <span>
         {year}年{month}月の{parts}のため変更できません。
         {submitted && '変更するには「提出」画面で取り下げてください。'}
-        {approved && '承認済みの書類を変更するには、リーダー・管理者に承認の取り消しを依頼してください。'}
+        {(confirmed || approved) && '確認済み・承認済みの書類を変更するには、リーダー・管理者に確認（承認済みなら承認と確認）の取り消しを依頼してください。'}
       </span>
     </div>
   );

@@ -3,7 +3,7 @@
 import { PDFDocument, type PDFImage } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { sealImage } from './seal';
-import { createPainter, downloadPdf, hex, loadFont, writeSignAreas, type Painter } from './pdfKit';
+import { createPainter, downloadPdf, hex, loadFont, markLeaderSigned, writeSignAreas, type Painter } from './pdfKit';
 
 export interface LeaveApplicationEntry {
   date: string;
@@ -58,10 +58,13 @@ const VALUE_W = RIGHT - VALUE_X - PAD_X;
 const jpDate = (d: string) => d.replace(/^(\d{4})-0?(\d+)-0?(\d+)$/, '$1年$2月$3日');
 
 // 押印欄に押す印鑑（欄の名前 → 画像）
-type Signs = Partial<Record<'承認' | '本人', PDFImage>>;
+type Signs = Partial<Record<'承認' | '確認' | '本人', PDFImage>>;
 
-// seal: 本人欄に押す印鑑、approverSeal: 承認欄に押す承認した人の印鑑（どちらも PNG の data URL。空なら押さない）
-async function createDoc(fontBytes: ArrayBuffer | Uint8Array, title: string, seal: string, approverSeal: string) {
+// seal: 本人欄に押す印鑑、approverSeal: 承認欄に押す承認した人の印鑑、confirmerSeal: 確認欄に押す確認した人の印鑑
+// （どれも PNG の data URL。空なら押さない）
+async function createDoc(
+  fontBytes: ArrayBuffer | Uint8Array, title: string, seal: string, approverSeal: string, confirmerSeal: string,
+) {
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
   // サブセット化は loadFont() で詰め直したフォントが前提
@@ -71,7 +74,9 @@ async function createDoc(fontBytes: ArrayBuffer | Uint8Array, title: string, sea
   const signs: Signs = {
     本人: seal ? await doc.embedPng(seal) : undefined,
     承認: approverSeal ? await doc.embedPng(approverSeal) : undefined,
+    確認: confirmerSeal ? await doc.embedPng(confirmerSeal) : undefined,
   };
+  if (signs.確認) markLeaderSigned(doc);
   return { doc, p, signs };
 }
 
@@ -88,13 +93,14 @@ function drawHeader(p: Painter, title: string, name: string, applicationDate: st
 
   const metaSize = cssPt(10);
   p.txt(`氏名: ${name || '　'.repeat(7)}`, RIGHT, px(162.6), metaSize, C.meta, 'right'); // 未入力なら手書きできるよう空けておく
-  // 承認・確認・本人の欄（幅 100px の下線を 20px 間隔で右に寄せる）。本人欄には自分の印鑑、承認済みなら承認欄に承認した人の印鑑を押す
+  // 承認・確認・本人の欄（幅 100px の下線を 20px 間隔で右に寄せる）。本人欄には自分の印鑑、
+  // 確認済みなら確認欄に確認した人の印鑑、承認済みなら承認欄に承認した人の印鑑を押す
   const boxW = px(100), gap = px(20);
   (['承認', '確認', '本人'] as const).forEach((label, i) => {
     const x = RIGHT - boxW - (boxW + gap) * (2 - i);
     p.txt(label, x, px(189.8), cssPt(8), C.label, 'center', boxW);
     p.hline(x, x + boxW, px(236.5), C.label, px(1.5));
-    p.signArea(label, x + px(4), px(198), boxW - px(8), px(36), label === '確認' ? undefined : signs[label]);
+    p.signArea(label, x + px(4), px(198), boxW - px(8), px(36), signs[label]);
   });
   p.txt(`申請日: ${jpDate(applicationDate)}`, LEFT, px(232.8), metaSize, C.meta);
 }
@@ -127,9 +133,12 @@ export async function buildLeaveApplicationPdf(
   data: LeaveApplicationData,
   seal = '',
   approverSeal = '',
+  confirmerSeal = '',
 ): Promise<Uint8Array> {
   const { applicationDate, name, dateEntries, leaveDays, reason } = data;
-  const { doc, p, signs } = await createDoc(fontBytes, `休暇申請書 ${jpDate(applicationDate)} ${name}`, seal, approverSeal);
+  const { doc, p, signs } = await createDoc(
+    fontBytes, `休暇申請書 ${jpDate(applicationDate)} ${name}`, seal, approverSeal, confirmerSeal,
+  );
   drawHeader(p, '休　暇　申　請　書', name, applicationDate, signs);
 
   const schedule = [...dateEntries]
@@ -149,9 +158,12 @@ export async function buildLateEarlyApplicationPdf(
   data: LateEarlyApplicationData,
   seal = '',
   approverSeal = '',
+  confirmerSeal = '',
 ): Promise<Uint8Array> {
   const { applicationDate, name, type, targetDate, scheduledTime, actualTime, reason } = data;
-  const { doc, p, signs } = await createDoc(fontBytes, `遅刻・早退申請書 ${jpDate(applicationDate)} ${name}`, seal, approverSeal);
+  const { doc, p, signs } = await createDoc(
+    fontBytes, `遅刻・早退申請書 ${jpDate(applicationDate)} ${name}`, seal, approverSeal, confirmerSeal,
+  );
   drawHeader(p, '遅刻・早退申請書', name, applicationDate, signs);
 
   drawTable(p, [
@@ -173,16 +185,21 @@ function fileName(prefix: string, applicationDate: string, employeeId: string, l
 }
 
 // approverLastName: 承認済みなら承認した人の苗字（承認欄に印鑑を押す）
+// confirmerLastName: 確認済み・承認済みなら確認した人の苗字（確認欄に印鑑を押す）
 export async function printLeaveApplication(
-  data: LeaveApplicationData, employeeId = '', lastName = '', approverLastName = '',
+  data: LeaveApplicationData, employeeId = '', lastName = '', approverLastName = '', confirmerLastName = '',
 ): Promise<void> {
-  const bytes = await buildLeaveApplicationPdf(await loadFont(), data, await sealImage(lastName), await sealImage(approverLastName));
+  const bytes = await buildLeaveApplicationPdf(
+    await loadFont(), data, await sealImage(lastName), await sealImage(approverLastName), await sealImage(confirmerLastName),
+  );
   downloadPdf(bytes, fileName('03_休暇申請書', data.applicationDate, employeeId, lastName));
 }
 
 export async function printLateEarlyApplication(
-  data: LateEarlyApplicationData, employeeId = '', lastName = '', approverLastName = '',
+  data: LateEarlyApplicationData, employeeId = '', lastName = '', approverLastName = '', confirmerLastName = '',
 ): Promise<void> {
-  const bytes = await buildLateEarlyApplicationPdf(await loadFont(), data, await sealImage(lastName), await sealImage(approverLastName));
+  const bytes = await buildLateEarlyApplicationPdf(
+    await loadFont(), data, await sealImage(lastName), await sealImage(approverLastName), await sealImage(confirmerLastName),
+  );
   downloadPdf(bytes, fileName('04_遅早退申請書', data.applicationDate, employeeId, lastName));
 }

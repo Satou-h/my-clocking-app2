@@ -2,16 +2,18 @@
  * submissions.ts — 書類の提出状況（データベースの monthly_submissions。月×書類ごとに1行）
  *
  * ・提出・取り下げ・読み込みは cloudSync.ts が行い、結果をここに置く（端末には保存しない）
- * ・提出済み・承認済みの書類は、取り下げるまでその月のデータを変更できない
+ * ・提出済み・確認済み・承認済みの書類は、その月のデータを変更できない（提出済みなら本人が取り下げると変更できる）
+ * ・流れは 提出済み → 確認済み → 承認済み（確認・承認はリーダー・管理者。取り消すと一つ前に戻る）
  *   （データベースでも書き込みを拒否する。画面ではこの状況を見て、保存する前に取り消す）
  */
 import { useSyncExternalStore } from 'react';
 import { DOC_LABELS, isDocKey, type DocKey } from '../types/document';
 
-export type SubmissionStatus = 'submitted' | 'approved' | 'rejected';
+export type SubmissionStatus = 'submitted' | 'confirmed' | 'approved' | 'rejected';
 
 export const SUBMISSION_LABELS: Record<SubmissionStatus, string> = {
   submitted: '提出済み',
+  confirmed: '確認済み',
   approved: '承認済み',
   rejected: '差し戻し',
 };
@@ -29,6 +31,9 @@ export interface Submission {
   modifiedByName: string;
   // 承認した人の苗字（承認済みの書類だけ。PDFの承認欄にこの苗字の印鑑を押す）
   approverLastName: string;
+  // 確認した日時と、確認した人の苗字（確認済み・承認済みの書類。PDFの確認欄にこの苗字の印鑑を押す）
+  confirmedAt: string | null;
+  confirmerLastName: string;
 }
 
 export interface SubmissionState {
@@ -74,7 +79,7 @@ export function clearSubmissions(): void {
   update(INITIAL);
 }
 
-const STATUSES: SubmissionStatus[] = ['submitted', 'approved', 'rejected'];
+const STATUSES: SubmissionStatus[] = ['submitted', 'confirmed', 'approved', 'rejected'];
 
 export function parseSubmission(row: Record<string, unknown>): Submission | null {
   const status = STATUSES.find((s) => s === row.status);
@@ -90,6 +95,8 @@ export function parseSubmission(row: Record<string, unknown>): Submission | null
     modifiedAt: typeof row.modified_at === 'string' ? row.modified_at : null,
     modifiedByName: typeof row.modified_by_name === 'string' ? row.modified_by_name : '',
     approverLastName: typeof row.approver_last_name === 'string' ? row.approver_last_name.trim() : '',
+    confirmedAt: typeof row.confirmed_at === 'string' ? row.confirmed_at : null,
+    confirmerLastName: typeof row.confirmer_last_name === 'string' ? row.confirmer_last_name.trim() : '',
   };
 }
 
@@ -97,15 +104,21 @@ export function findSubmission(items: Submission[], doc: DocKey, year: number, m
   return items.find((s) => s.doc === doc && s.year === year && s.month === month);
 }
 
-// 提出済み・承認済みの書類は変更できない（差し戻された書類は直して出し直せる）
+// 提出済み・確認済み・承認済みの書類は変更できない（差し戻された書類は直して出し直せる）
 export function isLockedStatus(status: SubmissionStatus | undefined): boolean {
-  return status === 'submitted' || status === 'approved';
+  return status === 'submitted' || status === 'confirmed' || status === 'approved';
 }
 
 // 承認済みの書類なら、承認した人の苗字（承認欄に押す印鑑）。承認前・未提出なら空
 export function approverOf(items: Submission[], doc: DocKey, year: number, month: number): string {
   const s = findSubmission(items, doc, year, month);
   return s?.status === 'approved' ? s.approverLastName : '';
+}
+
+// 確認済み・承認済みの書類なら、確認した人の苗字（確認欄に押す印鑑）。確認前・未提出なら空
+export function confirmerOf(items: Submission[], doc: DocKey, year: number, month: number): string {
+  const s = findSubmission(items, doc, year, month);
+  return s?.status === 'confirmed' || s?.status === 'approved' ? s.confirmerLastName : '';
 }
 
 export function isDocLocked(doc: DocKey, year: number, month: number, items: Submission[] = state.items): boolean {

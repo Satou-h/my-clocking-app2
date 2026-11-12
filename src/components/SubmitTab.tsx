@@ -1,14 +1,39 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import type { AttendanceRecord, PaidLeaveSettings, WorkSettings } from '../types/attendance';
 import type { TransportRecord } from '../types/transport';
 import { DOC_KEYS, DOC_LABELS, type DocKey } from '../types/document';
 import { loadUserProfile } from '../utils/storage';
 import { buildMonthDocs, useWorkTimeCheck } from '../utils/monthDocs';
+import { makeMonthPdfs } from '../utils/monthPdfs';
 import { findSubmission, isLockedStatus, useSubmissions } from '../utils/submissions';
 import {
-  approveDocuments, submitDocuments, syncNow, unapproveDocuments, useCloudState, withdrawDocuments,
+  approveDocuments, confirmDocuments, submitDocuments, syncNow, unapproveDocuments, unconfirmDocuments, useCloudState,
+  withdrawDocuments,
 } from '../utils/cloudSync';
 import { DocChecklist, WorkTimeVerify, type DocChecklistRow } from './DocChecklist';
+import PdfPreview from './PdfPreview';
+
+// リーダー・管理者の操作（提出済み → 確認済み → 承認済み。取り消すと一つ前に戻る）
+type ReviewAction = 'confirm' | 'unconfirm' | 'approve' | 'unapprove';
+
+const REVIEW: Record<ReviewAction, {
+  run: (year: number, month: number, docs: DocKey[]) => Promise<string | null>;
+  failed: string;
+  done: string;
+}> = {
+  confirm: { run: confirmDocuments, failed: '確認できませんでした', done: 'を確認しました' },
+  unconfirm: { run: unconfirmDocuments, failed: '確認を取り消せませんでした', done: 'の確認を取り消しました' },
+  approve: { run: approveDocuments, failed: '承認できませんでした', done: 'を承認しました' },
+  unapprove: { run: unapproveDocuments, failed: '承認を取り消せませんでした', done: 'の承認を取り消しました' },
+};
+
+// 「PDFで確認」で開いている書類（files が null の間はPDFを作成中）
+interface Preview {
+  title: string;
+  subtitle: string;
+  files: File[] | null;
+  error: string;
+}
 
 interface Props {
   records: AttendanceRecord[];
@@ -21,8 +46,8 @@ interface Props {
 }
 
 // 書類を選んで提出する画面。入力チェックはダウンロード画面と同じ
-// リーダー・管理者がメンバーのデータを開いているときは、メンバーの提出状況を見て、提出済みの書類を承認する
-// （提出・取り下げは本人だけ）
+// リーダー・管理者がメンバーのデータを開いているときは、メンバーの提出状況を見て、提出済みの書類を確認し、
+// 確認済みの書類を承認する（提出・取り下げは本人だけ）
 export default function SubmitTab({ records, transportRecords, workSettings, paidLeaveSettings, initialYear, initialMonth }: Props) {
   const now = new Date();
   const [filterYear, setFilterYear] = useState(initialYear ?? now.getFullYear());
@@ -31,6 +56,8 @@ export default function SubmitTab({ records, transportRecords, workSettings, pai
   const [selected, setSelected] = useState<Set<DocKey>>(() => new Set(DOC_KEYS));
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [preview, setPreview] = useState<Preview | null>(null);
+  const closePreview = useCallback(() => setPreview(null), []);
 
   const currentYear = now.getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
@@ -47,14 +74,15 @@ export default function SubmitTab({ records, transportRecords, workSettings, pai
   }));
   const isLocked = (r: DocChecklistRow) => isLockedStatus(r.submission?.status);
 
-  // 対象なしの書類と、提出済み・承認済みの書類は選べない
+  // 対象なしの書類と、提出済み・確認済み・承認済みの書類は選べない
   const selectableRows = rows.filter((r) => r.doc.required && !isLocked(r));
   const selectedRows = selectableRows.filter((r) => selected.has(r.key));
   const allSelected = selectableRows.every((r) => selected.has(r.key));
   const submittedCount = rows.filter(isLocked).length;
   const targetCount = rows.filter((r) => r.doc.required || isLocked(r)).length;
-  // 承認できる書類（提出済み・承認前）
-  const approvableKeys = rows.filter((r) => r.submission?.status === 'submitted').map((r) => r.key);
+  // 確認できる書類（提出済み・確認前）と、承認できる書類（確認済み・承認前）
+  const confirmableKeys = rows.filter((r) => r.submission?.status === 'submitted').map((r) => r.key);
+  const approvableKeys = rows.filter((r) => r.submission?.status === 'confirmed').map((r) => r.key);
 
   // 検算は勤務表の確認なので、勤務表を提出するときだけ判定する
   const verifyBlocks = selectedRows.some((r) => r.key === 'attendance') && !verify.passed;
@@ -82,6 +110,27 @@ export default function SubmitTab({ records, transportRecords, workSettings, pai
     setFilterYear(y);
     setFilterMonth(m);
     setMessage('');
+  }
+
+  // 提出された書類を、ダウンロードせずに画面で見る（ダウンロード画面と同じPDF。確認済み・承認済みなら確認した人・承認者の印鑑も押す）
+  async function handlePreview(key: DocKey) {
+    const year = filterYear, month = filterMonth;
+    setPreview({
+      title: DOC_LABELS[key],
+      subtitle: `${viewing ? `${viewing.name}さん・` : ''}${year}年${month}月`,
+      files: null,
+      error: '',
+    });
+    setBusy(true);
+    try {
+      const files = await makeMonthPdfs(year, month, [key], { records, transportRecords, workSettings, paidLeaveSettings });
+      // 作成中に閉じていたら開き直さない
+      setPreview((p) => p && { ...p, files });
+    } catch (err) {
+      setPreview((p) => p && { ...p, error: (err as Error).message || String(err) });
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function handleSubmit() {
@@ -122,43 +171,43 @@ export default function SubmitTab({ records, transportRecords, workSettings, pai
     setMessage(`${filterYear}年${filterMonth}月の${DOC_LABELS[key]}の提出を取り下げました`);
   }
 
-  async function handleApprove(docs: DocKey[]) {
+  // リーダー・管理者がメンバーの書類を確認・承認する、またはそれを取り消す
+  async function handleReview(action: ReviewAction, docs: DocKey[]) {
     if (!viewing || docs.length === 0) return;
+    const who = `${viewing.name}さんの${filterYear}年${filterMonth}月の`;
     const names = docs.map((d) => `・${DOC_LABELS[d]}`).join('\n');
-    if (!window.confirm(
-      `${viewing.name}さんの${filterYear}年${filterMonth}月の次の書類を承認します。\n\n${names}\n\n`
-      + '承認した書類は、承認を取り消すまで本人もリーダー・管理者も変更・取り下げできなくなります。\n'
-      + '勤務表・交通費・休暇申請書・遅早退申請書のPDFには、承認欄にあなたの印鑑が押されます。',
-    )) return;
+    const docNames = docs.map((d) => DOC_LABELS[d]).join('・');
+    // この変更の前に承認された書類は確認の記録がないため、承認を取り消すと提出済みに戻る
+    const backToSubmitted = action === 'unapprove'
+      && rows.some((r) => docs.includes(r.key) && !r.submission?.confirmedAt);
+    const question = {
+      confirm: `${who}次の書類を確認します。\n\n${names}\n\n`
+        + '確認した書類は、確認を取り消すまで本人もリーダー・管理者も変更・取り下げできなくなります。\n'
+        + '勤務表の確認印、休暇申請書・遅早退申請書の確認、交通費精算書の検印の欄に、あなたの印鑑が押されます。',
+      unconfirm: `${who}${docNames}の確認を取り消しますか？\n\n`
+        + '取り消すと提出済み（確認前）に戻り、本人の取り下げや、リーダー・管理者の修正・確認ができるようになります。\n'
+        + 'これから出力するPDFには確認した人の印鑑が押されなくなります（すでにダウンロードしたPDFはそのままです）。',
+      approve: `${who}次の書類を承認します。\n\n${names}\n\n`
+        + '承認した書類は、承認を取り消すまで確認も取り消せません。\n'
+        + '勤務表・交通費・休暇申請書・遅早退申請書のPDFには、承認欄にあなたの印鑑が押されます。',
+      unapprove: `${who}${docNames}の承認を取り消しますか？\n\n`
+        + (backToSubmitted
+          ? '取り消すと提出済み（確認前）に戻ります。\n'
+          : '取り消すと確認済み（承認前）に戻ります。内容を直すときは、続けて「確認を取り消す」を押してください。\n')
+        + 'これから出力するPDFには承認者の印鑑が押されなくなります（すでにダウンロードしたPDFはそのままです）。',
+    }[action];
+    if (!window.confirm(question)) return;
 
+    const { run, failed, done } = REVIEW[action];
     setBusy(true);
     setMessage('');
-    const error = await approveDocuments(filterYear, filterMonth, docs);
+    const error = await run(filterYear, filterMonth, docs);
     setBusy(false);
     if (error) {
-      alert(`承認できませんでした。\n\n${error}`);
+      alert(`${failed}。\n\n${error}`);
       return;
     }
-    setMessage(`${viewing.name}さんの${filterYear}年${filterMonth}月の${docs.map((d) => DOC_LABELS[d]).join('・')}を承認しました`);
-  }
-
-  async function handleUnapprove(key: DocKey) {
-    if (!viewing) return;
-    if (!window.confirm(
-      `${viewing.name}さんの${filterYear}年${filterMonth}月の${DOC_LABELS[key]}の承認を取り消しますか？\n\n`
-      + '取り消すと提出済み（承認前）に戻り、本人の取り下げや、リーダー・管理者の修正・承認ができるようになります。\n'
-      + 'これから出力するPDFには承認者の印鑑が押されなくなります（すでにダウンロードしたPDFはそのままです）。',
-    )) return;
-
-    setBusy(true);
-    setMessage('');
-    const error = await unapproveDocuments(filterYear, filterMonth, [key]);
-    setBusy(false);
-    if (error) {
-      alert(`承認を取り消せませんでした。\n\n${error}`);
-      return;
-    }
-    setMessage(`${viewing.name}さんの${filterYear}年${filterMonth}月の${DOC_LABELS[key]}の承認を取り消しました`);
+    setMessage(`${who}${docNames}${done}`);
   }
 
   return (
@@ -166,15 +215,16 @@ export default function SubmitTab({ records, transportRecords, workSettings, pai
       <h2>{viewing ? `提出（${viewing.name}さん）` : '提出'}</h2>
       {viewing ? (
         <p className="hint">
-          {viewing.name}さんの提出状況です。提出済みの書類は、内容を確かめてから「承認」を押してください。
-          承認前の書類は、勤怠一覧・交通費・申請書類・作業報告・スキル表の画面で修正できます。
-          承認済みの書類を直すときは、「承認を取り消す」で承認前に戻してください。
+          {viewing.name}さんの提出状況です。提出済みの書類は、「PDFで確認」で内容を確かめてから「確認」を押し、
+          確認済みの書類を「承認」してください。確認と承認は同じ人がしてもかまいません。
+          確認前の書類は、勤怠一覧・交通費・申請書類・作業報告・スキル表の画面で修正できます。
+          確認済み・承認済みの書類を直すときは、「承認を取り消す」「確認を取り消す」で確認前に戻してください。
           提出・取り下げは本人だけができます。
         </p>
       ) : (
         <p className="hint">
           提出する書類にチェックを入れてください。選んだ書類の入力がすべて完了すると提出できます（入力のチェックはダウンロードと同じです）。
-          提出した書類は、取り下げるまで変更できません。
+          提出した書類は、取り下げるまで変更できません。「PDFで確認」で、提出した書類をPDFで見られます。
         </p>
       )}
 
@@ -216,17 +266,27 @@ export default function SubmitTab({ records, transportRecords, workSettings, pai
         onToggle={toggle}
         showSubmission={!statusUnavailable}
         onWithdraw={viewing ? undefined : handleWithdraw}
-        onApprove={viewing && !statusUnavailable ? (key) => { void handleApprove([key]); } : undefined}
-        onUnapprove={viewing && !statusUnavailable ? (key) => { void handleUnapprove(key); } : undefined}
+        onConfirm={viewing && !statusUnavailable ? (key) => { void handleReview('confirm', [key]); } : undefined}
+        onUnconfirm={viewing && !statusUnavailable ? (key) => { void handleReview('unconfirm', [key]); } : undefined}
+        onApprove={viewing && !statusUnavailable ? (key) => { void handleReview('approve', [key]); } : undefined}
+        onUnapprove={viewing && !statusUnavailable ? (key) => { void handleReview('unapprove', [key]); } : undefined}
+        onPreview={(key) => { void handlePreview(key); }}
         readOnly={!!viewing}
         busy={busy}
       />
 
-      {viewing && !statusUnavailable && approvableKeys.length > 1 && (
+      {viewing && !statusUnavailable && (confirmableKeys.length > 1 || approvableKeys.length > 1) && (
         <div className="bulk-download-actions">
-          <button className="btn btn-primary" disabled={busy} onClick={() => { void handleApprove(approvableKeys); }}>
-            {busy ? '処理中…' : `提出済みの書類をすべて承認（${approvableKeys.length}件）`}
-          </button>
+          {confirmableKeys.length > 1 && (
+            <button className="btn btn-primary" disabled={busy} onClick={() => { void handleReview('confirm', confirmableKeys); }}>
+              {busy ? '処理中…' : `提出済みの書類をすべて確認（${confirmableKeys.length}件）`}
+            </button>
+          )}
+          {approvableKeys.length > 1 && (
+            <button className="btn btn-primary" disabled={busy} onClick={() => { void handleReview('approve', approvableKeys); }}>
+              {busy ? '処理中…' : `確認済みの書類をすべて承認（${approvableKeys.length}件）`}
+            </button>
+          )}
         </div>
       )}
 
@@ -250,6 +310,16 @@ export default function SubmitTab({ records, transportRecords, workSettings, pai
         </>
       )}
       {message && <p className="submit-message" role="status">{message}</p>}
+
+      {preview && (
+        <PdfPreview
+          title={preview.title}
+          subtitle={preview.subtitle}
+          files={preview.files}
+          error={preview.error}
+          onClose={closePreview}
+        />
+      )}
     </div>
   );
 }
