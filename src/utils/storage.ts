@@ -314,16 +314,22 @@ export function getWorkLocation(r: Pick<AttendanceRecord, 'workLocation' | 'isKi
   return r.workLocation ?? (r.isKishaDay ? 'kisha' : 'site');
 }
 
-// 勤務区分の定型文。備考の先頭に入れ、勤務表PDFにもこの備考をそのまま出す
+// 勤務区分と在宅の定型文。備考の先頭に（勤務区分 → 在宅の順で）入れ、勤務表PDFにもこの備考をそのまま出す
 const KISHA_NOTES: Record<WorkLocation, string> = { site: '', kisha: '帰社日', am_kisha: '午前帰社', pm_kisha: '午後帰社' };
 const KISHA_NOTE_RE = /^(帰社日|終日帰社|午前帰社|午後帰社)\s*/;
+const REMOTE_NOTE = '在宅';
+// 「在宅勤務のため」のような手入力の文は定型文とみなさない（「在宅」の後ろが空白か終わりのときだけ）
+const REMOTE_NOTE_RE = /^在宅(?:\s+|$)/;
 
-// 備考の先頭の定型文を勤務区分に合わせて差し替える（手入力した部分は残し、同じ文言は二重に入れない）
-export function withKishaNote(notes: string, loc: WorkLocation): string {
-  const rest = notes.replace(KISHA_NOTE_RE, '');
-  const label = KISHA_NOTES[loc];
-  if (!label || rest.includes(label)) return rest;
-  return rest ? label + '　' + rest : label;
+// 備考の先頭の定型文を勤務区分と在宅に合わせて差し替える（手入力した部分は残し、同じ文言は二重に入れない）。
+// remote を省略すると、在宅の定型文は今のまま（あれば残し、なければ足さない）
+export function withFixedNotes(notes: string, loc: WorkLocation, remote?: boolean): string {
+  let rest = notes.replace(KISHA_NOTE_RE, '');
+  const hadRemote = REMOTE_NOTE_RE.test(rest);
+  rest = rest.replace(REMOTE_NOTE_RE, '');
+  const labels = [KISHA_NOTES[loc], (remote ?? hadRemote) ? REMOTE_NOTE : '']
+    .filter((label) => label && !rest.includes(label));
+  return [...labels, rest].filter(Boolean).join('　');
 }
 
 // 現場（客先）での勤務時間。帰社した時間は含まない。

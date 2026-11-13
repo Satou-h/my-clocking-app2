@@ -296,6 +296,7 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
                       <span className="transfer-date-note">振替: {r.transferDate ? formatDay(r.transferDate) : '未設定'}</span>
                     )}
                     {location !== 'site' && <span className="badge badge-kisha">{WORK_LOCATION_LABELS[location]}</span>}
+                    {r.workFromHome && <span className="badge badge-remote">在宅</span>}
                     {r.noTransport && <span className="badge badge-no-transport" title="交通費なし（在宅勤務・徒歩圏内など）">交通費なし</span>}
                   </td>
                   <td>{r.clockIn ?? '-'}</td>
@@ -357,6 +358,7 @@ export default function AttendanceList({ records, workSettings, paidLeaveSetting
                 <span className="day-card-tags">
                   <span className={`badge badge-${r.type}`}>{ATTENDANCE_TYPE_LABELS[r.type]}</span>
                   {v.location !== 'site' && <span className="badge badge-kisha">{WORK_LOCATION_LABELS[v.location]}</span>}
+                  {r.workFromHome && <span className="badge badge-remote">在宅</span>}
                   {v.late && <span className="badge badge-late">遅刻</span>}
                   {v.early && <span className="badge badge-early">早退</span>}
                   {r.noTransport && <span className="badge badge-no-transport">交通費なし</span>}

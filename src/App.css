@@ -667,6 +667,7 @@ h3 {
 .transfer-date-note { margin-left: 4px; font-size: 11px; color: var(--purple-fg); }
 .badge-no-transport { background: var(--green-bg); color: var(--green-fg); margin-left: 4px; }
 .badge-kisha { background: var(--teal-bg); color: var(--teal-fg); margin-left: 4px; }
+.badge-remote { background: var(--purple-bg); color: var(--purple-fg); margin-left: 4px; }
 
 /* List filter */
 .list-filter {

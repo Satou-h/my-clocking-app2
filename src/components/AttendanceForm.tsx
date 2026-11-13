@@ -4,7 +4,7 @@ import { ATTENDANCE_TYPE_LABELS, WORK_LOCATION_LABELS } from '../types/attendanc
 import {
   generateId, calcWorkMinutes, calcOvertimeMinutes,
   calcLateNightMinutes, calcLateNightOvertimeMinutes, isLateArrival, isEarlyDeparture, formatMinutes, getEffectiveBreak,
-  getWorkLocation, calcSiteWorkMinutes, DEFAULT_KISHA_SWITCH_TIME, withKishaNote, todayStr,
+  getWorkLocation, calcSiteWorkMinutes, DEFAULT_KISHA_SWITCH_TIME, withFixedNotes, todayStr,
 } from '../utils/storage';
 import { getHolidayName } from '../utils/holidays';
 import TimeSelect from './TimeSelect';
@@ -20,7 +20,7 @@ interface Props {
 
 const today = todayStr;
 
-// 勤務区分（現場・帰社）を選べる種別。休暇・欠勤などは選べない
+// 勤務区分（現場・帰社）と在宅を選べる種別。休暇・欠勤などは選べない
 const LOCATION_TYPES = new Set<AttendanceType>(['work', 'am_leave', 'pm_leave', 'scheduled_holiday_work', 'legal_holiday_work', 'transfer_holiday_work']);
 
 export default function AttendanceForm({ existingRecord, records, workSettings, onSave, onSaveMultiple, onCancel }: Props) {
@@ -29,11 +29,12 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
   const [clockIn, setClockIn] = useState(existingRecord?.clockIn ?? workSettings.standardStartTime);
   const [clockOut, setClockOut] = useState(existingRecord?.clockOut ?? workSettings.standardEndTime);
   const [breakMinutes, setBreakMinutes] = useState(String(existingRecord?.breakMinutes ?? 60));
-  // 帰社の日は備考に定型文を入れて見せる（勤務表PDFの備考と同じ内容）
+  // 帰社・在宅の日は備考に定型文を入れて見せる（勤務表PDFの備考と同じ内容）
   const [notes, setNotes] = useState(() => {
     const n = existingRecord?.notes ?? '';
     const loc = existingRecord ? getWorkLocation(existingRecord) : 'site';
-    return loc !== 'site' ? withKishaNote(n, loc) : n;
+    const remote = !!existingRecord?.workFromHome;
+    return loc !== 'site' || remote ? withFixedNotes(n, loc, remote || undefined) : n;
   });
   const [error, setError] = useState('');
   const [useCustomTime, setUseCustomTime] = useState(
@@ -45,6 +46,7 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
   const [dateTo, setDateTo] = useState(existingRecord?.date ?? today());
   const [skipWeekends, setSkipWeekends] = useState(true);
   const [noTransport, setNoTransport]   = useState(existingRecord?.noTransport ?? false);
+  const [workFromHome, setWorkFromHome] = useState(existingRecord?.workFromHome ?? false);
   const [workLocation, setWorkLocation] = useState<WorkLocation>(existingRecord ? getWorkLocation(existingRecord) : 'site');
   const [kishaSwitchTime, setKishaSwitchTime] = useState(existingRecord?.kishaSwitchTime ?? DEFAULT_KISHA_SWITCH_TIME);
   const [transferDate, setTransferDate] = useState(existingRecord?.transferDate ?? '');
@@ -80,13 +82,22 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
   // 勤務区分を変えたら備考の先頭の定型文も差し替える（手入力した部分は残す）
   function handleWorkLocationChange(loc: WorkLocation) {
     setWorkLocation(loc);
-    setNotes(withKishaNote(notes, loc));
+    setNotes(withFixedNotes(notes, loc, workFromHome || undefined));
   }
 
-  // 勤務区分を選べない種別にしたら定型文を外し、選べる種別に戻したら入れ直す
+  // 在宅にしたら備考の先頭に「在宅」を入れ、外したら消す（手入力した部分は残す）
+  function handleWorkFromHomeChange(remote: boolean) {
+    setWorkFromHome(remote);
+    setNotes(withFixedNotes(notes, workLocation, remote));
+  }
+
+  // 勤務区分・在宅を選べない種別にしたら定型文を外し、選べる種別に戻したら入れ直す
   function handleTypeChange(t: AttendanceType) {
     setType(t);
-    if (workLocation !== 'site') setNotes(withKishaNote(notes, LOCATION_TYPES.has(t) ? workLocation : 'site'));
+    if (workLocation === 'site' && !workFromHome) return;
+    setNotes(LOCATION_TYPES.has(t)
+      ? withFixedNotes(notes, workLocation, workFromHome || undefined)
+      : withFixedNotes(notes, 'site', workFromHome ? false : undefined));
   }
 
   const siteMins = canSetLocation && isHalfKisha && clockIn && clockOut
@@ -173,8 +184,10 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
       customStartTime: useCustomTime && customStartTime ? customStartTime : undefined,
       customEndTime: useCustomTime && customEndTime ? customEndTime : undefined,
       noTransport: canToggleNoTransport ? noTransport : undefined,
+      workFromHome: canSetLocation && workFromHome ? true : undefined,
       workLocation: canSetLocation && workLocation !== 'site' ? workLocation : undefined,
-      kishaSwitchTime: canSetLocation && isHalfKisha ? kishaSwitchTime : undefined,      transferDate: isTransferWork ? transferDate : undefined,
+      kishaSwitchTime: canSetLocation && isHalfKisha ? kishaSwitchTime : undefined,
+      transferDate: isTransferWork ? transferDate : undefined,
     };
 
     // 振替休日出勤：代わりに取得する振替休日の日付が必須
@@ -309,6 +322,19 @@ export default function AttendanceForm({ existingRecord, records, workSettings, 
         <p className="form-hint">
           振替休日出勤を登録した場合、指定した日を「振替休日」として登録し、休暇申請書を作成する必要があります。
         </p>
+      )}
+
+      {canSetLocation && (
+        <div className="form-row form-row-check">
+          <label className="range-toggle">
+            <input
+              type="checkbox"
+              checked={workFromHome}
+              onChange={(e) => handleWorkFromHomeChange(e.target.checked)}
+            />
+            在宅勤務
+          </label>
+        </div>
       )}
 
       {canToggleNoTransport && (

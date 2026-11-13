@@ -7,7 +7,7 @@ import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
 import { ATTENDANCE_CALC_LABEL } from '../types/document';
 import {
   calcWorkMinutes, calcOvertimeMinutes, calcLateNightMinutes, calcLateNightOvertimeMinutes, calcPaidLeaveUsed,
-  isLateArrival, isEarlyDeparture, getEffectiveBreak, getWorkLocation, timeToMins, withKishaNote,
+  isLateArrival, isEarlyDeparture, getEffectiveBreak, getWorkLocation, timeToMins, withFixedNotes,
 } from './storage';
 import { getHolidayName } from './holidays';
 import { sealImage } from './seal';
@@ -129,10 +129,11 @@ function kyuOf(r: DayRow): { code: string; desc: string; tone: Tone } | null {
   return { code: KYU_CODES[t], desc: t === 'work' ? '休日の普通勤務' : kubun.label, tone: kubun.tone };
 }
 
-// 備考。帰社の定型文は入力画面で備考に入る。備考に無い古いデータだけ補い、二重には出さない
+// 備考。帰社・在宅の定型文は入力画面で備考に入る。備考に無い古いデータだけ補い、二重には出さない
 function noteOf(r: DayRow): string {
   const loc = r.worked ? getWorkLocation(r.rec!) : 'site';
-  return (loc !== 'site' ? withKishaNote(r.rec!.notes ?? '', loc) : r.rec?.notes) ?? '';
+  const remote = r.worked && !!r.rec!.workFromHome;
+  return (loc !== 'site' || remote ? withFixedNotes(r.rec!.notes ?? '', loc, remote || undefined) : r.rec?.notes) ?? '';
 }
 
 // ── 月の集計（提出用・計算用で共通） ─────────────────────────────────────────

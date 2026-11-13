@@ -23,6 +23,9 @@ export interface AttendanceRecord {
   customEndTime?: string;
   // 在宅勤務・徒歩圏内など、その日は交通費が発生しない場合に立てるフラグ
   noTransport?: boolean;
+  // 在宅勤務の日に立てるフラグ（備考の先頭に「在宅」が入る）。交通費の要否は noTransport だけで判定し、こちらは見ない。
+  // isRemote は以前 noTransport の旧名として使っていたため別の名前にしている
+  workFromHome?: boolean;
   // 勤務区分（未設定は現場）。帰社した時間は検算の現場総勤務時間に含まない
   workLocation?: WorkLocation;
   // 午前帰社・午後帰社の場合の現場⇔自社の切替時刻（HH:MM）

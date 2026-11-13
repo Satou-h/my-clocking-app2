@@ -4,6 +4,7 @@
  * QR      : バイナリ形式 v9（勤怠 + 交通費 + 付加情報 + 備考 + 交通費の行先・出発地・到着地 + 有給残日数 + 作業報告書 + 申請書類 + スキル表 + 勤務区分）
  * カナコード: コンパクトバイナリ v8（勤怠 + 交通費 + 付加情報 + 備考 + 交通費の行先・出発地・到着地 + 有給残日数 + 作業報告書 + 申請書類 + スキル表 + 勤務区分）→ カタカナ文字列
  * 付加情報 : 基準時間（勤務設定・日ごとの変更）、社員番号、苗字、対象月の有給残日数（月初）、氏名
+ * 在宅    : QR・カナコードとも形式番号を上げずに末尾へ付け足している（在宅ブロック参照）
  */
 
 import type { AttendanceRecord, AttendanceType, WorkLocation, WorkSettings } from '../types/attendance';
@@ -220,6 +221,9 @@ class ByteReader {
     this.off += 3;
     return pair;
   }
+  atEnd(): boolean {
+    return this.off >= this.buf.length;
+  }
   date(): string {
     const v = (this.u8() << 8) | this.u8();
     return v === 0 ? '' : new Date((v - 1) * 86400000).toISOString().slice(0, 10);
@@ -304,6 +308,24 @@ function decodeWorkLocations(r: ByteReader, recs: AttendanceRecord[]) {
     if (!rec || loc === 'site') continue;
     rec.workLocation = loc;
     rec.kishaSwitchTime = loc !== 'kisha' && sw < 24 * 60 ? fromMins(sw) : undefined;
+  }
+}
+
+// ── 在宅ブロック ─────────────────────────────────────────────────────────────
+// [remote_count:1] + remote_count × [record_index:1]（在宅の日のレコード番号）
+// 形式番号を上げずに末尾へ付け足している。以前の版は末尾の余りを読まないので、新しい版のコードもそのまま取り込める
+// （在宅のフラグだけが落ちる。備考の「在宅」は備考ブロックで届く）。このブロックが無いコードは在宅なしとして読む
+function encodeWorkFromHome(recs: AttendanceRecord[]): number[] {
+  const idx = recs.flatMap((r, i) => (r.workFromHome && i < 256 ? [i] : []));
+  return [idx.length, ...idx];
+}
+
+function decodeWorkFromHome(r: ByteReader, recs: AttendanceRecord[]) {
+  if (r.atEnd()) return;
+  const count = r.u8();
+  for (let i = 0; i < count; i++) {
+    const rec = recs[r.u8()];
+    if (rec) rec.workFromHome = true;
   }
 }
 
@@ -580,7 +602,7 @@ function decodeDocs(r: ByteReader, meta: TransferMeta, withAppsAndSkill: boolean
 // ver 5: ver 4 + 有給残日数ブロック
 // ver 6: ver 5 + 作業報告書ブロック
 // ver 7: ver 6 + 申請書類ブロック + スキル表ブロック
-// ver 8: ver 7 + 勤務区分ブロック
+// ver 8: ver 7 + 勤務区分ブロック（+ 末尾に在宅ブロック。形式番号は 8 のまま）
 export function encodeMonth(
   records: AttendanceRecord[], transportRecords: TransportRecord[], year: number, month: number, meta: TransferMeta = {},
   docs: TransferDocs = {},
@@ -598,7 +620,7 @@ export function encodeMonth(
   const metaBytes = [
     ...encodeMeta(recs, meta), ...encodeNotes(recs),
     ...trpBytes, ...encodeNotes(trpRecs), ...encodeRouteTexts(trpRecs),
-    ...encodePaidLeave(meta), ...encodeDocs(meta, docs), ...encodeWorkLocations(recs),
+    ...encodePaidLeave(meta), ...encodeDocs(meta, docs), ...encodeWorkLocations(recs), ...encodeWorkFromHome(recs),
   ];
   const buf = new Uint8Array(5 + recs.length * 6 + metaBytes.length);
   buf[0] = 8; buf[1] = year >> 8; buf[2] = year & 0xFF; buf[3] = month; buf[4] = recs.length;
@@ -638,7 +660,10 @@ export function decodeMonth(buf: Uint8Array): {
     }
     if (ver >= 5) decodePaidLeave(reader, meta);
     const docs = ver >= 6 ? decodeDocs(reader, meta, ver >= 7) : undefined;
-    if (ver >= 8) decodeWorkLocations(reader, records);
+    if (ver >= 8) {
+      decodeWorkLocations(reader, records);
+      decodeWorkFromHome(reader, records);
+    }
     return { records, transportRecords, year, month, meta, docs, oldFormat: ver < 8 };
   } catch { return null; }
 }
@@ -692,7 +717,7 @@ function unpackTransport(buf: Uint8Array, off: number, year: number, month: numb
 // 有給残日数: ver 6 以降
 // 作業報告書（氏名を含む）: ver 7 以降
 // 申請書類・スキル表: ver 8 以降
-// 勤務区分: ver 9 以降
+// 勤務区分: ver 9 以降（+ 末尾に在宅ブロック。形式番号は 9 のまま）
 //
 // 旧 JSON 形式 (v1) との後方互換: decodeQR が両方を自動判別
 const QR2_PREFIX = 'QR2:';
@@ -707,7 +732,7 @@ export function encodeQR(
 
   const metaBytes = [
     ...encodeMeta(attRecs, meta), ...encodeNotes(attRecs), ...encodeNotes(trpRecs), ...encodeRouteTexts(trpRecs),
-    ...encodePaidLeave(meta), ...encodeDocs(meta, docs), ...encodeWorkLocations(attRecs),
+    ...encodePaidLeave(meta), ...encodeDocs(meta, docs), ...encodeWorkLocations(attRecs), ...encodeWorkFromHome(attRecs),
   ];
   const dataLen = 7 + attRecs.length * 6 + trpRecs.length * 4;
   const buf = new Uint8Array(dataLen + metaBytes.length);
@@ -759,7 +784,10 @@ export function decodeQR(text: string): {
       if (ver >= 5) decodeRouteTexts(reader, trp);
       if (ver >= 6) decodePaidLeave(reader, meta);
       const docs = ver >= 7 ? decodeDocs(reader, meta, ver >= 8) : undefined;
-      if (ver >= 9) decodeWorkLocations(reader, att);
+      if (ver >= 9) {
+        decodeWorkLocations(reader, att);
+        decodeWorkFromHome(reader, att);
+      }
       return { att, trp, year, month, meta, docs, oldFormat: ver < 9 };
     } catch { return null; }
   }
