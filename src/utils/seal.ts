@@ -1,7 +1,8 @@
 // 苗字から印鑑（朱色の丸印）の画像を作る
 // 自分のPDFの本人欄・リーダーの検印（stampPdf.ts）に押し、印鑑の画面でも同じ画像を見せる。
 // 文字はPDFと同じ同梱フォント（NotoSansJP）で描くので、端末によって形が変わらない。
-import { loadRawFont } from './pdfKit';
+// ふだんは常用字のフォント（common）で描き、common にない字の苗字のときだけ元のフォント（full）を読み込む（pdfKit.ts）
+import { commonFontCovers, loadRawFont, type FontKind } from './pdfKit';
 
 const SIZE = 480;        // 画像の一辺（px）。PDFの欄（直径 1cm ほど）に縮めても十分な細かさ
 const RED = '#D6332B';   // 朱肉の色
@@ -12,17 +13,22 @@ const FILL = 1.08;       // 文字のまとまりを円いっぱいに広げる�
 const EM_CENTER = 0.38;  // 漢字の字面の中心（ベースラインからの高さ。NotoSansJP の仮想ボディは -0.12〜0.88）
 const FAMILY = 'ClockingSeal';
 
-let fontReady: Promise<void> | null = null;
-function loadSealFont(): Promise<void> {
-  fontReady ??= (async () => {
-    const face = new FontFace(FAMILY, (await loadRawFont()).slice(0));
-    await face.load();
-    document.fonts.add(face);
-  })().catch((e: unknown) => {
-    fontReady = null;
-    throw e;
-  });
-  return fontReady;
+// kind のフォントを読み込み、canvas で使う font-family の名前を返す（読み込みはフォントごとに1回だけ）
+const fontReady = new Map<FontKind, Promise<string>>();
+function loadSealFont(kind: FontKind): Promise<string> {
+  let ready = fontReady.get(kind);
+  if (!ready) {
+    const family = `${FAMILY}-${kind}`;
+    ready = (async () => {
+      const face = new FontFace(family, (await loadRawFont(kind)).slice(0));
+      await face.load();
+      document.fonts.add(face);
+      return family;
+    })();
+    ready.catch(() => fontReady.delete(kind));
+    fontReady.set(kind, ready);
+  }
+  return ready;
 }
 
 const cache = new Map<string, Promise<string>>();
@@ -33,8 +39,9 @@ export function sealImage(lastName: string): Promise<string> {
   if (!name) return Promise.resolve('');
   let image = cache.get(name);
   if (!image) {
-    image = loadSealFont()
-      .then(() => drawSeal(name))
+    image = commonFontCovers(name)
+      .then((covered) => loadSealFont(covered ? 'common' : 'full'))
+      .then((family) => drawSeal(name, family))
       .catch(() => {
         cache.delete(name);
         throw new Error('印鑑の画像を作れませんでした。通信状態を確認してから、もう一度お試しください');
@@ -44,7 +51,8 @@ export function sealImage(lastName: string): Promise<string> {
   return image;
 }
 
-function drawSeal(name: string): string {
+// family: loadSealFont で読み込んだフォントの名前
+function drawSeal(name: string, family: string): string {
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = SIZE;
   const ctx = canvas.getContext('2d');
@@ -65,9 +73,9 @@ function drawSeal(name: string): string {
 
   // 英字の苗字は横書きで1行に収める
   if (/^[\x21-\x7e]+$/.test(name)) {
-    ctx.font = `100px ${FAMILY}`;
+    ctx.font = `100px ${family}`;
     const size = Math.min(r * 0.8, (r * 2 * 0.9 * 100) / ctx.measureText(name).width);
-    ctx.font = `${size}px ${FAMILY}`;
+    ctx.font = `${size}px ${family}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.lineWidth = size * WEIGHT;
@@ -88,7 +96,7 @@ function drawSeal(name: string): string {
   const cellH = blockH / rows;
   const size = cellW;
 
-  ctx.font = `${size}px ${FAMILY}`;
+  ctx.font = `${size}px ${family}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
   ctx.lineWidth = size * WEIGHT;

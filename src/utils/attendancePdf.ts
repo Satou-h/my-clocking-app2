@@ -2,7 +2,6 @@
 // ・勤務表: 提出用。祝祭日・休の欄と、時間の主な内訳（実働・普通勤務・時間外・深夜勤務・遅刻早退）を載せる
 // ・勤務表(計算用): 時間の内訳を確かめる用（以前からの勤務表）。勤務時間・時間外の計・深夜残業・代休の欄と合計の行も載せる
 import { PDFDocument, type RGB } from 'pdf-lib';
-import fontkit from '@pdf-lib/fontkit';
 import type { AttendanceRecord, AttendanceType, WorkSettings } from '../types/attendance';
 import { ATTENDANCE_TYPE_LABELS } from '../types/attendance';
 import { ATTENDANCE_CALC_LABEL } from '../types/document';
@@ -13,7 +12,8 @@ import {
 import { getHolidayName } from './holidays';
 import { sealImage } from './seal';
 import {
-  C, DOW_JA, createPainter, drawStatGroups, downloadPdf, hm, hm10, loadFont, markLeaderSigned, shortTime, writeSignAreas,
+  C, DOW_JA, createPainter, drawStatGroups, downloadPdf, embedAppFont, hm, hm10, markLeaderSigned, shortTime, withPdfFont,
+  writeSignAreas,
   type Painter, type Stat,
 } from './pdfKit';
 
@@ -200,9 +200,7 @@ const hours = (label: string, min: number, alert = false): Stat => ({ label, val
 async function startSheet(a: AttendanceSheetArgs, docName: string, m: MonthCalc, timeStats: Stat[]) {
   const { year, month, name, workSettings, plRemaining } = a;
   const doc = await PDFDocument.create();
-  doc.registerFontkit(fontkit);
-  // サブセット化は loadFont() で詰め直したフォントが前提
-  const font = await doc.embedFont(a.fontBytes, { subset: true });
+  const font = await embedAppFont(doc, a.fontBytes);
   doc.setTitle(`${year}年${month}月 ${docName} ${name}`);
   const p = createPainter(doc.addPage([W, H]), font);
 
@@ -455,12 +453,14 @@ export async function printMonthlyAttendancePDF(
   approverLastName = '', // 承認済みなら承認した人の苗字（承認印欄に印鑑を押す）
   confirmerLastName = '', // 確認済み・承認済みなら確認した人の苗字（確認印欄に印鑑を押す）
 ): Promise<void> {
-  const args: AttendanceSheetArgs = {
-    fontBytes: await loadFont(), records, workSettings, year, month, plRemaining, name,
+  const args: Omit<AttendanceSheetArgs, 'fontBytes'> = {
+    records, workSettings, year, month, plRemaining, name,
     approverSeal: await sealImage(approverLastName), confirmerSeal: await sealImage(confirmerLastName),
   };
   const ym = `${year}${String(month).padStart(2, '0')}`;
   const userPart = (employeeId || lastName) ? `_${employeeId}${lastName}` : '';
-  downloadPdf(await buildMonthlyAttendancePdf(args), `01_勤務表${ym}${userPart}.pdf`);
-  downloadPdf(await buildAttendanceCalcPdf(args), `01_${ATTENDANCE_CALC_LABEL}${ym}${userPart}.pdf`);
+  const submit = await withPdfFont((fontBytes) => buildMonthlyAttendancePdf({ ...args, fontBytes }));
+  downloadPdf(submit, `01_勤務表${ym}${userPart}.pdf`);
+  const calc = await withPdfFont((fontBytes) => buildAttendanceCalcPdf({ ...args, fontBytes }));
+  downloadPdf(calc, `01_${ATTENDANCE_CALC_LABEL}${ym}${userPart}.pdf`);
 }

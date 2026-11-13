@@ -4,7 +4,11 @@ import {
   setLineJoin, setLineWidth, setStrokingColor, setTextRenderingMode,
   type PDFDocument, type PDFFont, type PDFImage, type PDFPage, type RGB,
 } from 'pdf-lib';
+import fontkit from '@pdf-lib/fontkit';
 import { savePdf } from './pdfOutput';
+
+type Fontkit = Parameters<PDFDocument['registerFontkit']>[0];
+type Font = ReturnType<Fontkit['create']>;
 
 // ── 押印欄の印鑑を押す範囲 ────────────────────────────────────────────────────
 // リーダーがメンバーのPDFを読み込んで検印するとき（stampPdf.ts）に使うため、各欄の範囲をPDFの中に書いておく。
@@ -50,32 +54,134 @@ export function drawImageFit(page: PDFPage, img: PDFImage, { x, y, w, h }: SignA
   page.drawImage(img, { x: x + (w - iw) / 2, y: y + (h - ih) / 2, width: iw, height: ih });
 }
 
-// ── フォント（public/fonts の NotoSansJP-Regular を共有） ─────────────────────
-// スキルシート・職務経歴書PDF（skillPdf.ts）もここから読み込む。
-// PDFには使う文字だけを埋め込む（embedFont の subset:true）。
+// ── フォント（public/fonts の NotoSansJP-Regular） ─────────────────────────────
+// 初めてPDFを作るときのダウンロードを小さくするため、2つのファイルを使い分ける。
+// ・common: 常用字（JIS第1・第2水準の漢字、NEC・IBM拡張文字、かな・記号など）だけを残したもの。約2.6MB（元の半分）
+// ・full:   元のフォント。約5.2MB。common にない字（𠮷 など）を書くときだけ読み込む
+// 2つは字形・字幅が同じなので、どちらで作ってもPDFの見た目は変わらない。common は scripts/make-common-font.mjs で作る。
+// PDFは withPdfFont で作る（まず common で作り、common にない字があれば full で作り直す）。
+// スキルシート・職務経歴書PDF（skillPdf.ts）・印鑑の画像（seal.ts）もここから読み込む。
+export type FontKind = 'common' | 'full';
+const FONT_FILES: Record<FontKind, string> = {
+  common: 'NotoSansJP-Regular-common.ttf',
+  full: 'NotoSansJP-Regular.ttf',
+};
+
+// make() の結果を使い回す関数を返す（失敗したときは、次に呼ばれたときにやり直す）
+function once<T>(make: () => Promise<T>): () => Promise<T> {
+  let result: Promise<T> | null = null;
+  return () => {
+    result ??= make().catch((e: unknown) => {
+      result = null;
+      throw e;
+    });
+    return result;
+  };
+}
+
+async function fetchFont(kind: FontKind): Promise<ArrayBuffer> {
+  const res = await fetch(import.meta.env.BASE_URL + 'fonts/' + FONT_FILES[kind]);
+  if (!res.ok) throw new Error('フォントの読み込みに失敗しました');
+  return res.arrayBuffer();
+}
+
+const rawFonts: Record<FontKind, () => Promise<ArrayBuffer>> = {
+  common: once(() => fetchFont('common')),
+  full: once(() => fetchFont('full')),
+};
+
+// フォントのファイルそのまま（印鑑の画像を描くとき（seal.ts）に使う。読み込みは1回だけ）
+export function loadRawFont(kind: FontKind): Promise<ArrayBuffer> {
+  return rawFonts[kind]();
+}
+
+// PDFには使う文字だけを埋め込む（embedAppFont。embedFont の subset:true）。
 // NotoSansJP はバイト長が奇数のグリフを含み、fontkit は小さなサブセットを短い形式の loca
 // （オフセット÷2）で書き出すため、そのままだとグリフの位置がずれて文字が化ける。
 // 読み込み時に各グリフを偶数バイトに詰め直しておく（字形は変わらない）。
-let rawFont: Promise<ArrayBuffer> | null = null;
-// 同梱フォントのファイルそのまま（印鑑の画像を描くとき（seal.ts）にも使う。読み込みは1回だけ）
-export function loadRawFont(): Promise<ArrayBuffer> {
-  rawFont ??= fetch(import.meta.env.BASE_URL + 'fonts/NotoSansJP-Regular.ttf')
-    .then((res) => {
-      if (!res.ok) throw new Error('フォントの読み込みに失敗しました');
-      return res.arrayBuffer();
-    })
-    .catch((e: unknown) => {
-      rawFont = null; // 次に出力するときに読み込み直す
-      throw e;
-    });
-  return rawFont;
+// 詰め直したバイト列は何度呼んでも同じものを返す（sharedFontkit が解析済みのフォントを見つける目印になる）
+interface CommonFont {
+  bytes: Uint8Array;
+  chars: Set<number>; // common にある字（コードポイント）
+}
+let commonFont: CommonFont | null = null;
+const loadCommonFont = once(async (): Promise<CommonFont> => {
+  const bytes = padGlyphs(new Uint8Array(await loadRawFont('common')));
+  commonFont = { bytes, chars: new Set(sharedFontkit.create(bytes).characterSet) };
+  return commonFont;
+});
+const loadFullFont = once(async () => padGlyphs(new Uint8Array(await loadRawFont('full'))));
+
+// 詰め直したフォント（PDFを作るときは、字がそろっているかを確かめる withPdfFont を使う）
+export async function loadFont(kind: FontKind): Promise<Uint8Array> {
+  return kind === 'common' ? (await loadCommonFont()).bytes : loadFullFont();
 }
 
-let cachedFontBytes: Uint8Array | null = null;
-export async function loadFont(): Promise<Uint8Array> {
-  if (cachedFontBytes) return cachedFontBytes;
-  cachedFontBytes = padGlyphs(new Uint8Array(await loadRawFont()));
-  return cachedFontBytes;
+// 「PDFで確認」を押す前に、common を読み込んでおく（失敗しても、PDFを作るときに読み込み直す）
+export function preloadFont(): void {
+  loadCommonFont().catch(() => {});
+}
+
+// 元のフォントにもない字（絵文字・制御文字など）。common になくても作り直さない（作り直しても □ のまま変わらない）
+const notInFullFont = (cp: number) =>
+  cp < 0x20 || cp === 0x200d || cp === 0xfe0e || cp === 0xfe0f || (cp >= 0x1f300 && cp <= 0x1faff);
+
+// text のうち、common にないため full が要る最初の字（なければ空文字）
+function charNeedingFull(chars: Set<number>, text: string): string {
+  for (const ch of text) {
+    const cp = ch.codePointAt(0)!;
+    if (!chars.has(cp) && !notInFullFont(cp)) return ch;
+  }
+  return '';
+}
+
+// text を common だけで書けるか（印鑑の画像（seal.ts）でどちらのフォントを使うか決める）
+export async function commonFontCovers(text: string): Promise<boolean> {
+  return !charNeedingFull((await loadCommonFont()).chars, text);
+}
+
+// common にない字を書こうとしたときに createPainter が投げる（withPdfFont が full で作り直す）
+class NeedFullFontError extends Error {
+  constructor(ch: string) {
+    super(`常用字のフォントにない字があります（${ch}）`);
+  }
+}
+
+// build(fontBytes) でPDFを作る。まず common で作り、common にない字があれば full で作り直す
+export async function withPdfFont<T>(build: (fontBytes: Uint8Array) => Promise<T>): Promise<T> {
+  try {
+    return await build(await loadFont('common'));
+  } catch (e) {
+    if (!(e instanceof NeedFullFontError)) throw e;
+    return build(await loadFont('full'));
+  }
+}
+
+// pdf-lib は書類を作るたびにフォントを解析し直すので、解析したフォントを書類をまたいで使い回す。
+// 勤務表（提出用・計算用）のように続けて作るとき、2件目からその分だけ速くなる。
+// loadFont() は毎回同じバイト列を返すので、それを目印にする
+const parsedFonts = new WeakMap<Uint8Array, Font>();
+const sharedFontkit: Fontkit = {
+  create(buffer, postscriptName) {
+    let font = parsedFonts.get(buffer);
+    if (!font) {
+      font = fontkit.create(buffer, postscriptName);
+      parsedFonts.set(buffer, font);
+    }
+    return font;
+  },
+};
+
+// common で埋め込んだフォント → common にある字（createPainter が、書く字がそろっているか確かめる）
+const embeddedCommon = new WeakMap<PDFFont, Set<number>>();
+
+// doc にフォントを埋め込む（使う文字だけ）。fontBytes は withPdfFont から受け取ったもの
+export async function embedAppFont(doc: PDFDocument, fontBytes: ArrayBuffer | Uint8Array): Promise<PDFFont> {
+  doc.registerFontkit(sharedFontkit);
+  // サブセット化は loadFont() で詰め直したフォントが前提
+  const font = await doc.embedFont(fontBytes, { subset: true });
+  if (commonFont && fontBytes === commonFont.bytes) embeddedCommon.set(font, commonFont.chars);
+  return font;
 }
 
 // TrueType の glyf の各グリフを偶数バイトに詰め直し、loca を書き直したフォントを返す
@@ -160,9 +266,15 @@ export type Align = 'left' | 'center' | 'right';
 export function createPainter(page: PDFPage, font: PDFFont) {
   const H = page.getHeight();
   const width = (s: string, size: number) => font.widthOfTextAtSize(s, size);
+  // common で作っているとき、common にある字（ない字を書こうとしたら、withPdfFont に full で作り直してもらう）
+  const commonChars = embeddedCommon.get(font);
 
   // yBase: 上端からベースラインまでの距離
   function txt(s: string, x: number, yBase: number, size: number, color: RGB, align: Align = 'left', w = 0) {
+    if (commonChars) {
+      const ch = charNeedingFull(commonChars, s);
+      if (ch) throw new NeedFullFontError(ch);
+    }
     const tw = width(s, size);
     const dx = align === 'center' ? x + (w - tw) / 2 : align === 'right' ? x + w - tw : x;
     page.drawText(s, { x: dx, y: H - yBase, size, font, color });

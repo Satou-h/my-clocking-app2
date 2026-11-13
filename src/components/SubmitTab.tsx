@@ -1,10 +1,12 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { AttendanceRecord, PaidLeaveSettings, WorkSettings } from '../types/attendance';
 import type { TransportRecord } from '../types/transport';
 import { DOC_KEYS, DOC_LABELS, type DocKey } from '../types/document';
 import { loadUserProfile, PROFILE_MISSING_MESSAGE } from '../utils/storage';
 import { buildMonthDocs, useWorkTimeCheck } from '../utils/monthDocs';
 import { makeMonthPdfs } from '../utils/monthPdfs';
+import { preloadFont } from '../utils/pdfKit';
+import { preloadPdfViewer } from '../utils/pdfRender';
 import { findSubmission, isLockedStatus, useSubmissions } from '../utils/submissions';
 import {
   approveDocuments, confirmDocuments, submitDocuments, syncNow, unapproveDocuments, unconfirmDocuments, useCloudState,
@@ -80,6 +82,21 @@ export default function SubmitTab({ records, transportRecords, workSettings, pai
   const allSelected = selectableRows.every((r) => selected.has(r.key));
   const submittedCount = rows.filter(isLocked).length;
   const targetCount = rows.filter((r) => r.doc.required || isLocked(r)).length;
+
+  // 提出済みの書類（「PDFで確認」を押せる書類）があれば、押される前に、手が空いたところで
+  // PDFに使うフォントと、PDFを表示する部品を読み込んでおく（初めて開くときの待ち時間を減らす）
+  const canPreview = submittedCount > 0;
+  useEffect(() => {
+    if (!canPreview) return;
+    const preload = () => { preloadFont(); preloadPdfViewer(); };
+    if (typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(preload, { timeout: 3000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const id = window.setTimeout(preload, 1500); // requestIdleCallback がない iPhone など
+    return () => window.clearTimeout(id);
+  }, [canPreview]);
+
   // 確認できる書類（提出済み・確認前）と、承認できる書類（確認済み・承認前）
   const confirmableKeys = rows.filter((r) => r.submission?.status === 'submitted').map((r) => r.key);
   const approvableKeys = rows.filter((r) => r.submission?.status === 'confirmed').map((r) => r.key);
@@ -122,6 +139,8 @@ export default function SubmitTab({ records, transportRecords, workSettings, pai
       error: '',
     });
     setBusy(true);
+    // PDFを作っている間に、表示する部品の読み込みを進めておく（作り終わってから読み込むと、その分待つ）
+    preloadPdfViewer();
     try {
       const files = await makeMonthPdfs(year, month, [key], { records, transportRecords, workSettings, paidLeaveSettings });
       // 作成中に閉じていたら開き直さない

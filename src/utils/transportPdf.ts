@@ -1,11 +1,10 @@
 // 小口交通費立替精算書PDF（会社の様式1-3-26.1 と同じ項目・A4縦）
 import { PDFDocument } from 'pdf-lib';
-import fontkit from '@pdf-lib/fontkit';
 import type { TransportRecord } from '../types/transport';
 import { TRIP_TYPE_LABELS } from '../types/transport';
 import { getHolidayName } from './holidays';
 import { sealImage } from './seal';
-import { C, DOW_JA, createPainter, downloadPdf, loadFont, markLeaderSigned, writeSignAreas } from './pdfKit';
+import { C, DOW_JA, createPainter, downloadPdf, embedAppFont, markLeaderSigned, withPdfFont, writeSignAreas } from './pdfKit';
 
 const yen = (n: number) => `¥${n.toLocaleString('ja-JP')}`;
 
@@ -20,9 +19,7 @@ export async function buildTransportPdf(
   confirmerSeal = '', // 確認済み・承認済みなら、検印欄に押す確認した人の印鑑（PNG の data URL）
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
-  doc.registerFontkit(fontkit);
-  // サブセット化は loadFont() で詰め直したフォントが前提
-  const font = await doc.embedFont(fontBytes, { subset: true });
+  const font = await embedAppFont(doc, fontBytes);
   doc.setTitle(`${year}年${month}月 小口交通費立替精算書 ${name}`);
 
   const W = 595.28, H = 841.89; // A4 縦
@@ -173,10 +170,12 @@ export async function printTransportPDF(
   approverLastName = '', // 承認済みなら承認した人の苗字（承認欄に印鑑を押す）
   confirmerLastName = '', // 確認済み・承認済みなら確認した人の苗字（検印欄に印鑑を押す）
 ): Promise<void> {
-  const bytes = await buildTransportPdf(
-    await loadFont(), records, year, month, name,
-    await sealImage(lastName), await sealImage(approverLastName), await sealImage(confirmerLastName),
-  );
+  const seal = await sealImage(lastName);
+  const approverSeal = await sealImage(approverLastName);
+  const confirmerSeal = await sealImage(confirmerLastName);
+  const bytes = await withPdfFont((fontBytes) => (
+    buildTransportPdf(fontBytes, records, year, month, name, seal, approverSeal, confirmerSeal)
+  ));
   const userPart = (employeeId || lastName) ? `_${employeeId}${lastName}` : '';
   downloadPdf(bytes, `02_小口交通費${year}${String(month).padStart(2, '0')}${userPart}.pdf`);
 }

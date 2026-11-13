@@ -8,6 +8,7 @@
 import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 
 type PdfJs = typeof import('pdfjs-dist/legacy/build/pdf.mjs');
+type PdfWorker = InstanceType<PdfJs['PDFWorker']>;
 
 let pdfjs: Promise<PdfJs> | null = null;
 function loadPdfJs(): Promise<PdfJs> {
@@ -21,6 +22,19 @@ function loadPdfJs(): Promise<PdfJs> {
       throw e;
     });
   return pdfjs;
+}
+
+// PDFを読み解く裏方（ワーカー）。読み込みに時間がかかるので、一度作ったら書類をまたいで使い回す
+let worker: PdfWorker | null = null;
+function getWorker(lib: PdfJs): PdfWorker {
+  if (!worker || worker.destroyed) worker = new lib.PDFWorker();
+  return worker;
+}
+
+// 「PDFで確認」を押す前や、PDFを作っている間に、PDF.js とワーカーを読み込んでおく
+// （失敗しても、表示するときに読み込み直す）
+export function preloadPdfViewer(): void {
+  loadPdfJs().then(getWorker).catch(() => {});
 }
 
 export interface PageImage {
@@ -38,9 +52,15 @@ export async function renderPdfPages(
   const lib = await loadPdfJs();
   const data = new Uint8Array(await file.arrayBuffer());
   if (isCancelled()) return;
-  const task = lib.getDocument({ data, isEvalSupported: false });
+  // 渡したワーカーは task.destroy() では止まらない（次の書類でも使う）
+  const task = lib.getDocument({ data, isEvalSupported: false, worker: getWorker(lib) });
   try {
-    const doc = await task.promise;
+    const doc = await task.promise.catch((e: unknown) => {
+      // ワーカーが壊れていても次に開くときは作り直せるよう、いったん捨てる
+      worker?.destroy();
+      worker = null;
+      throw e;
+    });
     for (let i = 1; i <= doc.numPages; i++) {
       if (isCancelled()) return;
       const page = await doc.getPage(i);

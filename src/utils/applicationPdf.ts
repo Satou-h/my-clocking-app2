@@ -1,9 +1,10 @@
 // 休暇申請書・遅刻早退申請書PDF（A4縦）
 // レイアウトは以前の HTML を画像にしていた版と同じ。文字は画像にせずそのまま描く
 import { PDFDocument, type PDFImage } from 'pdf-lib';
-import fontkit from '@pdf-lib/fontkit';
 import { sealImage } from './seal';
-import { createPainter, downloadPdf, hex, loadFont, markLeaderSigned, writeSignAreas, type Painter } from './pdfKit';
+import {
+  createPainter, downloadPdf, embedAppFont, hex, markLeaderSigned, withPdfFont, writeSignAreas, type Painter,
+} from './pdfKit';
 
 export interface LeaveApplicationEntry {
   date: string;
@@ -66,9 +67,7 @@ async function createDoc(
   fontBytes: ArrayBuffer | Uint8Array, title: string, seal: string, approverSeal: string, confirmerSeal: string,
 ) {
   const doc = await PDFDocument.create();
-  doc.registerFontkit(fontkit);
-  // サブセット化は loadFont() で詰め直したフォントが前提
-  const font = await doc.embedFont(fontBytes, { subset: true });
+  const font = await embedAppFont(doc, fontBytes);
   doc.setTitle(title);
   const p = createPainter(doc.addPage([W, H]), font);
   const signs: Signs = {
@@ -189,17 +188,19 @@ function fileName(prefix: string, applicationDate: string, employeeId: string, l
 export async function printLeaveApplication(
   data: LeaveApplicationData, employeeId = '', lastName = '', approverLastName = '', confirmerLastName = '',
 ): Promise<void> {
-  const bytes = await buildLeaveApplicationPdf(
-    await loadFont(), data, await sealImage(lastName), await sealImage(approverLastName), await sealImage(confirmerLastName),
-  );
+  const seal = await sealImage(lastName);
+  const approverSeal = await sealImage(approverLastName);
+  const confirmerSeal = await sealImage(confirmerLastName);
+  const bytes = await withPdfFont((fontBytes) => buildLeaveApplicationPdf(fontBytes, data, seal, approverSeal, confirmerSeal));
   downloadPdf(bytes, fileName('03_休暇申請書', data.applicationDate, employeeId, lastName));
 }
 
 export async function printLateEarlyApplication(
   data: LateEarlyApplicationData, employeeId = '', lastName = '', approverLastName = '', confirmerLastName = '',
 ): Promise<void> {
-  const bytes = await buildLateEarlyApplicationPdf(
-    await loadFont(), data, await sealImage(lastName), await sealImage(approverLastName), await sealImage(confirmerLastName),
-  );
+  const seal = await sealImage(lastName);
+  const approverSeal = await sealImage(approverLastName);
+  const confirmerSeal = await sealImage(confirmerLastName);
+  const bytes = await withPdfFont((fontBytes) => buildLateEarlyApplicationPdf(fontBytes, data, seal, approverSeal, confirmerSeal));
   downloadPdf(bytes, fileName('04_遅早退申請書', data.applicationDate, employeeId, lastName));
 }

@@ -1,10 +1,9 @@
 // スキルシート（情報処理技術者 経歴書）・スキル一覧PDF（pdf-lib・A4横）
 // 勤務表・交通費・作業状況報告書と同じデザインでそろえる
 import { PDFDocument, type PDFPage } from 'pdf-lib';
-import fontkit from '@pdf-lib/fontkit';
 import type { SkillEntry, Certification, SkillSheetProfile, WorkHistoryEntry } from '../types/skill';
 import { fmtYearMonth } from './workHistory';
-import { C, createPainter, downloadPdf, drawParagraph, loadFont, type Painter } from './pdfKit';
+import { C, createPainter, downloadPdf, drawParagraph, embedAppFont, withPdfFont, type Painter } from './pdfKit';
 
 const W = 841.89, H = 595.28; // A4 横
 const M = { l: 28, r: 28, t: 22, b: 18 };
@@ -54,9 +53,7 @@ export async function buildSkillSheetPdf(
   certifications: Certification[],
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
-  doc.registerFontkit(fontkit);
-  // サブセット化は loadFont() で詰め直したフォントが前提
-  const font = await doc.embedFont(fontBytes, { subset: true });
+  const font = await embedAppFont(doc, fontBytes);
   doc.setTitle(`情報処理技術者 経歴書 ${profile.name}`);
 
   const page = doc.addPage([W, H]);
@@ -159,7 +156,7 @@ export async function printSkillSheet(
   employeeId = '',
   lastName = '',
 ): Promise<void> {
-  const bytes = await buildSkillSheetPdf(await loadFont(), profile, entries, certifications);
+  const bytes = await withPdfFont((fontBytes) => buildSkillSheetPdf(fontBytes, profile, entries, certifications));
   downloadPdf(bytes, filename('20_スキルシート', employeeId, lastName));
 }
 
@@ -175,9 +172,7 @@ export async function buildWorkHistoryPdf(
   entries: WorkHistoryEntry[],
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
-  doc.registerFontkit(fontkit);
-  // サブセット化は loadFont() で詰め直したフォントが前提
-  const font = await doc.embedFont(fontBytes, { subset: true });
+  const font = await embedAppFont(doc, fontBytes);
   doc.setTitle(`スキル一覧 ${name}`);
 
   const cols = [
@@ -300,6 +295,6 @@ export async function printWorkHistory(
   employeeId = '',
   lastName = '',
 ): Promise<void> {
-  const bytes = await buildWorkHistoryPdf(await loadFont(), name, entries);
+  const bytes = await withPdfFont((fontBytes) => buildWorkHistoryPdf(fontBytes, name, entries));
   downloadPdf(bytes, filename('21_スキル一覧', employeeId, lastName));
 }

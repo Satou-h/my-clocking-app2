@@ -1,8 +1,7 @@
 // 作業状況報告書PDF（pdf-lib・A4横）。勤務表・交通費と同じデザインでそろえる
 import { PDFDocument, type RGB } from 'pdf-lib';
-import fontkit from '@pdf-lib/fontkit';
 import type { WeekReportData } from './pdf';
-import { C, createPainter, downloadPdf, drawParagraph as para, hex, loadFont } from './pdfKit';
+import { C, createPainter, downloadPdf, drawParagraph as para, embedAppFont, hex, withPdfFont } from './pdfKit';
 
 const WEEK_LABELS = ['第一週', '第二週', '第三週', '第四週', '第五週'];
 
@@ -29,9 +28,7 @@ export async function buildWorkReportPdf(
   summary = '',
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
-  doc.registerFontkit(fontkit);
-  // サブセット化は loadFont() で詰め直したフォントが前提
-  const font = await doc.embedFont(fontBytes, { subset: true });
+  const font = await embedAppFont(doc, fontBytes);
   doc.setTitle(`${year}年${month}月 作業状況報告書 ${name}`);
 
   const W = 841.89, H = 595.28; // A4 横
@@ -154,7 +151,7 @@ export async function printWorkReport(
   lastName = '',
   monthlySummary = '',
 ): Promise<void> {
-  const bytes = await buildWorkReportPdf(await loadFont(), year, month, name, weeks, monthlySummary);
+  const bytes = await withPdfFont((fontBytes) => buildWorkReportPdf(fontBytes, year, month, name, weeks, monthlySummary));
   const userPart = (employeeId || lastName) ? `_${employeeId}${lastName}` : '';
   downloadPdf(bytes, `10_作業状況報告書${year}${String(month).padStart(2, '0')}${userPart}.pdf`);
 }
