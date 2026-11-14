@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { AttendanceRecord, PaidLeaveSettings, WorkSettings } from '../types/attendance';
 import type { TransportRecord } from '../types/transport';
 import { DOC_KEYS, DOC_LABELS, type DocKey } from '../types/document';
-import { loadUserProfile, PROFILE_MISSING_MESSAGE } from '../utils/storage';
+import { hasSealText, loadUserProfile, PROFILE_MISSING_MESSAGE, SEAL_MISSING_MESSAGE } from '../utils/storage';
 import { buildMonthDocs, useWorkTimeCheck } from '../utils/monthDocs';
 import { makeMonthPdfs } from '../utils/monthPdfs';
 import { preloadFont } from '../utils/pdfKit';
@@ -104,7 +104,10 @@ export default function SubmitTab({ records, transportRecords, workSettings, pai
   // 検算は勤務表の確認なので、勤務表を提出するときだけ判定する
   const verifyBlocks = selectedRows.some((r) => r.key === 'attendance') && !verify.passed;
   const statusUnavailable = !submissions.loaded || !!submissions.error;
+  // 印鑑の文字を保存していない人は提出できない（メンバーのデータを開いているときは提出しないので見ない）
+  const sealMissing = !viewing && !hasSealText(loadUserProfile());
   const blockReason = statusUnavailable ? '提出状況を読み込めないため提出できません'
+    : sealMissing ? SEAL_MISSING_MESSAGE
     : selectableRows.length === 0 ? 'この月に提出できる書類はありません'
     : selectedRows.length === 0 ? '提出する書類を選んでください'
     : selectedRows.some((r) => !r.doc.complete) ? '選んだ書類に未入力または不要なデータがあるため提出できません'
@@ -239,11 +242,13 @@ export default function SubmitTab({ records, transportRecords, workSettings, pai
           確認済みの書類を「承認」してください。確認と承認は同じ人がしてもかまいません。
           確認前の書類は、勤怠一覧・交通費・申請書類・作業報告・スキル表の画面で修正できます。
           確認済み・承認済みの書類を直すときは、「承認を取り消す」「確認を取り消す」で確認前に戻してください。
+          確認・承認するには、自分の「印鑑」の画面で印鑑の文字を保存しておく必要があります。
           提出・取り下げは本人だけができます。
         </p>
       ) : (
         <p className="hint">
           提出する書類にチェックを入れてください。選んだ書類の入力がすべて完了すると提出できます（入力のチェックはダウンロードと同じです）。
+          提出するには、「印鑑」の画面で印鑑の文字を保存しておく必要があります。
           提出した書類は、取り下げるまで変更できません。
           「PDFで確認」で、入力が完了した書類は提出する前にPDFで見られます（提出した書類も見られます）。
         </p>

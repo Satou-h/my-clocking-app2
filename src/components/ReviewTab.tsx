@@ -3,14 +3,19 @@ import { DOC_KEYS, DOC_LABELS } from '../types/document';
 import { SUBMISSION_LABELS, findSubmission, isLockedStatus } from '../utils/submissions';
 import { listReviewMembers, memberName, type ReviewMember } from '../utils/review';
 import { openMemberData } from '../utils/cloudSync';
+import { hasSealText, loadUserProfile } from '../utils/storage';
 
 interface Props {
   // 部下のデータを開いたあと（開いた月の提出画面を出す）
   onOpened: (year: number, month: number) => void;
+  // 「印鑑」の画面を開く（自分の印鑑の文字を保存していないとき）
+  onOpenSeal: () => void;
 }
 
 // リーダー・管理者が、メンバーの提出状況を確かめ、メンバーのデータを開いて提出済みの書類を確認・承認・修正する画面
-export default function ReviewTab({ onOpened }: Props) {
+export default function ReviewTab({ onOpened, onOpenSeal }: Props) {
+  // この画面では自分のデータを開いているので、自分の印鑑の文字を保存してあるか分かる
+  const sealMissing = !hasSealText(loadUserProfile());
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -64,6 +69,12 @@ export default function ReviewTab({ onOpened }: Props) {
         </button>
       </div>
 
+      {sealMissing && (
+        <div className="notice-banner" role="status">
+          <span>あなたの印鑑が設定されていないため、確認・承認はできません（データを開いて見ることはできます）。「印鑑」の画面で印鑑の文字を保存してください。</span>
+          <button type="button" className="btn-link" onClick={onOpenSeal}>設定する</button>
+        </div>
+      )}
       {error && (
         <div className="notice-banner" role="status"><span>メンバーの一覧を読み込めませんでした（{error}）</span></div>
       )}

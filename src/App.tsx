@@ -6,7 +6,7 @@ import {
   loadPaidLeaveSettings, savePaidLeaveSettings,
   loadWorkSettings, saveWorkSettings,
   loadTransportRecords, saveTransportRecords,
-  loadUserProfile,
+  loadUserProfile, hasSealText,
   findPaidLeaveSetting,
 } from './utils/storage';
 import AttendanceForm from './components/AttendanceForm';
@@ -282,6 +282,8 @@ export default function App() {
   const pendingCount = submitItems.filter((i) => !i.done).length;
 
   const profileMissing = !userProfile.employeeId.trim() || !userProfile.lastName.trim() || !fullName.trim();
+  // 印鑑の文字を保存していない人は提出できない（リーダー・管理者は確認・承認も）
+  const sealMissing = !hasSealText(userProfile);
   const groupOfTab = NAV_GROUPS.find((g) => g.items.some((i) => i.key === tab))?.id;
 
   function renderMenuList(groupId: NavGroupId) {
@@ -402,6 +404,13 @@ export default function App() {
             {isAdmin && <button type="button" className="btn-link" onClick={() => openTab('members')}>設定する</button>}
           </div>
         )}
+        {sealMissing && !viewing && tab !== 'seal' && (
+          <div className="notice-banner" role="status">
+            <Icon name="alert" />
+            <span>印鑑が未設定です。「印鑑」の画面で印鑑の文字を保存するまで、書類を提出できません（苗字のままでかまいません）。</span>
+            <button type="button" className="btn-link" onClick={() => openTab('seal')}>設定する</button>
+          </div>
+        )}
         {tab === 'menu-submit' && renderMenuList('submit')}
         {tab === 'menu-more' && renderMenuList('more')}
         {tab === 'input' && (
@@ -482,6 +491,7 @@ export default function App() {
               setFocusMonth({ year, month });
               openTab('submit');
             }}
+            onOpenSeal={() => openTab('seal')}
           />
         )}
         {tab === 'seal' && tabVisible('seal') && (

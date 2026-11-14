@@ -39,6 +39,14 @@ export function sealTextOf(p: UserProfile): string {
   return (p.sealText ?? '').replace(/\s/g, '') || p.lastName;
 }
 
+// 印鑑の文字を保存してあるか（保存していない人は、提出・確認・承認できない。データベースでも止める）
+export function hasSealText(p: UserProfile): boolean {
+  return (p.sealText ?? '').replace(/\s/g, '') !== '';
+}
+
+// 印鑑の文字を保存していないため提出できないときの知らせ
+export const SEAL_MISSING_MESSAGE = '印鑑が設定されていないため提出できません。「印鑑」の画面で印鑑の文字を保存してください';
+
 // 社員番号・苗字がないため PDF を作れないときの知らせ
 export const PROFILE_MISSING_MESSAGE =
   '社員番号と苗字が設定されていません。管理者が「ユーザー管理」で設定してから、もう一度お試しください。';

@@ -38,16 +38,18 @@ function useSealImage(text: string): (SealResult & { stale: boolean }) | null {
 }
 
 /**
- * 印鑑の画面。印鑑はふだん苗字から自動で作り、印鑑に入れる文字は本人が変えられる（空欄に戻すと苗字）。
+ * 印鑑の画面。印鑑に入れる文字を本人が決めて保存する（苗字のままでもよい）。
+ * 保存していない人は提出できず、リーダー・管理者は確認・承認もできない（データベースでも止める）。
  * 自分のPDFを出力するときは本人欄に自動で押印し、リーダーとして確認・承認したときもこの文字の印鑑が押される。
  * リーダーはメンバーのPDFを読み込み、確認印・確認・検印の欄に自分の印鑑を押すこともできる。
  */
 export default function SealTab({ lastName }: Props) {
   const name = normalizeSealText(lastName);
   const inputId = useId();
-  // 保存してある印鑑の文字（空なら苗字）と、入力中の文字
+  // 保存してある印鑑の文字（空なら未設定）と、入力中の文字。
+  // 未設定のときは苗字を入れた状態から始める（そのまま保存すれば苗字の印鑑になる）
   const [saved, setSaved] = useState(() => normalizeSealText(loadUserProfile().sealText ?? ''));
-  const [draft, setDraft] = useState(saved);
+  const [draft, setDraft] = useState(() => saved || name);
   const [notice, setNotice] = useState('');
   const [stamping, setStamping] = useState(false);
   const [logs, setLogs] = useState<StampLog[]>([]);
@@ -56,21 +58,22 @@ export default function SealTab({ lastName }: Props) {
   const draftText = normalizeSealText(draft);
   const tooLong = [...draftText].length > SEAL_TEXT_MAX;
   const changed = draftText !== saved;
+  const canSave = changed && draftText !== '' && !tooLong;
   // 見本は入力中の文字の印鑑、検印に使うのは保存してある文字の印鑑
-  const preview = useSealImage(tooLong ? '' : draftText || name);
-  const current = useSealImage(saved || name);
+  const preview = useSealImage(tooLong ? '' : draftText);
+  const current = useSealImage(saved);
   const sealUrl = current && !current.stale ? current.url : '';
 
   function store(text: string) {
     saveUserProfile({ ...loadUserProfile(), sealText: text });
     setSaved(text);
     setDraft(text);
-    setNotice(text ? '印鑑の文字を保存しました' : '苗字の印鑑に戻しました');
+    setNotice('印鑑の文字を保存しました');
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (tooLong || !changed) return;
+    if (!canSave) return;
     store(draftText);
   }
 
@@ -104,15 +107,23 @@ export default function SealTab({ lastName }: Props) {
 
   let previewEmpty = '作成中…';
   if (tooLong) previewEmpty = `${SEAL_TEXT_MAX}文字までです`;
-  else if (!draftText && !name) previewEmpty = '苗字が未設定';
+  else if (!draftText) previewEmpty = '文字を入力してください';
   else if (preview?.error) previewEmpty = '作成できません';
 
   return (
     <div className="seal-tab">
       <h2>印鑑</h2>
       <p className="hint">
-        PDFに押す印鑑です。ふだんは苗字から自動で作りますが、印鑑に入れる文字は自分で変えられます。
+        PDFに押す印鑑です。印鑑に入れる文字を決めて保存してください（苗字のままでもかまいません）。
       </p>
+      {!saved && (
+        <div className="notice-banner" role="status">
+          <span>
+            印鑑の文字がまだ保存されていません。保存するまで、書類の提出（リーダー・管理者は確認・承認）はできません。
+            {name && draftText === name && '苗字のままでよければ、そのまま「保存」を押してください。'}
+          </span>
+        </div>
+      )}
 
       <div className="seal-card">
         <div className={`seal-preview${preview?.stale ? ' is-stale' : ''}`}>
@@ -136,22 +147,22 @@ export default function SealTab({ lastName }: Props) {
           />
           <p id={`${inputId}-hint`} className="hint hint-inline">
             {SEAL_TEXT_MAX}文字まで。3文字までは縦に1列、4文字からは右から読む2列、英字だけなら横書きになります。
-            {name ? `空欄にすると苗字（${name}）の印鑑になります。` : '空欄にすると苗字の印鑑になります。'}
           </p>
           {tooLong && <p className="cloud-message cloud-message-error" role="alert">印鑑の文字は{SEAL_TEXT_MAX}文字までです</p>}
+          {!draftText && <p className="cloud-message cloud-message-error" role="alert">印鑑の文字を入力してください</p>}
           {preview?.error && !tooLong && <p className="cloud-message cloud-message-error" role="alert">{preview.error}</p>}
           <div className="cloud-actions">
-            <button type="submit" className="btn btn-primary btn-sm" disabled={!changed || tooLong}>保存</button>
-            {changed && (
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => { setDraft(saved); setNotice(''); }}>
+            <button type="submit" className="btn btn-primary btn-sm" disabled={!canSave}>保存</button>
+            {draftText !== (saved || name) && (saved || name) && (
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => { setDraft(saved || name); setNotice(''); }}>
                 入力を戻す
               </button>
             )}
-            {!changed && saved && (
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => store('')}>苗字の印鑑に戻す</button>
+            {!changed && saved && name && saved !== name && (
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => store(name)}>苗字（{name}）にする</button>
             )}
           </div>
-          {changed && !tooLong && <p className="hint hint-inline">まだ保存していません。保存するとPDFの印鑑が変わります。</p>}
+          {canSave && saved && <p className="hint hint-inline">まだ保存していません。保存するとPDFの印鑑が変わります。</p>}
           {!changed && notice && <p className="hint hint-inline" role="status">{notice}</p>}
         </form>
       </div>
@@ -172,6 +183,7 @@ export default function SealTab({ lastName }: Props) {
           メンバーがこのアプリで出力したPDFを選ぶと、勤務表の「確認印」、休暇申請書・遅刻早退申請書の「確認」、交通費精算書の「検印」の欄にあなたの印鑑（保存してある文字）を押して保存します。まとめて選べます。
           提出された書類は、「メンバーの提出」から開いて「確認」すると、出力するPDFのこれらの欄に自動で印鑑が押されます（その場合はここでの検印は不要です）。
         </p>
+        {!saved && <p className="hint">印鑑の文字を保存すると使えます。</p>}
         {current?.error && <p className="cloud-message cloud-message-error" role="alert">{current.error}</p>}
         <input ref={fileRef} type="file" accept="application/pdf,.pdf" multiple className="is-hidden" onChange={handleFiles} />
         <button
