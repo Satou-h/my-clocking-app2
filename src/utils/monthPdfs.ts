@@ -4,6 +4,7 @@
  * ・いま開いているデータ（自分、またはリーダー・管理者が開いたメンバー）の書類を作る
  * ・勤務表は、提出用の勤務表と、時間の内訳を細かく載せた勤務表(計算用)の2件を作る
  * ・氏名・社員番号・苗字は、管理者が「ユーザー管理」で設定した内容を使う（申請書も申請ごとの氏名ではなくこちら）
+ * ・本人欄（休暇・遅刻早退申請書: 本人 / 交通費精算書: 本人印）には本人の印鑑を押す（本人が決めた文字。決めていなければ苗字）
  * ・確認済み・承認済みの書類は、確認の欄（勤務表: 確認印 / 休暇・遅刻早退申請書: 確認 / 交通費精算書: 検印）に
  *   確認した人の印鑑を押す。承認済みの書類は、承認欄に承認した人の印鑑も押す（未提出・確認前なら空）
  * ・作ったPDFは保存せずに返す（保存するか画面に表示するかは呼び出す側が決める）
@@ -12,7 +13,8 @@ import type { AttendanceRecord, PaidLeaveSettings, WorkSettings } from '../types
 import type { TransportRecord } from '../types/transport';
 import { LEAVE_LABELS, calcLeaveDays } from '../types/application';
 import type { DocKey } from '../types/document';
-import { loadUserProfile, loadSkillEntries, loadCertifications, loadWorkHistory } from './storage';
+import { loadUserProfile, loadSkillEntries, loadCertifications, loadWorkHistory, sealTextOf } from './storage';
+import type { SealTexts } from './seal';
 import { buildMonthDocs } from './monthDocs';
 import { printMonthlyAttendancePDF } from './attendancePdf';
 import { printWorkReport } from './pdf';
@@ -43,21 +45,21 @@ export function makeMonthPdfs(
   } = buildMonthDocs(year, month, records, transportRecords, workSettings, paidLeaveSettings);
 
   const subs = getSubmissionState().items;
-  const approver = (doc: DocKey) => approverOf(subs, doc, year, month);
-  const confirmer = (doc: DocKey) => confirmerOf(subs, doc, year, month);
+  const seals = (doc: DocKey): SealTexts => ({
+    self: sealTextOf(p),
+    approver: approverOf(subs, doc, year, month),
+    confirmer: confirmerOf(subs, doc, year, month),
+  });
 
   return collectPdfs(async () => {
     if (targets.has('attendance')) {
       await printMonthlyAttendancePDF(
-        records, workSettings, year, month, plRemaining, p.employeeId, p.lastName, reportName,
-        approver('attendance'), confirmer('attendance'),
+        records, workSettings, year, month, plRemaining, p.employeeId, p.lastName, reportName, seals('attendance'),
       );
     }
 
     if (targets.has('transport')) {
-      await printTransportPDF(
-        transportRecords, year, month, p.employeeId, p.lastName, reportName, approver('transport'), confirmer('transport'),
-      );
+      await printTransportPDF(transportRecords, year, month, p.employeeId, p.lastName, reportName, seals('transport'));
     }
 
     if (targets.has('leave')) {
@@ -70,7 +72,7 @@ export function makeMonthPdfs(
           dateEntries: entriesInMonth.map((e) => ({ date: e.date, leaveLabel: LEAVE_LABELS[e.leaveType] })),
           leaveDays: calcLeaveDays(entriesInMonth),
           reason: batch.reason,
-        }, p.employeeId, p.lastName, approver('leave'), confirmer('leave'));
+        }, p.employeeId, p.lastName, seals('leave'));
       }
     }
 
@@ -85,7 +87,7 @@ export function makeMonthPdfs(
           scheduledTime: rec.scheduledTime,
           actualTime: rec.actualTime,
           reason: rec.reason,
-        }, p.employeeId, p.lastName, approver('lateEarly'), confirmer('lateEarly'));
+        }, p.employeeId, p.lastName, seals('lateEarly'));
       }
     }
 

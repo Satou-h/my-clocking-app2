@@ -27,9 +27,16 @@ function setTracked(collection: CollectionId, key: string, value: unknown): void
 }
 
 // 社員番号・苗字は管理者が「ユーザー管理」で設定する（本人の画面では変えられない。データベースから読み込むだけ）
+// 印鑑の文字（sealText）だけは本人が「印鑑」の画面で決める（空なら苗字の印鑑）
 export interface UserProfile {
   employeeId: string;
   lastName: string;
+  sealText?: string;
+}
+
+// 本人の印鑑に入れる文字（本人が決めた文字。決めていなければ苗字）
+export function sealTextOf(p: UserProfile): string {
+  return (p.sealText ?? '').replace(/\s/g, '') || p.lastName;
 }
 
 // 社員番号・苗字がないため PDF を作れないときの知らせ

@@ -1,8 +1,23 @@
-// 苗字から印鑑（朱色の丸印）の画像を作る
+// 印鑑（朱色の丸印）の画像を作る。文字は本人が「印鑑」の画面で決めたもの（決めていなければ苗字）
 // 自分のPDFの本人欄・リーダーの検印（stampPdf.ts）に押し、印鑑の画面でも同じ画像を見せる。
 // 文字はPDFと同じ同梱フォント（NotoSansJP）で描くので、端末によって形が変わらない。
-// ふだんは常用字のフォント（common）で描き、common にない字の苗字のときだけ元のフォント（full）を読み込む（pdfKit.ts）
+// ふだんは常用字のフォント（common）で描き、common にない字があるときだけ元のフォント（full）を読み込む（pdfKit.ts）
 import { commonFontCovers, loadRawFont, type FontKind } from './pdfKit';
+
+/** 印鑑に入れられる文字数（データベースの profiles.seal_text も同じ上限） */
+export const SEAL_TEXT_MAX = 6;
+
+/** 印鑑の文字から空白を除く（印鑑には空白を入れない） */
+export function normalizeSealText(text: string): string {
+  return text.replace(/\s/g, '');
+}
+
+/** PDF に押す印鑑の文字。空の欄には押さない */
+export interface SealTexts {
+  self?: string;      // 本人欄（休暇・遅刻早退申請書: 本人 / 交通費精算書: 本人印）
+  approver?: string;  // 承認した人（承認済みの書類。勤務表: 承認印 / ほか: 承認）
+  confirmer?: string; // 確認した人（確認済み・承認済みの書類。勤務表: 確認印 / 申請書: 確認 / 交通費精算書: 検印）
+}
 
 const SIZE = 480;        // 画像の一辺（px）。PDFの欄（直径 1cm ほど）に縮めても十分な細かさ
 const RED = '#D6332B';   // 朱肉の色
@@ -33,9 +48,9 @@ function loadSealFont(kind: FontKind): Promise<string> {
 
 const cache = new Map<string, Promise<string>>();
 
-/** 苗字の印鑑の画像（PNG の data URL）。苗字が空なら空文字 */
-export function sealImage(lastName: string): Promise<string> {
-  const name = lastName.replace(/\s/g, '');
+/** text の印鑑の画像（PNG の data URL）。text が空なら空文字 */
+export function sealImage(text: string): Promise<string> {
+  const name = normalizeSealText(text);
   if (!name) return Promise.resolve('');
   let image = cache.get(name);
   if (!image) {

@@ -440,31 +440,32 @@ function skillEmpty(): SkillSheet {
 // 社員情報・氏名・基準時間（プロフィールは登録時に自動で作られるため、更新だけ行う）
 // 社員番号・苗字・氏名は管理者が「ユーザー管理」で決める。読み込むだけで、この端末からは書き込まない
 // （PROFILE_WRITABLE。古い内容で管理者の変更を上書きしないように）
-// 印鑑は苗字から PDF を出力するときに作るため、保存しない（以前の手書きサインの列 signature_* は使わない）
+// 印鑑の画像は PDF を出力するときに作るため保存しない。保存するのは本人が決めた印鑑の文字（seal_text。空なら苗字の印鑑）だけ
+// （以前の手書きサインの列 signature_* は使わない）
 interface ProfileItem {
-  employeeId: string; lastName: string; name: string;
+  employeeId: string; lastName: string; name: string; sealText: string;
   startTime: string; endTime: string;
 }
 const PROFILE_EMPTY: ProfileItem = {
-  employeeId: '', lastName: '', name: '',
+  employeeId: '', lastName: '', name: '', sealText: '',
   startTime: DEFAULT_WORK_SETTINGS.standardStartTime, endTime: DEFAULT_WORK_SETTINGS.standardEndTime,
 };
 
 const profile = define<ProfileItem>({
   id: 'profile', table: 'profiles', label: '社員情報',
-  columns: ['employee_id', 'last_name', 'full_name', 'standard_start_time', 'standard_end_time'],
+  columns: ['employee_id', 'last_name', 'full_name', 'seal_text', 'standard_start_time', 'standard_end_time'],
   order: [], keyCols: [], conflict: 'user_id',
   items: () => {
     const p = loadUserProfile();
     const ws = loadWorkSettings();
     return [{
-      employeeId: p.employeeId ?? '', lastName: p.lastName ?? '', name: loadName(),
+      employeeId: p.employeeId ?? '', lastName: p.lastName ?? '', name: loadName(), sealText: p.sealText ?? '',
       startTime: ws.standardStartTime, endTime: ws.standardEndTime,
     }];
   },
   setItems: (items) => {
     const p = items[0] ?? PROFILE_EMPTY;
-    saveUserProfile({ ...loadUserProfile(), employeeId: p.employeeId, lastName: p.lastName });
+    saveUserProfile({ ...loadUserProfile(), employeeId: p.employeeId, lastName: p.lastName, sealText: p.sealText });
     saveWorkSettings({
       ...loadWorkSettings(),
       standardStartTime: p.startTime || DEFAULT_WORK_SETTINGS.standardStartTime,
@@ -476,17 +477,18 @@ const profile = define<ProfileItem>({
     employee_id: p.employeeId ?? '',
     last_name: p.lastName ?? '',
     full_name: p.name ?? '',
+    seal_text: p.sealText ?? '',
     standard_start_time: p.startTime || DEFAULT_WORK_SETTINGS.standardStartTime,
     standard_end_time: p.endTime || DEFAULT_WORK_SETTINGS.standardEndTime,
   }),
   from: (row) => ({
-    employeeId: str(row.employee_id), lastName: str(row.last_name), name: str(row.full_name),
+    employeeId: str(row.employee_id), lastName: str(row.last_name), name: str(row.full_name), sealText: str(row.seal_text),
     startTime: str(row.standard_start_time), endTime: str(row.standard_end_time),
   }),
   empty: PROFILE_EMPTY,
 });
 // プロフィールのうち、本人の端末から書き込む列
-const PROFILE_WRITABLE = ['standard_start_time', 'standard_end_time'];
+const PROFILE_WRITABLE = ['seal_text', 'standard_start_time', 'standard_end_time'];
 
 // 管理者が「ユーザー管理」で自分の社員情報を変えたとき、メモリ上の内容を合わせる（データベースは保存済み）
 export function applyOwnProfile(p: { employeeId: string; lastName: string; fullName: string }) {
@@ -849,12 +851,14 @@ function submissionErrorText(e: DbError): string {
 }
 
 const SUBMISSION_COLUMNS = 'year,month,doc,status,submitted_at,reviewed_at,review_comment';
-// 上長・管理者が修正した記録と、承認した人・確認した人の苗字
+// 上長・管理者が修正した記録と、承認した人・確認した人の苗字・印鑑の文字
 // （列がまだないデータベースでは、ない列を外して読み直し、記録なしとして扱う）
 const MODIFIED_COLUMNS = ',modified_at,modified_by_name';
 const APPROVER_COLUMNS = ',approver_last_name';
 const CONFIRMER_COLUMNS = ',confirmed_at,confirmer_last_name';
+const SEAL_TEXT_COLUMNS = ',approver_seal_text,confirmer_seal_text'; // 承認・確認した人の印鑑の文字
 const SUBMISSION_COLUMN_SETS = [
+  SUBMISSION_COLUMNS + MODIFIED_COLUMNS + APPROVER_COLUMNS + CONFIRMER_COLUMNS + SEAL_TEXT_COLUMNS,
   SUBMISSION_COLUMNS + MODIFIED_COLUMNS + APPROVER_COLUMNS + CONFIRMER_COLUMNS,
   SUBMISSION_COLUMNS + MODIFIED_COLUMNS + APPROVER_COLUMNS,
   SUBMISSION_COLUMNS + MODIFIED_COLUMNS,

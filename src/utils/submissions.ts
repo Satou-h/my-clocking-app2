@@ -29,11 +29,13 @@ export interface Submission {
   // 提出後に上長・管理者が修正した日時と、修正した人の名前（修正していなければ null・空）
   modifiedAt: string | null;
   modifiedByName: string;
-  // 承認した人の苗字（承認済みの書類だけ。PDFの承認欄にこの苗字の印鑑を押す）
+  // 承認した人の苗字と印鑑の文字（承認済みの書類だけ。PDFの承認欄にこの文字の印鑑を押す）
   approverLastName: string;
-  // 確認した日時と、確認した人の苗字（確認済み・承認済みの書類。PDFの確認欄にこの苗字の印鑑を押す）
+  approverSealText: string;
+  // 確認した日時と、確認した人の苗字と印鑑の文字（確認済み・承認済みの書類。PDFの確認欄にこの文字の印鑑を押す）
   confirmedAt: string | null;
   confirmerLastName: string;
+  confirmerSealText: string;
 }
 
 export interface SubmissionState {
@@ -95,8 +97,10 @@ export function parseSubmission(row: Record<string, unknown>): Submission | null
     modifiedAt: typeof row.modified_at === 'string' ? row.modified_at : null,
     modifiedByName: typeof row.modified_by_name === 'string' ? row.modified_by_name : '',
     approverLastName: typeof row.approver_last_name === 'string' ? row.approver_last_name.trim() : '',
+    approverSealText: typeof row.approver_seal_text === 'string' ? row.approver_seal_text.trim() : '',
     confirmedAt: typeof row.confirmed_at === 'string' ? row.confirmed_at : null,
     confirmerLastName: typeof row.confirmer_last_name === 'string' ? row.confirmer_last_name.trim() : '',
+    confirmerSealText: typeof row.confirmer_seal_text === 'string' ? row.confirmer_seal_text.trim() : '',
   };
 }
 
@@ -109,16 +113,18 @@ export function isLockedStatus(status: SubmissionStatus | undefined): boolean {
   return status === 'submitted' || status === 'confirmed' || status === 'approved';
 }
 
-// 承認済みの書類なら、承認した人の苗字（承認欄に押す印鑑）。承認前・未提出なら空
+// 承認済みの書類なら、承認欄に押す承認した人の印鑑の文字。承認前・未提出なら空
+// （印鑑の文字を残していない、この機能より前の承認は苗字）
 export function approverOf(items: Submission[], doc: DocKey, year: number, month: number): string {
   const s = findSubmission(items, doc, year, month);
-  return s?.status === 'approved' ? s.approverLastName : '';
+  return s?.status === 'approved' ? s.approverSealText || s.approverLastName : '';
 }
 
-// 確認済み・承認済みの書類なら、確認した人の苗字（確認欄に押す印鑑）。確認前・未提出なら空
+// 確認済み・承認済みの書類なら、確認欄に押す確認した人の印鑑の文字。確認前・未提出なら空
+// （印鑑の文字を残していない、この機能より前の確認は苗字）
 export function confirmerOf(items: Submission[], doc: DocKey, year: number, month: number): string {
   const s = findSubmission(items, doc, year, month);
-  return s?.status === 'confirmed' || s?.status === 'approved' ? s.confirmerLastName : '';
+  return s?.status === 'confirmed' || s?.status === 'approved' ? s.confirmerSealText || s.confirmerLastName : '';
 }
 
 export function isDocLocked(doc: DocKey, year: number, month: number, items: Submission[] = state.items): boolean {

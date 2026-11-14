@@ -3,7 +3,7 @@ import { PDFDocument } from 'pdf-lib';
 import type { TransportRecord } from '../types/transport';
 import { TRIP_TYPE_LABELS } from '../types/transport';
 import { getHolidayName } from './holidays';
-import { sealImage } from './seal';
+import { sealImage, type SealTexts } from './seal';
 import { C, DOW_JA, createPainter, downloadPdf, embedAppFont, markLeaderSigned, withPdfFont, writeSignAreas } from './pdfKit';
 
 const yen = (n: number) => `¥${n.toLocaleString('ja-JP')}`;
@@ -167,12 +167,11 @@ export async function printTransportPDF(
   employeeId = '',
   lastName = '',
   name = '',
-  approverLastName = '', // 承認済みなら承認した人の苗字（承認欄に印鑑を押す）
-  confirmerLastName = '', // 確認済み・承認済みなら確認した人の苗字（検印欄に印鑑を押す）
+  seals: SealTexts = {}, // 本人印・承認・検印の欄に押す印鑑の文字
 ): Promise<void> {
-  const seal = await sealImage(lastName);
-  const approverSeal = await sealImage(approverLastName);
-  const confirmerSeal = await sealImage(confirmerLastName);
+  const seal = await sealImage(seals.self ?? '');
+  const approverSeal = await sealImage(seals.approver ?? '');
+  const confirmerSeal = await sealImage(seals.confirmer ?? '');
   const bytes = await withPdfFont((fontBytes) => (
     buildTransportPdf(fontBytes, records, year, month, name, seal, approverSeal, confirmerSeal)
   ));

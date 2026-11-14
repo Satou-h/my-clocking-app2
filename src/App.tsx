@@ -60,7 +60,7 @@ const NAV_GROUPS: { id: NavGroupId; label: string; items: { key: Tab; label: str
   },
   {
     id: 'more', label: 'その他', items: [
-      { key: 'seal', label: '印鑑', icon: 'seal', desc: '苗字の印鑑の確認・リーダーの検印' },
+      { key: 'seal', label: '印鑑', icon: 'seal', desc: '印鑑の文字の設定・リーダーの検印' },
       { key: 'transfer', label: 'QR/カナコード', icon: 'qr', desc: '別の端末へデータを移す' },
       { key: 'members', label: 'ユーザー管理', icon: 'users', desc: 'アカウントの作成・社員情報と役割の設定（管理者のみ）' },
       { key: 'settings', label: '設定', icon: 'settings', desc: 'クラウド保存・パスワード・社員情報・基準時間・テーマ' },

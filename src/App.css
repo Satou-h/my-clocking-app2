@@ -872,6 +872,29 @@ h3 {
   border-radius: var(--radius);
 }
 .seal-preview img { display: block; width: 100%; height: 100%; }
+.seal-preview.is-stale img { opacity: 0.5; } /* 入力した文字の印鑑を作っている間は、前の見本を薄く出す */
+.seal-text-form h3 label { color: inherit; font: inherit; }
+.seal-text-form input {
+  width: 100%;
+  max-width: 240px;
+  min-height: 40px;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  font-size: 16px; /* スマホで入力したときに画面が拡大されないように */
+  background: var(--input-bg);
+  color: var(--text);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.seal-text-form input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.seal-text-form input[aria-invalid="true"] { border-color: var(--danger-text); }
+.seal-text-form .cloud-message { margin: 8px 0 0; }
+.seal-text-form .cloud-actions { margin: 12px 0 8px; }
 .seal-empty { color: #8a8f99; font-size: 12px; text-align: center; } /* 白い紙の上なのでダークモードでも同じ色 */
 .stamp-section {
   margin-top: 16px;

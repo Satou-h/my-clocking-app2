@@ -39,7 +39,7 @@ export default function WorkSettingsForm({
 
       <h3>社員情報</h3>
       <p className="hint">
-        勤務表・交通費・作業報告書・申請書のPDFに印字され、印鑑も苗字から作られます。
+        勤務表・交通費・作業報告書・申請書のPDFに印字されます。印鑑はふだん苗字から作られます（文字は「印鑑」の画面で変えられます）。
         社員番号・氏名は管理者が「ユーザー管理」で設定します。
       </p>
       <div className="settings-info settings-profile">

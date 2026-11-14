@@ -10,7 +10,7 @@ import {
   isLateArrival, isEarlyDeparture, getEffectiveBreak, getWorkLocation, timeToMins, withFixedNotes,
 } from './storage';
 import { getHolidayName } from './holidays';
-import { sealImage } from './seal';
+import { sealImage, type SealTexts } from './seal';
 import {
   C, DOW_JA, createPainter, drawStatGroups, downloadPdf, embedAppFont, hm, hm10, markLeaderSigned, shortTime, withPdfFont,
   writeSignAreas,
@@ -451,12 +451,11 @@ export async function printMonthlyAttendancePDF(
   employeeId = '',
   lastName = '',
   name = '',
-  approverLastName = '', // 承認済みなら承認した人の苗字（承認印欄に印鑑を押す）
-  confirmerLastName = '', // 確認済み・承認済みなら確認した人の苗字（確認印欄に印鑑を押す）
+  seals: SealTexts = {}, // 承認印・確認印の欄に押す印鑑の文字（勤務表に本人欄はない）
 ): Promise<void> {
   const args: Omit<AttendanceSheetArgs, 'fontBytes'> = {
     records, workSettings, year, month, plRemaining, name,
-    approverSeal: await sealImage(approverLastName), confirmerSeal: await sealImage(confirmerLastName),
+    approverSeal: await sealImage(seals.approver ?? ''), confirmerSeal: await sealImage(seals.confirmer ?? ''),
   };
   const ym = `${year}${String(month).padStart(2, '0')}`;
   const userPart = (employeeId || lastName) ? `_${employeeId}${lastName}` : '';
