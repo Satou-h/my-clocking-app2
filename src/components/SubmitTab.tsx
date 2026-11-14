@@ -83,9 +83,9 @@ export default function SubmitTab({ records, transportRecords, workSettings, pai
   const submittedCount = rows.filter(isLocked).length;
   const targetCount = rows.filter((r) => r.doc.required || isLocked(r)).length;
 
-  // 提出済みの書類（「PDFで確認」を押せる書類）があれば、押される前に、手が空いたところで
-  // PDFに使うフォントと、PDFを表示する部品を読み込んでおく（初めて開くときの待ち時間を減らす）
-  const canPreview = submittedCount > 0;
+  // 「PDFで確認」を押せる書類（提出済み・確認済み・承認済みの書類と、入力が完了した書類）があれば、押される前に、
+  // 手が空いたところでPDFに使うフォントと、PDFを表示する部品を読み込んでおく（初めて開くときの待ち時間を減らす）
+  const canPreview = rows.some((r) => isLocked(r) || (r.doc.required && r.doc.complete));
   useEffect(() => {
     if (!canPreview) return;
     const preload = () => { preloadFont(); preloadPdfViewer(); };
@@ -129,7 +129,8 @@ export default function SubmitTab({ records, transportRecords, workSettings, pai
     setMessage('');
   }
 
-  // 提出された書類を、ダウンロードせずに画面で見る（ダウンロード画面と同じPDF。確認済み・承認済みなら確認した人・承認者の印鑑も押す）
+  // 書類を、ダウンロードせずに画面で見る（ダウンロード画面と同じPDF。提出前の書類も見られる。
+  // 確認済み・承認済みなら確認した人・承認者の印鑑も押す）
   async function handlePreview(key: DocKey) {
     const year = filterYear, month = filterMonth;
     setPreview({
@@ -243,7 +244,8 @@ export default function SubmitTab({ records, transportRecords, workSettings, pai
       ) : (
         <p className="hint">
           提出する書類にチェックを入れてください。選んだ書類の入力がすべて完了すると提出できます（入力のチェックはダウンロードと同じです）。
-          提出した書類は、取り下げるまで変更できません。「PDFで確認」で、提出した書類をPDFで見られます。
+          提出した書類は、取り下げるまで変更できません。
+          「PDFで確認」で、入力が完了した書類は提出する前にPDFで見られます（提出した書類も見られます）。
         </p>
       )}
 

@@ -22,7 +22,7 @@ interface ChecklistProps {
   // リーダー・管理者がメンバーの確認済みの書類を承認する・承認済みの書類の承認を取り消す
   onApprove?: (key: DocKey) => void;
   onUnapprove?: (key: DocKey) => void;
-  // 提出済み・確認済み・承認済みの書類をPDFで見る
+  // 書類をPDFで見る（提出済み・確認済み・承認済みの書類と、入力が完了した未提出の書類。未入力・不備がある書類は見られない）
   onPreview?: (key: DocKey) => void;
   // 見るだけ（チェックボックスを出さない。リーダー・管理者がメンバーの提出状況を見るとき）
   readOnly?: boolean;
@@ -48,6 +48,11 @@ export function DocChecklist({
         const statusLabel = locked ? SUBMISSION_LABELS[submission!.status] : docStatusLabel(doc);
         const icon = locked ? '済' : inputStatus === 'ok' ? '✓' : inputStatus === 'skip' ? '－' : '×';
         const rejected = showSubmission && submission?.status === 'rejected';
+        const previewButton = onPreview && (locked || inputStatus === 'ok') && (
+          <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => onPreview(key)}>
+            PDFで確認
+          </button>
+        );
         return (
           <div key={key} className={`bulk-check-item bulk-check-${status}${checked || locked || readOnly ? '' : ' bulk-check-unselected'}`}>
             <label className="bulk-check-head">
@@ -86,11 +91,7 @@ export function DocChecklist({
                     {submission!.modifiedByName ? `${submission!.modifiedByName}さん` : 'リーダー・管理者'}が修正
                   </span>
                 )}
-                {onPreview && (
-                  <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => onPreview(key)}>
-                    PDFで確認
-                  </button>
-                )}
+                {previewButton}
                 {submission!.status === 'submitted' && onWithdraw && (
                   <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => onWithdraw(key)}>
                     取り下げ
@@ -123,6 +124,9 @@ export function DocChecklist({
                   <span>（承認済みのため取り下げできません。直す必要があるときは、リーダー・管理者に承認と確認の取り消しを依頼してください）</span>
                 )}
               </div>
+            )}
+            {!locked && previewButton && (
+              <div className="bulk-submission-row">{previewButton}</div>
             )}
             {rejected && (
               <div className="bulk-missing-dates">
